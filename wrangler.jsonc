@@ -4,6 +4,10 @@
   "name": "elitkids",
   "compatibility_date": "2026-04-04",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "vars": {
+    "SUPABASE_URL": "https://nfphyrpcbnyzbbytkviw.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_CxB2_u-e0Qa0CqJP3HGNeA_wIXu7oJa"
+  },
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
