@@ -18,32 +18,137 @@ export type AdminUserActionState = {
   success: string | null;
 };
 
-async function getCurrentOrganizationId(userId: string) {
+async function getCurrentOrganizationContext(userId: string) {
   const supabase = await createSupabaseServerClient();
+  const adminClient = createSupabaseAdminClient();
 
-  if (!supabase) {
+  if (!supabase || !adminClient) {
     return {
       error: "Supabase baglantisi kurulamadi.",
       organizationId: null,
+      organizationSlug: null,
     };
   }
 
-  const { data: profile, error } = await supabase
+  const { data: profile, error: profileError } = await adminClient
     .from("profiles")
-    .select("organization_id")
+    .select("organization_id, full_name")
     .eq("id", userId)
     .maybeSingle();
 
-  if (error || !profile?.organization_id) {
+  if (profileError) {
+    return {
+      error: profileError.message,
+      organizationId: null,
+      organizationSlug: null,
+    };
+  }
+
+  if (profile?.organization_id) {
+    const { data: organization } = await adminClient
+      .from("organizations")
+      .select("slug")
+      .eq("id", profile.organization_id)
+      .maybeSingle();
+
+    return {
+      error: null,
+      organizationId: profile.organization_id,
+      organizationSlug: organization?.slug ?? null,
+    };
+  }
+
+  const { data: userData } = await supabase.auth.getUser();
+  const metadataOrgId =
+    typeof userData.user?.app_metadata?.organization_id === "string"
+      ? userData.user.app_metadata.organization_id
+      : null;
+  const metadataOrgSlug =
+    typeof userData.user?.app_metadata?.organization_slug === "string"
+      ? userData.user.app_metadata.organization_slug
+      : null;
+
+  let organizationId = metadataOrgId;
+  let organizationSlug = metadataOrgSlug;
+
+  if (!organizationId && metadataOrgSlug) {
+    const { data: organizationBySlug, error: organizationBySlugError } = await adminClient
+      .from("organizations")
+      .select("id, slug")
+      .eq("slug", metadataOrgSlug)
+      .maybeSingle();
+
+    if (organizationBySlugError) {
+      return {
+        error: organizationBySlugError.message,
+        organizationId: null,
+        organizationSlug: null,
+      };
+    }
+
+    organizationId = organizationBySlug?.id ?? null;
+    organizationSlug = organizationBySlug?.slug ?? metadataOrgSlug;
+  }
+
+  if (!organizationId) {
+    const { data: organizations, error: organizationsError } = await adminClient
+      .from("organizations")
+      .select("id, slug")
+      .limit(2);
+
+    if (organizationsError) {
+      return {
+        error: organizationsError.message,
+        organizationId: null,
+        organizationSlug: null,
+      };
+    }
+
+    if ((organizations?.length ?? 0) === 1) {
+      organizationId = organizations?.[0]?.id ?? null;
+      organizationSlug = organizations?.[0]?.slug ?? null;
+    }
+  }
+
+  if (!organizationId) {
     return {
       error: "Kurum baglami cozulmedi.",
       organizationId: null,
+      organizationSlug: null,
+    };
+  }
+
+  const inferredFullName =
+    profile?.full_name ??
+    (typeof userData.user?.user_metadata?.full_name === "string"
+      ? userData.user.user_metadata.full_name
+      : null) ??
+    (typeof userData.user?.email === "string"
+      ? userData.user.email.split("@")[0]
+      : null) ??
+    "Admin Kullanici";
+
+  const { error: upsertProfileError } = await adminClient.from("profiles").upsert(
+    {
+      id: userId,
+      organization_id: organizationId,
+      full_name: inferredFullName,
+    },
+    { onConflict: "id" },
+  );
+
+  if (upsertProfileError) {
+    return {
+      error: upsertProfileError.message,
+      organizationId: null,
+      organizationSlug: null,
     };
   }
 
   return {
     error: null,
-    organizationId: profile.organization_id,
+    organizationId,
+    organizationSlug,
   };
 }
 
@@ -88,7 +193,7 @@ export async function createManagedUserAction(
     };
   }
 
-  const orgContext = await getCurrentOrganizationId(auth.userId);
+  const orgContext = await getCurrentOrganizationContext(auth.userId);
 
   if (!orgContext.organizationId) {
     return {
@@ -119,6 +224,8 @@ export async function createManagedUserAction(
     email_confirm: true,
     app_metadata: {
       app_role: parsed.data.role,
+      organization_id: orgContext.organizationId,
+      organization_slug: orgContext.organizationSlug,
     },
     user_metadata: {
       full_name: parsed.data.fullName,
