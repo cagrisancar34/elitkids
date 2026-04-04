@@ -4,9 +4,11 @@ import { AdminUsersPanel } from "@/components/admin-users-panel";
 import { DashboardPage } from "@/components/dashboard-page";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getAdminUsers } from "@/lib/dashboard-data";
+import { getSupabaseConfig } from "@/lib/supabase/config";
 
 export default async function AdminUsersPage() {
   const userRows = await getAdminUsers();
+  const { isAdminConfigured } = getSupabaseConfig();
   const userOptions = userRows.map((user) => ({
     id: user.id,
     label: `${user.name} · ${user.role}`,
@@ -25,11 +27,13 @@ export default async function AdminUsersPage() {
           <CardHeader>
             <CardTitle>Yeni kullanici ac</CardTitle>
             <CardDescription>
-              Auth hesabi, profil kaydi ve ilk rol atamasi tek akista olusturulur.
+              {isAdminConfigured
+                ? "Auth hesabi, profil kaydi ve ilk rol atamasi tek akista olusturulur."
+                : "Bu ekranin yazma akislarinin calismasi icin deploy ortaminda SUPABASE_SERVICE_ROLE_KEY secret'i tanimli olmali."}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <AdminUserCreateForm />
+            <AdminUserCreateForm adminEnabled={isAdminConfigured} />
           </CardContent>
         </Card>
         <Card>
@@ -40,7 +44,7 @@ export default async function AdminUsersPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <AdminRoleForm users={userOptions} />
+            <AdminRoleForm users={userOptions} adminEnabled={isAdminConfigured} />
           </CardContent>
         </Card>
       </section>

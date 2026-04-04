@@ -24,5 +24,6 @@ export function getSupabaseConfig() {
     publishableKey,
     serviceRoleKey,
     isConfigured: Boolean(url && publishableKey),
+    isAdminConfigured: Boolean(url && serviceRoleKey),
   };
 }

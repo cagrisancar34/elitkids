@@ -15,7 +15,7 @@ const initialState: AdminUserActionState = {
   success: null,
 };
 
-export function AdminUserCreateForm() {
+export function AdminUserCreateForm({ adminEnabled }: { adminEnabled: boolean }) {
   const [state, formAction] = useActionState(createManagedUserAction, initialState);
 
   return (
@@ -49,9 +49,18 @@ export function AdminUserCreateForm() {
           <option value="parent">Veli</option>
         </Select>
       </div>
+      {!adminEnabled ? (
+        <p className="text-sm text-destructive">
+          Kullanici olusturmak icin Cloudflare Variables and Secrets alanina
+          {" "}
+          <span className="font-semibold">SUPABASE_SERVICE_ROLE_KEY</span>
+          {" "}
+          eklenmeli.
+        </p>
+      ) : null}
       {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
       {state.success ? <p className="text-sm text-success">{state.success}</p> : null}
-      <FormSubmitButton className="w-full" pendingLabel="Kullanici olusturuluyor...">
+      <FormSubmitButton className="w-full" pendingLabel="Kullanici olusturuluyor..." disabled={!adminEnabled}>
         Kullanici olustur
       </FormSubmitButton>
     </form>

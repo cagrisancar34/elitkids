@@ -11,6 +11,7 @@ import {
   createSupabaseAdminClient,
   createSupabaseServerClient,
 } from "@/lib/supabase/server";
+import { getSupabaseConfig } from "@/lib/supabase/config";
 
 export type AdminUserActionState = {
   error: string | null;
@@ -77,8 +78,12 @@ export async function createManagedUserAction(
   const supabase = await createSupabaseServerClient();
 
   if (!adminClient || !supabase) {
+    const { isAdminConfigured } = getSupabaseConfig();
+
     return {
-      error: "Supabase yonetici baglantisi kurulamadi.",
+      error: isAdminConfigured
+        ? "Supabase yonetici baglantisi kurulamadi."
+        : "Kullanici olusturmak icin SUPABASE_SERVICE_ROLE_KEY secret'i deploy ortaminda tanimlanmali.",
       success: null,
     };
   }
@@ -204,8 +209,12 @@ export async function updateUserRoleAction(
   const adminClient = createSupabaseAdminClient();
 
   if (!supabase || !adminClient) {
+    const { isAdminConfigured } = getSupabaseConfig();
+
     return {
-      error: "Supabase baglantisi kurulamadi.",
+      error: isAdminConfigured
+        ? "Supabase baglantisi kurulamadi."
+        : "Rol guncellemek icin SUPABASE_SERVICE_ROLE_KEY secret'i deploy ortaminda tanimlanmali.",
       success: null,
     };
   }
