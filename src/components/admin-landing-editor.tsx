@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useEffect, useMemo, useState } from "react";
+import { ExternalLink, ImagePlus, LoaderCircle, RefreshCw, Upload } from "lucide-react";
 
 import {
   updateLandingContentAction,
@@ -25,19 +26,17 @@ const initialState: LandingEditorActionState = {
 };
 
 const iconOptions: Array<{ value: IconKey; label: string }> = [
-  { value: "snowflake", label: "Snowflake" },
   { value: "users", label: "Users" },
-  { value: "medal", label: "Medal" },
+  { value: "waves", label: "Waves" },
+  { value: "sparkles", label: "Sparkles" },
   { value: "shield", label: "Shield" },
-  { value: "clock", label: "Clock" },
-  { value: "map", label: "Map" },
-  { value: "dumbbell", label: "Dumbbell" },
   { value: "heart", label: "Heart" },
-  { value: "news", label: "News" },
-  { value: "star", label: "Star" },
+  { value: "medal", label: "Medal" },
   { value: "quote", label: "Quote" },
   { value: "instagram", label: "Instagram" },
   { value: "youtube", label: "YouTube" },
+  { value: "snowflake", label: "Snowflake" },
+  { value: "dumbbell", label: "Dumbbell" },
 ];
 
 function cloneLandingContent(content: LandingContent) {
@@ -46,7 +45,7 @@ function cloneLandingContent(content: LandingContent) {
 
 function formatUpdatedAt(value: string | null) {
   if (!value) {
-    return "Henuz kaydedilmedi";
+    return "Henuz kayit yok";
   }
 
   return new Intl.DateTimeFormat("tr-TR", {
@@ -75,34 +74,44 @@ export function AdminLandingEditor({
 
   const serializedContent = useMemo(() => JSON.stringify(content), [content]);
 
-  function updateRoot<K extends keyof LandingContent>(
-    key: K,
-    value: LandingContent[K],
-  ) {
+  function updateRoot<K extends keyof LandingContent>(key: K, value: LandingContent[K]) {
     setContent((current) => ({
       ...current,
       [key]: value,
     }));
   }
 
-  function updateNestedSection<
-    K extends keyof LandingContent,
-    F extends keyof LandingContent[K] & string,
-  >(section: K, field: F, value: string) {
-    setContent((current) => ({
-      ...current,
-      [section]: {
-        ...(current[section] as Record<string, unknown>),
-        [field]: value,
-      },
-    }));
+  function updateSiteSettings(
+    field: keyof LandingContent["siteSettings"],
+    value: string,
+  ) {
+    updateRoot("siteSettings", {
+      ...content.siteSettings,
+      [field]: value,
+    });
+  }
+
+  function updateHero(field: keyof LandingContent["hero"], value: string) {
+    updateRoot("hero", {
+      ...content.hero,
+      [field]: value,
+    });
+  }
+
+  function updateNavbar(field: keyof LandingContent["navbar"], value: string) {
+    updateRoot("navbar", {
+      ...content.navbar,
+      [field]: value,
+    });
   }
 
   function updateNavbarLink(index: number, field: "label" | "href", value: string) {
-    const links = content.navbar.links.map((item, itemIndex) =>
-      itemIndex === index ? { ...item, [field]: value } : item,
-    );
-    updateRoot("navbar", { ...content.navbar, links });
+    updateRoot("navbar", {
+      ...content.navbar,
+      links: content.navbar.links.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item,
+      ),
+    });
   }
 
   function updateStat(
@@ -110,84 +119,124 @@ export function AdminLandingEditor({
     field: "value" | "label" | "description" | "icon",
     value: string,
   ) {
-    const stats = content.stats.map((item, itemIndex) =>
-      itemIndex === index
-        ? {
-            ...item,
-            [field]: field === "icon" ? (value as IconKey) : value,
-          }
-        : item,
+    updateRoot(
+      "stats",
+      content.stats.map((item, itemIndex) =>
+        itemIndex === index
+          ? {
+              ...item,
+              [field]: field === "icon" ? (value as IconKey) : value,
+            }
+          : item,
+      ),
     );
-    updateRoot("stats", stats);
   }
 
-  function updateProgramItem(
-    index: number,
-    field: "title" | "description" | "image" | "href" | "ctaLabel" | "layout",
+  function updateMethodology(
+    field: keyof LandingContent["methodology"],
     value: string,
   ) {
-    const items = content.programs.items.map((item, itemIndex) =>
-      itemIndex === index
-        ? {
-            ...item,
-            [field]:
-              field === "layout"
-                ? (value as LandingContent["programs"]["items"][number]["layout"])
-                : value,
-          }
-        : item,
-    );
-    updateRoot("programs", { ...content.programs, items });
+    updateRoot("methodology", {
+      ...content.methodology,
+      [field]: value,
+    });
   }
 
-  function updateFeature(
+  function updateMethodologyItem(
     index: number,
     field: "title" | "description" | "icon",
     value: string,
   ) {
-    const features = content.whyUs.features.map((item, itemIndex) =>
-      itemIndex === index
-        ? {
-            ...item,
-            [field]: field === "icon" ? (value as IconKey) : value,
-          }
-        : item,
-    );
-    updateRoot("whyUs", { ...content.whyUs, features });
+    updateRoot("methodology", {
+      ...content.methodology,
+      items: content.methodology.items.map((item, itemIndex) =>
+        itemIndex === index
+          ? {
+              ...item,
+              [field]: field === "icon" ? (value as IconKey) : value,
+            }
+          : item,
+      ),
+    });
   }
 
-  function updateTestimonial(
-    index: number,
-    field: "name" | "role" | "quote" | "avatar" | "rating",
-    value: string,
-  ) {
-    const items = content.testimonials.items.map((item, itemIndex) =>
-      itemIndex === index
-        ? {
-            ...item,
-            [field]: field === "rating" ? Number(value) || 0 : value,
-          }
-        : item,
-    );
-    updateRoot("testimonials", { ...content.testimonials, items });
+  function updatePrograms(field: keyof LandingContent["programs"], value: string) {
+    updateRoot("programs", {
+      ...content.programs,
+      [field]: value,
+    });
   }
 
-  function updateNewsItem(
+  function updateProgramItem(
     index: number,
-    field: "image" | "category" | "title" | "description" | "href",
+    field: "title" | "description" | "image" | "href" | "ctaLabel",
     value: string,
   ) {
-    const items = content.news.items.map((item, itemIndex) =>
-      itemIndex === index ? { ...item, [field]: value } : item,
-    );
-    updateRoot("news", { ...content.news, items });
+    updateRoot("programs", {
+      ...content.programs,
+      items: content.programs.items.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item,
+      ),
+    });
+  }
+
+  function updateProgramBullet(index: number, bulletIndex: number, value: string) {
+    updateRoot("programs", {
+      ...content.programs,
+      items: content.programs.items.map((item, itemIndex) =>
+        itemIndex === index
+          ? {
+              ...item,
+              bullets: item.bullets.map((bullet, currentBulletIndex) =>
+                currentBulletIndex === bulletIndex ? value : bullet,
+              ),
+            }
+          : item,
+      ),
+    });
+  }
+
+  function updateWhyUs(field: keyof LandingContent["whyUs"], value: string) {
+    updateRoot("whyUs", {
+      ...content.whyUs,
+      [field]: value,
+    });
+  }
+
+  function updateWhyUsPoint(
+    index: number,
+    field: "title" | "description",
+    value: string,
+  ) {
+    updateRoot("whyUs", {
+      ...content.whyUs,
+      points: content.whyUs.points.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item,
+      ),
+    });
+  }
+
+  function updateCta(field: keyof LandingContent["cta"], value: string) {
+    updateRoot("cta", {
+      ...content.cta,
+      [field]: value,
+    });
+  }
+
+  function updateFooter(field: keyof LandingContent["footer"], value: string) {
+    updateRoot("footer", {
+      ...content.footer,
+      [field]: value,
+    });
   }
 
   function updateFooterGroup(index: number, title: string) {
-    const groups = content.footer.groups.map((item, itemIndex) =>
-      itemIndex === index ? { ...item, title } : item,
-    );
-    updateRoot("footer", { ...content.footer, groups });
+    updateRoot("footer", {
+      ...content.footer,
+      groups: content.footer.groups.map((group, groupIndex) =>
+        groupIndex === index ? { ...group, title } : group,
+      ),
+    });
   }
 
   function updateFooterGroupLink(
@@ -196,17 +245,19 @@ export function AdminLandingEditor({
     field: "label" | "href",
     value: string,
   ) {
-    const groups = content.footer.groups.map((group, currentGroupIndex) =>
-      currentGroupIndex === groupIndex
-        ? {
-            ...group,
-            links: group.links.map((link, currentLinkIndex) =>
-              currentLinkIndex === linkIndex ? { ...link, [field]: value } : link,
-            ),
-          }
-        : group,
-    );
-    updateRoot("footer", { ...content.footer, groups });
+    updateRoot("footer", {
+      ...content.footer,
+      groups: content.footer.groups.map((group, currentGroupIndex) =>
+        currentGroupIndex === groupIndex
+          ? {
+              ...group,
+              links: group.links.map((link, currentLinkIndex) =>
+                currentLinkIndex === linkIndex ? { ...link, [field]: value } : link,
+              ),
+            }
+          : group,
+      ),
+    });
   }
 
   function updateFooterSocial(
@@ -214,163 +265,160 @@ export function AdminLandingEditor({
     field: "label" | "href" | "icon",
     value: string,
   ) {
-    const socials = content.footer.socials.map((item, itemIndex) =>
-      itemIndex === index
-        ? {
-            ...item,
-            [field]: field === "icon" ? (value as IconKey) : value,
-          }
-        : item,
-    );
-    updateRoot("footer", { ...content.footer, socials });
+    updateRoot("footer", {
+      ...content.footer,
+      socials: content.footer.socials.map((social, socialIndex) =>
+        socialIndex === index
+          ? {
+              ...social,
+              [field]: field === "icon" ? (value as IconKey) : value,
+            }
+          : social,
+      ),
+    });
   }
 
   return (
     <form action={formAction} className="grid gap-6">
       <input type="hidden" name="content" value={serializedContent} readOnly />
 
-      <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr_0.8fr]">
-        <Panel>
-          <Eyebrow>Yayin omurgasi</Eyebrow>
-          <h2 className="mt-3 font-display text-2xl text-foreground">
-            Landing page icerik yonetimi
+      <section className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+        <Panel className="bg-[linear-gradient(135deg,#091425_0%,#13223d_65%,#152844_100%)]">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-300">
+            Stitch referansli vitrin editoru
+          </span>
+          <h2 className="mt-4 font-display text-3xl font-black tracking-[-0.05em] text-white">
+            Landing page artik admin tarafinda tam kontrollu.
           </h2>
-          <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground">
-            Anasayfada gorunen tum metinler, CTA alanlari, editorial kartlar ve footer baglantilari
-            bu merkezden yonetilir. Public sayfa yalnizca kaydedilen content kaynagindan beslenir.
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
+            Hero, 4G sistem alani, program kartlari, why-us split, form, footer, logo ve tum gorseller tek
+            kaynaktan yonetilir. Public anasayfa bu content JSON&apos;unu okuyarak render edilir.
           </p>
-          <div className="mt-5 flex flex-wrap gap-3">
+          <div className="mt-6 flex flex-wrap gap-3">
             <Button
               type="button"
               variant="outline"
+              className="border-white/10 bg-white/5 text-white hover:bg-white/10"
               onClick={() => setContent(cloneLandingContent(defaultLandingContent))}
             >
-              Varsayilan icerigi yukle
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Varsayilana don
             </Button>
-            <Button asChild variant="ghost">
+            <Button asChild className="bg-sky-400 text-slate-950 hover:bg-sky-300">
               <Link href="/" target="_blank">
+                <ExternalLink className="mr-2 h-4 w-4" />
                 Canli anasayfayi ac
               </Link>
             </Button>
           </div>
         </Panel>
 
-        <Panel>
-          <Eyebrow>Yayin durumu</Eyebrow>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <MetricCard
-              label="Guncellenen section"
-              value="9"
-              description="Navbar, hero, stats, branslar, neden biz, yorumlar, haberler, CTA ve footer."
-            />
-            <MetricCard
-              label="Son kayit"
-              value={formatUpdatedAt(updatedAt)}
-              description="Kayit sonrasi public homepage no-store fetch ile yeni icerigi alir."
-            />
+        <Panel className="bg-[#0b162b]">
+          <div className="grid gap-4 md:grid-cols-2">
+            <StatTile label="Son kayit" value={formatUpdatedAt(updatedAt)} />
+            <StatTile label="Kontrol edilen alan" value="8 ana section" />
           </div>
-        </Panel>
-
-        <Panel>
-          <Eyebrow>Yetki kurali</Eyebrow>
-          <div className="mt-4 rounded-[1.3rem] bg-[#eef3ff] px-4 py-4">
-            <div className="text-sm font-semibold text-foreground">Yalnizca admin yazabilir</div>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Yonetici, koc ve veli yuzeyleri landing content uzerinde yazma akisina sahip degil.
+          <div className="mt-5 rounded-[1.4rem] border border-sky-400/18 bg-sky-400/8 px-4 py-4">
+            <div className="text-sm font-semibold text-sky-200">Yazma yetkisi sadece admin</div>
+            <p className="mt-2 text-sm leading-6 text-slate-300">
+              Manager, koc ve veli rolleri landing content uzerinde duzenleme yapamaz.
             </p>
           </div>
-          {storageError ? (
-            <p className="mt-4 text-sm text-destructive">{storageError}</p>
-          ) : null}
-          {state.error ? <p className="mt-4 text-sm text-destructive">{state.error}</p> : null}
-          {state.success ? <p className="mt-4 text-sm text-success">{state.success}</p> : null}
-          <div className="mt-5">
-            <FormSubmitButton className="w-full" pendingLabel="Landing kaydediliyor...">
+          {storageError ? <p className="mt-4 text-sm text-rose-300">{storageError}</p> : null}
+          {state.error ? <p className="mt-4 text-sm text-rose-300">{state.error}</p> : null}
+          {state.success ? <p className="mt-4 text-sm text-emerald-300">{state.success}</p> : null}
+          <div className="mt-6">
+            <FormSubmitButton
+              className="w-full rounded-2xl bg-sky-400 text-slate-950 hover:bg-sky-300"
+              pendingLabel="Landing kaydediliyor..."
+            >
               Landing page kaydini yap
             </FormSubmitButton>
           </div>
         </Panel>
       </section>
 
-      <Tabs defaultValue="general" className="grid gap-5">
-        <TabsList className="w-full justify-start">
-          <TabsTrigger value="general">Genel</TabsTrigger>
+      <Tabs defaultValue="brand" className="grid gap-5">
+        <TabsList className="w-full justify-start bg-[#0d182d]">
+          <TabsTrigger value="brand">Marka</TabsTrigger>
           <TabsTrigger value="hero">Hero</TabsTrigger>
           <TabsTrigger value="stats">Stats</TabsTrigger>
-          <TabsTrigger value="programs">Branslar</TabsTrigger>
-          <TabsTrigger value="why-us">Neden Biz</TabsTrigger>
-          <TabsTrigger value="testimonials">Yorumlar</TabsTrigger>
-          <TabsTrigger value="news">Haberler</TabsTrigger>
+          <TabsTrigger value="system">4G Sistem</TabsTrigger>
+          <TabsTrigger value="programs">Programlar</TabsTrigger>
+          <TabsTrigger value="why-us">Why Us</TabsTrigger>
           <TabsTrigger value="cta">CTA</TabsTrigger>
           <TabsTrigger value="footer">Footer</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="general">
+        <TabsContent value="brand">
           <SectionGrid>
             <Panel>
               <SectionHeading
-                title="Site ayarlari"
-                description="Marka dili, iletisim ve footer alt metnini bu bloktan guncelle."
+                title="Marka ve navbar"
+                description="Logo, marka metinleri, menu akisi ve sag ust CTA bu section icinde."
               />
               <FieldGrid>
                 <TextField
                   label="Marka adi"
                   value={content.siteSettings.brandName}
-                  onChange={(value) => updateNestedSection("siteSettings", "brandName", value)}
+                  onChange={(value) => updateSiteSettings("brandName", value)}
                 />
                 <TextField
-                  label="Tagline"
+                  label="Brand tagline"
                   value={content.siteSettings.brandTagline}
-                  onChange={(value) => updateNestedSection("siteSettings", "brandTagline", value)}
+                  onChange={(value) => updateSiteSettings("brandTagline", value)}
+                />
+                <TextField
+                  label="Logo etiketi"
+                  value={content.siteSettings.logoLabel}
+                  onChange={(value) => updateSiteSettings("logoLabel", value)}
+                />
+                <AssetField
+                  label="Logo gorseli"
+                  value={content.siteSettings.logoImage}
+                  onChange={(value) => updateSiteSettings("logoImage", value)}
+                  uploadKey="brand-logo"
                 />
                 <TextField
                   label="Telefon"
                   value={content.siteSettings.contactPhone}
-                  onChange={(value) => updateNestedSection("siteSettings", "contactPhone", value)}
+                  onChange={(value) => updateSiteSettings("contactPhone", value)}
                 />
                 <TextField
                   label="E-posta"
                   value={content.siteSettings.contactEmail}
-                  onChange={(value) => updateNestedSection("siteSettings", "contactEmail", value)}
+                  onChange={(value) => updateSiteSettings("contactEmail", value)}
                 />
-                <TextAreaField
-                  label="Copyright"
-                  value={content.siteSettings.copyright}
-                  onChange={(value) => updateNestedSection("siteSettings", "copyright", value)}
+                <TextField
+                  label="Lokasyon"
+                  value={content.siteSettings.location}
+                  onChange={(value) => updateSiteSettings("location", value)}
                   className="md:col-span-2"
+                />
+                <TextField
+                  label="Navbar CTA"
+                  value={content.navbar.ctaLabel}
+                  onChange={(value) => updateNavbar("ctaLabel", value)}
+                />
+                <TextField
+                  label="Navbar CTA href"
+                  value={content.navbar.ctaHref}
+                  onChange={(value) => updateNavbar("ctaHref", value)}
                 />
               </FieldGrid>
             </Panel>
 
             <Panel>
               <SectionHeading
-                title="Navbar"
-                description="Sticky header icerigini ve sagdaki CTA aksiyonunu buradan yonet."
+                title="Menu baglantilari"
+                description="Header icindeki navigation akisini bu bloktan guncelle."
               />
-              <FieldGrid>
-                <TextField
-                  label="Logo etiketi"
-                  value={content.navbar.logoLabel}
-                  onChange={(value) => updateNestedSection("navbar", "logoLabel", value)}
-                />
-                <TextField
-                  label="CTA etiketi"
-                  value={content.navbar.ctaLabel}
-                  onChange={(value) => updateNestedSection("navbar", "ctaLabel", value)}
-                />
-                <TextField
-                  label="CTA href"
-                  value={content.navbar.ctaHref}
-                  onChange={(value) => updateNestedSection("navbar", "ctaHref", value)}
-                  className="md:col-span-2"
-                />
-              </FieldGrid>
               <div className="mt-5 grid gap-4">
                 {content.navbar.links.map((item, index) => (
                   <SubPanel
                     key={`${item.label}-${index}`}
                     title={`Menu linki ${index + 1}`}
-                    description="Navbar akisi sabit kalsin diye link sayisi korunuyor."
+                    description="Landing header navigation item."
                   >
                     <FieldGrid>
                       <TextField
@@ -394,57 +442,57 @@ export function AdminLandingEditor({
         <TabsContent value="hero">
           <Panel>
             <SectionHeading
-              title="Hero alani"
-              description="Tam ekran ilk izlenim burada kurulur; baslik, vurgu, CTA ve arka plan gorseli ayni section'da tutulur."
+              title="Hero composition"
+              description="Ana baslik, mavi vurgu, CTA butonlari ve iki editorial gorsel."
             />
             <FieldGrid>
               <TextField
-                label="Badge"
-                value={content.hero.badge}
-                onChange={(value) => updateNestedSection("hero", "badge", value)}
-              />
-              <TextField
                 label="Baslik"
                 value={content.hero.title}
-                onChange={(value) => updateNestedSection("hero", "title", value)}
+                onChange={(value) => updateHero("title", value)}
               />
               <TextField
-                label="Vurgulu baslik"
+                label="Vurgulu metin"
                 value={content.hero.highlight}
-                onChange={(value) => updateNestedSection("hero", "highlight", value)}
-                className="md:col-span-2"
+                onChange={(value) => updateHero("highlight", value)}
               />
               <TextAreaField
                 label="Aciklama"
                 value={content.hero.description}
-                onChange={(value) => updateNestedSection("hero", "description", value)}
+                onChange={(value) => updateHero("description", value)}
                 className="md:col-span-2"
               />
               <TextField
                 label="Primary CTA"
                 value={content.hero.primaryCtaLabel}
-                onChange={(value) => updateNestedSection("hero", "primaryCtaLabel", value)}
+                onChange={(value) => updateHero("primaryCtaLabel", value)}
               />
               <TextField
                 label="Primary href"
                 value={content.hero.primaryCtaHref}
-                onChange={(value) => updateNestedSection("hero", "primaryCtaHref", value)}
+                onChange={(value) => updateHero("primaryCtaHref", value)}
               />
               <TextField
                 label="Secondary CTA"
                 value={content.hero.secondaryCtaLabel}
-                onChange={(value) => updateNestedSection("hero", "secondaryCtaLabel", value)}
+                onChange={(value) => updateHero("secondaryCtaLabel", value)}
               />
               <TextField
                 label="Secondary href"
                 value={content.hero.secondaryCtaHref}
-                onChange={(value) => updateNestedSection("hero", "secondaryCtaHref", value)}
+                onChange={(value) => updateHero("secondaryCtaHref", value)}
               />
-              <TextAreaField
-                label="Arka plan gorseli"
-                value={content.hero.backgroundImage}
-                onChange={(value) => updateNestedSection("hero", "backgroundImage", value)}
-                className="md:col-span-2"
+              <AssetField
+                label="Hero gorseli 1"
+                value={content.hero.visualPrimaryImage}
+                onChange={(value) => updateHero("visualPrimaryImage", value)}
+                uploadKey="hero-primary"
+              />
+              <AssetField
+                label="Hero gorseli 2"
+                value={content.hero.visualSecondaryImage}
+                onChange={(value) => updateHero("visualSecondaryImage", value)}
+                uploadKey="hero-secondary"
               />
             </FieldGrid>
           </Panel>
@@ -456,7 +504,7 @@ export function AdminLandingEditor({
               <Panel key={`${item.label}-${index}`}>
                 <SectionHeading
                   title={`Stat karti ${index + 1}`}
-                  description="Hero altindaki 3 sayisal karti bu alandan guncelleyebilirsin."
+                  description="Hero altindaki 3 ana veri karti."
                 />
                 <FieldGrid>
                   <TextField
@@ -487,120 +535,29 @@ export function AdminLandingEditor({
           </SectionGrid>
         </TabsContent>
 
-        <TabsContent value="programs">
-          <Panel>
-            <SectionHeading
-              title="Branslar section"
-              description="Section ust bilgisi ve editorial kartlarin tamami bu blokta tutulur."
-            />
-            <FieldGrid>
-              <TextField
-                label="Eyebrow"
-                value={content.programs.eyebrow}
-                onChange={(value) =>
-                  updateRoot("programs", { ...content.programs, eyebrow: value })
-                }
-              />
-              <TextField
-                label="Baslik"
-                value={content.programs.title}
-                onChange={(value) =>
-                  updateRoot("programs", { ...content.programs, title: value })
-                }
-                className="md:col-span-2"
-              />
-              <TextAreaField
-                label="Aciklama"
-                value={content.programs.description}
-                onChange={(value) =>
-                  updateRoot("programs", { ...content.programs, description: value })
-                }
-                className="md:col-span-2"
-              />
-            </FieldGrid>
-          </Panel>
-          <SectionGrid>
-            {content.programs.items.map((item, index) => (
-              <Panel key={`${item.title}-${index}`}>
-                <SectionHeading
-                  title={`Brans karti ${index + 1}`}
-                  description="Editorial card akisi: baslik, kisa metin, gorsel, link ve layout."
-                />
-                <FieldGrid>
-                  <TextField
-                    label="Baslik"
-                    value={item.title}
-                    onChange={(value) => updateProgramItem(index, "title", value)}
-                  />
-                  <SelectField
-                    label="Layout"
-                    value={item.layout}
-                    onChange={(value) => updateProgramItem(index, "layout", value)}
-                    options={[
-                      { value: "wide", label: "Wide" },
-                      { value: "tall", label: "Tall" },
-                      { value: "full", label: "Full" },
-                    ]}
-                  />
-                  <TextAreaField
-                    label="Aciklama"
-                    value={item.description}
-                    onChange={(value) => updateProgramItem(index, "description", value)}
-                    className="md:col-span-2"
-                  />
-                  <TextAreaField
-                    label="Gorsel URL"
-                    value={item.image}
-                    onChange={(value) => updateProgramItem(index, "image", value)}
-                    className="md:col-span-2"
-                  />
-                  <TextField
-                    label="Href"
-                    value={item.href}
-                    onChange={(value) => updateProgramItem(index, "href", value)}
-                  />
-                  <TextField
-                    label="CTA etiketi"
-                    value={item.ctaLabel}
-                    onChange={(value) => updateProgramItem(index, "ctaLabel", value)}
-                  />
-                </FieldGrid>
-              </Panel>
-            ))}
-          </SectionGrid>
-        </TabsContent>
-
-        <TabsContent value="why-us">
+        <TabsContent value="system">
           <SectionGrid>
             <Panel>
               <SectionHeading
-                title="Neden biz section"
-                description="Section copy ve sag tarafta akan ana gorsel."
+                title="4G sistem section"
+                description="Section ust copy ve metodoloji basligi."
               />
               <FieldGrid>
                 <TextField
                   label="Eyebrow"
-                  value={content.whyUs.eyebrow}
-                  onChange={(value) => updateRoot("whyUs", { ...content.whyUs, eyebrow: value })}
+                  value={content.methodology.eyebrow}
+                  onChange={(value) => updateMethodology("eyebrow", value)}
                 />
                 <TextField
                   label="Baslik"
-                  value={content.whyUs.title}
-                  onChange={(value) => updateRoot("whyUs", { ...content.whyUs, title: value })}
+                  value={content.methodology.title}
+                  onChange={(value) => updateMethodology("title", value)}
                   className="md:col-span-2"
                 />
                 <TextAreaField
                   label="Aciklama"
-                  value={content.whyUs.description}
-                  onChange={(value) =>
-                    updateRoot("whyUs", { ...content.whyUs, description: value })
-                  }
-                  className="md:col-span-2"
-                />
-                <TextAreaField
-                  label="Gorsel URL"
-                  value={content.whyUs.image}
-                  onChange={(value) => updateRoot("whyUs", { ...content.whyUs, image: value })}
+                  value={content.methodology.description}
+                  onChange={(value) => updateMethodology("description", value)}
                   className="md:col-span-2"
                 />
               </FieldGrid>
@@ -608,32 +565,32 @@ export function AdminLandingEditor({
 
             <Panel>
               <SectionHeading
-                title="Ozellik kartlari"
-                description="4 adet reason card burada tek tek degistirilebilir."
+                title="4G kartlari"
+                description="Guvenlik, guler yuz, gelisim ve geri bildirim kartlari."
               />
-              <div className="grid gap-4">
-                {content.whyUs.features.map((item, index) => (
+              <div className="mt-5 grid gap-4">
+                {content.methodology.items.map((item, index) => (
                   <SubPanel
                     key={`${item.title}-${index}`}
-                    title={`Ozellik ${index + 1}`}
-                    description="Kart basligi, aciklama ve ikon."
+                    title={`Sistem karti ${index + 1}`}
+                    description="Ikon, baslik ve aciklama."
                   >
                     <FieldGrid>
                       <TextField
                         label="Baslik"
                         value={item.title}
-                        onChange={(value) => updateFeature(index, "title", value)}
+                        onChange={(value) => updateMethodologyItem(index, "title", value)}
                       />
                       <SelectField
                         label="Ikon"
                         value={item.icon}
-                        onChange={(value) => updateFeature(index, "icon", value)}
+                        onChange={(value) => updateMethodologyItem(index, "icon", value)}
                         options={iconOptions}
                       />
                       <TextAreaField
                         label="Aciklama"
                         value={item.description}
-                        onChange={(value) => updateFeature(index, "description", value)}
+                        onChange={(value) => updateMethodologyItem(index, "description", value)}
                         className="md:col-span-2"
                       />
                     </FieldGrid>
@@ -644,145 +601,157 @@ export function AdminLandingEditor({
           </SectionGrid>
         </TabsContent>
 
-        <TabsContent value="testimonials">
+        <TabsContent value="programs">
           <Panel>
             <SectionHeading
-              title="Yorumlar section"
-              description="Section copy ve yorum kartlari topluca yonetilir."
+              title="Programlar section"
+              description="Kartlarin uzerindeki genel copy ve alt 3 program karti."
             />
             <FieldGrid>
               <TextField
                 label="Eyebrow"
-                value={content.testimonials.eyebrow}
-                onChange={(value) =>
-                  updateRoot("testimonials", { ...content.testimonials, eyebrow: value })
-                }
+                value={content.programs.eyebrow}
+                onChange={(value) => updatePrograms("eyebrow", value)}
               />
               <TextField
                 label="Baslik"
-                value={content.testimonials.title}
-                onChange={(value) =>
-                  updateRoot("testimonials", { ...content.testimonials, title: value })
-                }
+                value={content.programs.title}
+                onChange={(value) => updatePrograms("title", value)}
                 className="md:col-span-2"
               />
               <TextAreaField
                 label="Aciklama"
-                value={content.testimonials.description}
-                onChange={(value) =>
-                  updateRoot("testimonials", { ...content.testimonials, description: value })
-                }
+                value={content.programs.description}
+                onChange={(value) => updatePrograms("description", value)}
                 className="md:col-span-2"
               />
             </FieldGrid>
           </Panel>
-          <SectionGrid>
-            {content.testimonials.items.map((item, index) => (
-              <Panel key={`${item.name}-${index}`}>
-                <SectionHeading
-                  title={`Yorum ${index + 1}`}
-                  description="Isim, rol, puan ve alintiyi buradan guncelle."
-                />
-                <FieldGrid>
-                  <TextField
-                    label="Isim"
-                    value={item.name}
-                    onChange={(value) => updateTestimonial(index, "name", value)}
-                  />
-                  <TextField
-                    label="Rol"
-                    value={item.role}
-                    onChange={(value) => updateTestimonial(index, "role", value)}
-                  />
-                  <TextField
-                    label="Puan"
-                    value={String(item.rating)}
-                    onChange={(value) => updateTestimonial(index, "rating", value)}
-                  />
-                  <TextField
-                    label="Avatar URL"
-                    value={item.avatar ?? ""}
-                    onChange={(value) => updateTestimonial(index, "avatar", value)}
-                  />
-                  <TextAreaField
-                    label="Alinti"
-                    value={item.quote}
-                    onChange={(value) => updateTestimonial(index, "quote", value)}
-                    className="md:col-span-2"
-                  />
-                </FieldGrid>
-              </Panel>
-            ))}
-          </SectionGrid>
-        </TabsContent>
 
-        <TabsContent value="news">
-          <Panel>
-            <SectionHeading
-              title="Haberler section"
-              description="Akademi guncel kartlari ve section copy burada yonetilir."
-            />
-            <FieldGrid>
-              <TextField
-                label="Eyebrow"
-                value={content.news.eyebrow}
-                onChange={(value) => updateRoot("news", { ...content.news, eyebrow: value })}
-              />
-              <TextField
-                label="Baslik"
-                value={content.news.title}
-                onChange={(value) => updateRoot("news", { ...content.news, title: value })}
-                className="md:col-span-2"
-              />
-              <TextAreaField
-                label="Aciklama"
-                value={content.news.description}
-                onChange={(value) =>
-                  updateRoot("news", { ...content.news, description: value })
-                }
-                className="md:col-span-2"
-              />
-            </FieldGrid>
-          </Panel>
-          <SectionGrid>
-            {content.news.items.map((item, index) => (
+          <div className="grid gap-6">
+            {content.programs.items.map((item, index) => (
               <Panel key={`${item.title}-${index}`}>
                 <SectionHeading
-                  title={`Haber karti ${index + 1}`}
-                  description="Gorsel, kategori, baslik, aciklama ve hedef link."
+                  title={`Program karti ${index + 1}`}
+                  description="Gorsel, kisa tanim, 3 maddelik liste ve CTA."
                 />
                 <FieldGrid>
-                  <TextField
-                    label="Kategori"
-                    value={item.category}
-                    onChange={(value) => updateNewsItem(index, "category", value)}
-                  />
                   <TextField
                     label="Baslik"
                     value={item.title}
-                    onChange={(value) => updateNewsItem(index, "title", value)}
+                    onChange={(value) => updateProgramItem(index, "title", value)}
+                  />
+                  <TextField
+                    label="CTA etiketi"
+                    value={item.ctaLabel}
+                    onChange={(value) => updateProgramItem(index, "ctaLabel", value)}
                   />
                   <TextAreaField
                     label="Aciklama"
                     value={item.description}
-                    onChange={(value) => updateNewsItem(index, "description", value)}
-                    className="md:col-span-2"
-                  />
-                  <TextAreaField
-                    label="Gorsel URL"
-                    value={item.image}
-                    onChange={(value) => updateNewsItem(index, "image", value)}
+                    onChange={(value) => updateProgramItem(index, "description", value)}
                     className="md:col-span-2"
                   />
                   <TextField
                     label="Href"
                     value={item.href}
-                    onChange={(value) => updateNewsItem(index, "href", value)}
-                    className="md:col-span-2"
+                    onChange={(value) => updateProgramItem(index, "href", value)}
+                  />
+                  <AssetField
+                    label="Program gorseli"
+                    value={item.image}
+                    onChange={(value) => updateProgramItem(index, "image", value)}
+                    uploadKey={`program-${index + 1}`}
                   />
                 </FieldGrid>
+                <div className="mt-5 grid gap-3 md:grid-cols-3">
+                  {item.bullets.map((bullet, bulletIndex) => (
+                    <TextField
+                      key={`${bullet}-${bulletIndex}`}
+                      label={`Madde ${bulletIndex + 1}`}
+                      value={bullet}
+                      onChange={(value) => updateProgramBullet(index, bulletIndex, value)}
+                    />
+                  ))}
+                </div>
               </Panel>
             ))}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="why-us">
+          <SectionGrid>
+            <Panel>
+              <SectionHeading
+                title="Why us split section"
+                description="Solda ana metin, sagda buyuk gorsel ve overline stat karti."
+              />
+              <FieldGrid>
+                <TextField
+                  label="Basligin ilk bolumu"
+                  value={content.whyUs.title}
+                  onChange={(value) => updateWhyUs("title", value)}
+                />
+                <TextField
+                  label="Vurgulu kelime"
+                  value={content.whyUs.highlight}
+                  onChange={(value) => updateWhyUs("highlight", value)}
+                />
+                <TextAreaField
+                  label="Aciklama"
+                  value={content.whyUs.description}
+                  onChange={(value) => updateWhyUs("description", value)}
+                  className="md:col-span-2"
+                />
+                <TextField
+                  label="Stat degeri"
+                  value={content.whyUs.statValue}
+                  onChange={(value) => updateWhyUs("statValue", value)}
+                />
+                <TextField
+                  label="Stat etiketi"
+                  value={content.whyUs.statLabel}
+                  onChange={(value) => updateWhyUs("statLabel", value)}
+                />
+                <AssetField
+                  label="Section gorseli"
+                  value={content.whyUs.image}
+                  onChange={(value) => updateWhyUs("image", value)}
+                  uploadKey="why-us"
+                  className="md:col-span-2"
+                />
+              </FieldGrid>
+            </Panel>
+
+            <Panel>
+              <SectionHeading
+                title="Why us madde akisi"
+                description="3 editorial bilgi blogu."
+              />
+              <div className="mt-5 grid gap-4">
+                {content.whyUs.points.map((point, index) => (
+                  <SubPanel
+                    key={`${point.title}-${index}`}
+                    title={`Madde ${index + 1}`}
+                    description="Baslik ve kisa paragraf."
+                  >
+                    <FieldGrid>
+                      <TextField
+                        label="Baslik"
+                        value={point.title}
+                        onChange={(value) => updateWhyUsPoint(index, "title", value)}
+                      />
+                      <TextAreaField
+                        label="Aciklama"
+                        value={point.description}
+                        onChange={(value) => updateWhyUsPoint(index, "description", value)}
+                        className="md:col-span-2"
+                      />
+                    </FieldGrid>
+                  </SubPanel>
+                ))}
+              </div>
+            </Panel>
           </SectionGrid>
         </TabsContent>
 
@@ -790,95 +759,60 @@ export function AdminLandingEditor({
           <Panel>
             <SectionHeading
               title="Final CTA ve form"
-              description="Kayit section basligi, aciklamasi, tum field etiketleri ve placeholder alanlari bu bloktan yonetilir."
+              description="Contact section basligi, aciklamasi ve form etiketleri."
             />
             <FieldGrid>
               <TextField
-                label="Eyebrow"
-                value={content.cta.eyebrow}
-                onChange={(value) => updateRoot("cta", { ...content.cta, eyebrow: value })}
-              />
-              <TextField
                 label="Baslik"
                 value={content.cta.title}
-                onChange={(value) => updateRoot("cta", { ...content.cta, title: value })}
+                onChange={(value) => updateCta("title", value)}
                 className="md:col-span-2"
               />
               <TextAreaField
                 label="Aciklama"
                 value={content.cta.description}
-                onChange={(value) => updateRoot("cta", { ...content.cta, description: value })}
+                onChange={(value) => updateCta("description", value)}
                 className="md:col-span-2"
               />
               <TextField
                 label="Ad soyad etiketi"
                 value={content.cta.fullNameLabel}
-                onChange={(value) => updateRoot("cta", { ...content.cta, fullNameLabel: value })}
+                onChange={(value) => updateCta("fullNameLabel", value)}
               />
               <TextField
                 label="Ad soyad placeholder"
                 value={content.cta.fullNamePlaceholder}
-                onChange={(value) =>
-                  updateRoot("cta", { ...content.cta, fullNamePlaceholder: value })
-                }
+                onChange={(value) => updateCta("fullNamePlaceholder", value)}
               />
               <TextField
-                label="E-posta etiketi"
+                label="Email etiketi"
                 value={content.cta.emailLabel}
-                onChange={(value) => updateRoot("cta", { ...content.cta, emailLabel: value })}
+                onChange={(value) => updateCta("emailLabel", value)}
               />
               <TextField
-                label="E-posta placeholder"
+                label="Email placeholder"
                 value={content.cta.emailPlaceholder}
-                onChange={(value) =>
-                  updateRoot("cta", { ...content.cta, emailPlaceholder: value })
-                }
+                onChange={(value) => updateCta("emailPlaceholder", value)}
               />
               <TextField
                 label="Telefon etiketi"
                 value={content.cta.phoneLabel}
-                onChange={(value) => updateRoot("cta", { ...content.cta, phoneLabel: value })}
+                onChange={(value) => updateCta("phoneLabel", value)}
               />
               <TextField
                 label="Telefon placeholder"
                 value={content.cta.phonePlaceholder}
-                onChange={(value) =>
-                  updateRoot("cta", { ...content.cta, phonePlaceholder: value })
-                }
+                onChange={(value) => updateCta("phonePlaceholder", value)}
               />
               <TextField
-                label="Brans etiketi"
-                value={content.cta.branchLabel}
-                onChange={(value) => updateRoot("cta", { ...content.cta, branchLabel: value })}
-              />
-              <TextField
-                label="Brans placeholder"
-                value={content.cta.branchPlaceholder}
-                onChange={(value) =>
-                  updateRoot("cta", { ...content.cta, branchPlaceholder: value })
-                }
-              />
-              <TextField
-                label="Not etiketi"
-                value={content.cta.noteLabel}
-                onChange={(value) => updateRoot("cta", { ...content.cta, noteLabel: value })}
-              />
-              <TextField
-                label="Not placeholder"
-                value={content.cta.notePlaceholder}
-                onChange={(value) =>
-                  updateRoot("cta", { ...content.cta, notePlaceholder: value })
-                }
-              />
-              <TextField
-                label="Submit etiketi"
+                label="Buton etiketi"
                 value={content.cta.submitLabel}
-                onChange={(value) => updateRoot("cta", { ...content.cta, submitLabel: value })}
+                onChange={(value) => updateCta("submitLabel", value)}
               />
               <TextAreaField
                 label="Alt not"
                 value={content.cta.footnote}
-                onChange={(value) => updateRoot("cta", { ...content.cta, footnote: value })}
+                onChange={(value) => updateCta("footnote", value)}
                 className="md:col-span-2"
               />
             </FieldGrid>
@@ -889,41 +823,62 @@ export function AdminLandingEditor({
           <SectionGrid>
             <Panel>
               <SectionHeading
-                title="Footer genel metni"
-                description="Marka aciklamasi ve social linkler."
+                title="Footer genel ayarlar"
+                description="Footer aciklamasi, alt metin ve bagde."
               />
               <FieldGrid>
                 <TextAreaField
-                  label="Marka aciklamasi"
+                  label="Footer aciklamasi"
                   value={content.footer.description}
-                  onChange={(value) =>
-                    updateRoot("footer", { ...content.footer, description: value })
-                  }
+                  onChange={(value) => updateFooter("description", value)}
+                  className="md:col-span-2"
+                />
+                <TextField
+                  label="Bottom text"
+                  value={content.footer.bottomText}
+                  onChange={(value) => updateFooter("bottomText", value)}
+                />
+                <TextField
+                  label="Bottom badge"
+                  value={content.footer.bottomBadge}
+                  onChange={(value) => updateFooter("bottomBadge", value)}
+                />
+                <TextField
+                  label="Copyright"
+                  value={content.siteSettings.copyright}
+                  onChange={(value) => updateSiteSettings("copyright", value)}
                   className="md:col-span-2"
                 />
               </FieldGrid>
+            </Panel>
+
+            <Panel>
+              <SectionHeading
+                title="Sosyal linkler"
+                description="Footer social chipleri."
+              />
               <div className="mt-5 grid gap-4">
-                {content.footer.socials.map((item, index) => (
+                {content.footer.socials.map((social, index) => (
                   <SubPanel
-                    key={`${item.label}-${index}`}
-                    title={`Sosyal link ${index + 1}`}
-                    description="Footer icon, label ve link yonetimi."
+                    key={`${social.label}-${index}`}
+                    title={`Sosyal ${index + 1}`}
+                    description="Etiket, ikon ve href."
                   >
                     <FieldGrid>
                       <TextField
                         label="Etiket"
-                        value={item.label}
+                        value={social.label}
                         onChange={(value) => updateFooterSocial(index, "label", value)}
                       />
                       <SelectField
                         label="Ikon"
-                        value={item.icon}
+                        value={social.icon}
                         onChange={(value) => updateFooterSocial(index, "icon", value)}
                         options={iconOptions}
                       />
                       <TextField
                         label="Href"
-                        value={item.href}
+                        value={social.href}
                         onChange={(value) => updateFooterSocial(index, "href", value)}
                         className="md:col-span-2"
                       />
@@ -932,58 +887,74 @@ export function AdminLandingEditor({
                 ))}
               </div>
             </Panel>
-
-            <Panel>
-              <SectionHeading
-                title="Footer link gruplari"
-                description="Footer kolon basliklari ve baglanti listeleri."
-              />
-              <div className="grid gap-4">
-                {content.footer.groups.map((group, groupIndex) => (
-                  <SubPanel
-                    key={`${group.title}-${groupIndex}`}
-                    title={`Link grubu ${groupIndex + 1}`}
-                    description="Kolon basligi ve alt linkler."
-                  >
-                    <FieldGrid>
-                      <TextField
-                        label="Grup basligi"
-                        value={group.title}
-                        onChange={(value) => updateFooterGroup(groupIndex, value)}
-                        className="md:col-span-2"
-                      />
-                    </FieldGrid>
-                    <div className="mt-4 grid gap-3">
-                      {group.links.map((link, linkIndex) => (
-                        <div
-                          key={`${link.label}-${linkIndex}`}
-                          className="grid gap-3 rounded-[1.05rem] border border-white/50 bg-white/70 px-3 py-3 md:grid-cols-2"
-                        >
-                          <TextField
-                            label={`Link ${linkIndex + 1} etiketi`}
-                            value={link.label}
-                            onChange={(value) =>
-                              updateFooterGroupLink(groupIndex, linkIndex, "label", value)
-                            }
-                          />
-                          <TextField
-                            label={`Link ${linkIndex + 1} href`}
-                            value={link.href}
-                            onChange={(value) =>
-                              updateFooterGroupLink(groupIndex, linkIndex, "href", value)
-                            }
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </SubPanel>
-                ))}
-              </div>
-            </Panel>
           </SectionGrid>
+
+          <Panel>
+            <SectionHeading
+              title="Footer link gruplari"
+              description="Kurumsal ve hizli baglantilar kolonlari."
+            />
+            <div className="mt-5 grid gap-4 xl:grid-cols-2">
+              {content.footer.groups.map((group, groupIndex) => (
+                <SubPanel
+                  key={`${group.title}-${groupIndex}`}
+                  title={`Grup ${groupIndex + 1}`}
+                  description="Kolon basligi ve alt linkler."
+                >
+                  <FieldGrid>
+                    <TextField
+                      label="Grup basligi"
+                      value={group.title}
+                      onChange={(value) => updateFooterGroup(groupIndex, value)}
+                      className="md:col-span-2"
+                    />
+                  </FieldGrid>
+                  <div className="mt-4 grid gap-3">
+                    {group.links.map((link, linkIndex) => (
+                      <div
+                        key={`${link.label}-${linkIndex}`}
+                        className="grid gap-3 rounded-[1.1rem] border border-white/8 bg-white/[0.03] p-3 md:grid-cols-2"
+                      >
+                        <TextField
+                          label={`Link ${linkIndex + 1} etiketi`}
+                          value={link.label}
+                          onChange={(value) =>
+                            updateFooterGroupLink(groupIndex, linkIndex, "label", value)
+                          }
+                        />
+                        <TextField
+                          label={`Link ${linkIndex + 1} href`}
+                          value={link.href}
+                          onChange={(value) =>
+                            updateFooterGroupLink(groupIndex, linkIndex, "href", value)
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </SubPanel>
+              ))}
+            </div>
+          </Panel>
         </TabsContent>
       </Tabs>
     </form>
+  );
+}
+
+function Panel({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <section
+      className={`rounded-[1.8rem] border border-white/8 bg-[#0f1a2d] p-5 shadow-[0_28px_90px_rgba(2,12,27,0.25)] md:p-6 ${className ?? ""}`}
+    >
+      {children}
+    </section>
   );
 }
 
@@ -991,11 +962,20 @@ function SectionGrid({ children }: { children: React.ReactNode }) {
   return <div className="grid gap-6 xl:grid-cols-2">{children}</div>;
 }
 
-function Panel({ children }: { children: React.ReactNode }) {
+function SectionHeading({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
   return (
-    <section className="surface-panel rounded-[1.7rem] border border-white/50 p-5 md:p-6">
-      {children}
-    </section>
+    <div className="space-y-2">
+      <h3 className="font-display text-[1.75rem] font-black tracking-[-0.04em] text-white">
+        {title}
+      </h3>
+      <p className="max-w-2xl text-sm leading-7 text-slate-400">{description}</p>
+    </div>
   );
 }
 
@@ -1009,57 +989,12 @@ function SubPanel({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-[1.35rem] border border-white/50 bg-white/78 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.05)]">
+    <div className="rounded-[1.35rem] border border-white/8 bg-white/[0.03] p-4">
       <div className="space-y-1">
-        <div className="text-sm font-semibold text-foreground">{title}</div>
-        <p className="text-sm leading-6 text-muted-foreground">{description}</p>
+        <div className="text-sm font-semibold text-white">{title}</div>
+        <div className="text-sm leading-6 text-slate-400">{description}</div>
       </div>
       <div className="mt-4">{children}</div>
-    </div>
-  );
-}
-
-function SectionHeading({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="space-y-2">
-      <h3 className="font-display text-[1.7rem] leading-tight tracking-[-0.04em] text-foreground">
-        {title}
-      </h3>
-      <p className="max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p>
-    </div>
-  );
-}
-
-function Eyebrow({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">
-      {children}
-    </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  description,
-}: {
-  label: string;
-  value: string;
-  description: string;
-}) {
-  return (
-    <div className="rounded-[1.3rem] border border-white/50 bg-white/78 px-4 py-4 shadow-[0_14px_30px_rgba(15,23,42,0.05)]">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-        {label}
-      </div>
-      <div className="mt-3 font-display text-2xl leading-tight text-foreground">{value}</div>
-      <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
     </div>
   );
 }
@@ -1072,6 +1007,23 @@ function FieldGrid({
   className?: string;
 }) {
   return <div className={`mt-5 grid gap-4 md:grid-cols-2 ${className ?? ""}`}>{children}</div>;
+}
+
+function StatTile({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-[1.4rem] border border-white/8 bg-white/[0.03] px-4 py-4">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+        {label}
+      </div>
+      <div className="mt-3 font-display text-xl font-black text-white">{value}</div>
+    </div>
+  );
 }
 
 function TextField({
@@ -1087,8 +1039,14 @@ function TextField({
 }) {
   return (
     <div className={className}>
-      <label className="mb-2 block text-sm font-medium text-foreground">{label}</label>
-      <Input value={value} onChange={(event) => onChange(event.target.value)} />
+      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+        {label}
+      </label>
+      <Input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="border-white/8 bg-[#121f36] text-white placeholder:text-slate-500"
+      />
     </div>
   );
 }
@@ -1106,8 +1064,14 @@ function TextAreaField({
 }) {
   return (
     <div className={className}>
-      <label className="mb-2 block text-sm font-medium text-foreground">{label}</label>
-      <Textarea value={value} onChange={(event) => onChange(event.target.value)} />
+      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+        {label}
+      </label>
+      <Textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="min-h-28 border-white/8 bg-[#121f36] text-white placeholder:text-slate-500"
+      />
     </div>
   );
 }
@@ -1127,14 +1091,117 @@ function SelectField({
 }) {
   return (
     <div className={className}>
-      <label className="mb-2 block text-sm font-medium text-foreground">{label}</label>
-      <Select value={value} onChange={(event) => onChange(event.target.value)}>
+      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+        {label}
+      </label>
+      <Select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="border-white/8 bg-[#121f36] text-white"
+      >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
           </option>
         ))}
       </Select>
+    </div>
+  );
+}
+
+function AssetField({
+  label,
+  value,
+  onChange,
+  uploadKey,
+  className,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  uploadKey: string;
+  className?: string;
+}) {
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  async function handleFileChange(file: File | null) {
+    if (!file) {
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("field", uploadKey);
+
+      const response = await fetch("/api/admin/landing-assets", {
+        method: "POST",
+        body: formData,
+      });
+
+      const payload = (await response.json()) as {
+        url?: string;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.url) {
+        setUploadError(payload.error ?? "Gorsel yuklenemedi.");
+        return;
+      }
+
+      onChange(payload.url);
+    } catch {
+      setUploadError("Gorsel yukleme sirasinda beklenmeyen bir hata olustu.");
+    } finally {
+      setIsUploading(false);
+    }
+  }
+
+  return (
+    <div className={className}>
+      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+        {label}
+      </label>
+      <div className="rounded-[1.25rem] border border-dashed border-white/10 bg-[#121f36] p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-sky-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-sky-300">
+            {isUploading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            Dosya yukle
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              className="hidden"
+              onChange={(event) => void handleFileChange(event.target.files?.[0] ?? null)}
+            />
+          </label>
+          <span className="text-xs text-slate-500">PNG, JPG, WebP veya SVG kullan.</span>
+        </div>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-[120px_1fr]">
+          <div className="overflow-hidden rounded-[1rem] border border-white/8 bg-white/[0.03]">
+            {value ? (
+              <img src={value} alt={label} className="h-28 w-full object-cover" />
+            ) : (
+              <div className="flex h-28 items-center justify-center text-slate-500">
+                <ImagePlus className="h-6 w-6" />
+              </div>
+            )}
+          </div>
+          <div className="space-y-3">
+            <Input
+              value={value}
+              onChange={(event) => onChange(event.target.value)}
+              className="border-white/8 bg-[#0e182b] text-white placeholder:text-slate-500"
+              placeholder="https://..."
+            />
+            {uploadError ? <p className="text-sm text-rose-300">{uploadError}</p> : null}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

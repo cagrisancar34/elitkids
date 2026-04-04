@@ -11,24 +11,28 @@ export type IconKey =
   | "star"
   | "quote"
   | "instagram"
-  | "youtube";
+  | "youtube"
+  | "waves"
+  | "sparkles";
 
 export type LandingContent = {
   siteSettings: {
     brandName: string;
     brandTagline: string;
+    logoLabel: string;
+    logoImage: string;
     contactPhone: string;
     contactEmail: string;
+    location: string;
     copyright: string;
+    footerBadge: string;
   };
   navbar: {
-    logoLabel: string;
     links: Array<{ label: string; href: string }>;
     ctaLabel: string;
     ctaHref: string;
   };
   hero: {
-    badge: string;
     title: string;
     highlight: string;
     description: string;
@@ -36,7 +40,8 @@ export type LandingContent = {
     primaryCtaHref: string;
     secondaryCtaLabel: string;
     secondaryCtaHref: string;
-    backgroundImage: string;
+    visualPrimaryImage: string;
+    visualSecondaryImage: string;
   };
   stats: Array<{
     value: string;
@@ -44,6 +49,16 @@ export type LandingContent = {
     description: string;
     icon: IconKey;
   }>;
+  methodology: {
+    eyebrow: string;
+    title: string;
+    description: string;
+    items: Array<{
+      title: string;
+      description: string;
+      icon: IconKey;
+    }>;
+  };
   programs: {
     eyebrow: string;
     title: string;
@@ -52,48 +67,24 @@ export type LandingContent = {
       title: string;
       description: string;
       image: string;
+      bullets: string[];
       href: string;
       ctaLabel: string;
-      layout: "wide" | "tall" | "full";
     }>;
   };
   whyUs: {
-    eyebrow: string;
     title: string;
+    highlight: string;
     description: string;
     image: string;
-    features: Array<{
+    statValue: string;
+    statLabel: string;
+    points: Array<{
       title: string;
       description: string;
-      icon: IconKey;
-    }>;
-  };
-  testimonials: {
-    eyebrow: string;
-    title: string;
-    description: string;
-    items: Array<{
-      name: string;
-      role: string;
-      quote: string;
-      rating: number;
-      avatar?: string;
-    }>;
-  };
-  news: {
-    eyebrow: string;
-    title: string;
-    description: string;
-    items: Array<{
-      image: string;
-      category: string;
-      title: string;
-      description: string;
-      href: string;
     }>;
   };
   cta: {
-    eyebrow: string;
     title: string;
     description: string;
     fullNameLabel: string;
@@ -102,10 +93,6 @@ export type LandingContent = {
     emailPlaceholder: string;
     phoneLabel: string;
     phonePlaceholder: string;
-    branchLabel: string;
-    branchPlaceholder: string;
-    noteLabel: string;
-    notePlaceholder: string;
     submitLabel: string;
     footnote: string;
   };
@@ -120,252 +107,238 @@ export type LandingContent = {
       href: string;
       icon: IconKey;
     }>;
+    bottomText: string;
+    bottomBadge: string;
   };
 };
 
 export const defaultLandingContent: LandingContent = {
   siteSettings: {
-    brandName: "Buz Akademi",
-    brandTagline: "Premium buz sporlari akademisi",
-    contactPhone: "+90 850 190 42 85",
-    contactEmail: "iletisim@buzakademi.com",
-    copyright: "Buz Akademi. Tum haklari saklidir.",
+    brandName: "Elit Kids",
+    brandTagline: "Cocuk spor akademisi",
+    logoLabel: "EK",
+    logoImage: "",
+    contactPhone: "+90 555 000 00 00",
+    contactEmail: "iletisim@elitkids.com",
+    location: "Istanbul, Turkiye",
+    copyright: "© 2026 Elit Kids Athletic Academy. Tum haklari saklidir.",
+    footerBadge: "Designed for Excellence",
   },
   navbar: {
-    logoLabel: "BA",
     links: [
-      { label: "Branslar", href: "#branslar" },
-      { label: "Programlar", href: "#programlar" },
-      { label: "Egitmenler", href: "#neden-biz" },
-      { label: "Tesisler", href: "#tesisler" },
-      { label: "Duyurular", href: "#haberler" },
+      { label: "Programs", href: "#programs" },
+      { label: "System", href: "#system" },
+      { label: "Why Us", href: "#why-us" },
+      { label: "Contact", href: "#contact" },
     ],
-    ctaLabel: "Hemen Kayit Ol",
-    ctaHref: "#kayit",
+    ctaLabel: "Uye Girisi",
+    ctaHref: "/login",
   },
   hero: {
-    badge: "2026 sezon kayitlari acildi",
-    title: "Buzda zarafet,",
-    highlight: "akademik disiplinle",
+    title: "Cocugunuz sadece spor yapmaz,",
+    highlight: "dogru sistemle",
     description:
-      "Patenden buz hokeyine uzanan premium programlarimizla sporculari guvenli, rafine ve ilham veren bir akademi deneyimiyle bulusturuyoruz.",
-    primaryCtaLabel: "Hemen Kayit Ol",
-    primaryCtaHref: "#kayit",
-    secondaryCtaLabel: "Programlari Incele",
-    secondaryCtaHref: "#branslar",
-    backgroundImage:
-      "https://images.unsplash.com/photo-1515703407324-5f753afd8be8?auto=format&fit=crop&w=1800&q=80",
+      "Planli, guvenli ve olculebilir gelisim modeli ile gelecegin saglikli nesillerini yetistiriyoruz.",
+    primaryCtaLabel: "On Kayit Formu",
+    primaryCtaHref: "#contact",
+    secondaryCtaLabel: "Biz Kimiz?",
+    secondaryCtaHref: "#why-us",
+    visualPrimaryImage:
+      "https://images.unsplash.com/photo-1602211844066-d3bb556e983b?auto=format&fit=crop&w=900&q=80",
+    visualSecondaryImage:
+      "https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=900&q=80",
   },
   stats: [
     {
-      value: "15+",
-      label: "yillik deneyim",
-      description: "Buz ustunde nesiller boyu sureklilik kuran egitim omurgasi.",
-      icon: "snowflake",
-    },
-    {
-      value: "500+",
-      label: "aktif sporcu",
-      description: "Her sezon farkli seviyelerde ritmini bulan genis akademi toplulugu.",
+      value: "4-12 Yas",
+      label: "gelisim odakli yas grubu",
+      description: "Motor beceri ve disiplin omurgasi icin erken yas planlamasi.",
       icon: "users",
     },
     {
-      value: "12+",
-      label: "milli atlet",
-      description: "Yarismaci gelisim programindan cikmis ulusal seviye sporcular.",
-      icon: "medal",
+      value: "Yuzme",
+      label: "olimpik temelli egitim",
+      description: "Su guveni, teknik progresyon ve kondisyon beraber ilerler.",
+      icon: "waves",
+    },
+    {
+      value: "Cimnastik",
+      label: "koordinasyon ve guc",
+      description: "Esneklik, denge ve postur hattini sistemli sekilde gelistirir.",
+      icon: "sparkles",
     },
   ],
-  programs: {
-    eyebrow: "Branslar",
-    title: "Buz ustunde her yolculuk, karakterli bir antrenman diliyle baslar.",
-    description:
-      "Her brans kendi ritmini tasir; biz o ritmi editorial bir sahneleme, guclu teknik egitim ve sahici atmosferle sunuyoruz.",
+  methodology: {
+    eyebrow: "Benzersiz metodoloji",
+    title: "4G Egitim Sistemi",
+    description: "Sporu sadece hareket degil, karakter ve ritim insasi olarak goruyoruz.",
     items: [
       {
-        title: "Artistik Patinaj",
-        description:
-          "Zarafet, denge ve sahne bilincini teknik dogrulukla birlestiren premium program.",
-        image:
-          "https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&w=1200&q=80",
-        href: "#kayit",
-        ctaLabel: "Detaylari Gor",
-        layout: "wide",
+        title: "Guvenlik",
+        description: "Tum tesis, ekipman ve uygulama akisi cocuk ergonomisine uygun kurulur.",
+        icon: "shield",
       },
       {
-        title: "Buz Hokeyi",
-        description:
-          "Hiz, kuvvet ve takim ritmini modern saha standardinda bulusturan rekabetci gelisim hatti.",
-        image:
-          "https://images.unsplash.com/photo-1547347298-4074fc3086f0?auto=format&fit=crop&w=900&q=80",
-        href: "#kayit",
-        ctaLabel: "Takim Programi",
-        layout: "tall",
+        title: "Guler yuz",
+        description: "Pedagojik formasyon sahibi egitmenlerle motive eden bir atmosfer sunulur.",
+        icon: "heart",
       },
       {
-        title: "Surat Pateni",
-        description:
-          "Ivme, teknik cizgi ve dayaniklilik uzerine kurulan yuksek tempolu performans yolu.",
+        title: "Gelisim",
+        description: "Her seans somut verilerle izlenir, fiziksel ilerleme duzenli olculur.",
+        icon: "medal",
+      },
+      {
+        title: "Geri bildirim",
+        description: "Veliler gelisim ritmini duzenli raporlar ve acik geri bildirimlerle takip eder.",
+        icon: "quote",
+      },
+    ],
+  },
+  programs: {
+    eyebrow: "Branslarimiz",
+    title: "Her brans kendi sahnesine, kendi ritmine ve kendi disiplinine sahip.",
+    description:
+      "Premium tesis standardi, net egitim plani ve guclu iletisim hattiyla cocuklarin gelisim yolculugunu destekliyoruz.",
+    items: [
+      {
+        title: "Yuzme Programi",
+        description: "Suya alisma, temel teknikler ve stil gelisimi ayni akademik cizgide ilerler.",
         image:
-          "https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&w=1500&q=80",
-        href: "#kayit",
-        ctaLabel: "Performans Plani",
-        layout: "full",
+          "https://images.unsplash.com/photo-1600965962361-9035dbfd1c50?auto=format&fit=crop&w=1200&q=80",
+        bullets: [
+          "Suya alisma ve temel teknikler",
+          "Stil gelistirme ve koordinasyon",
+          "Olimpik olculerde steril havuz",
+        ],
+        href: "#contact",
+        ctaLabel: "Detayli Bilgi Al",
+      },
+      {
+        title: "Cimnastik Programi",
+        description: "Esneklik, denge ve akrobasi temelli ilerleyen guclu bir koordinasyon hattı.",
+        image:
+          "https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=1200&q=80",
+        bullets: [
+          "Esneklik ve denge egitimi",
+          "Temel akrobasi hareketleri",
+          "Kondisyon ve postur duzeni",
+        ],
+        href: "#contact",
+        ctaLabel: "Detayli Bilgi Al",
+      },
+      {
+        title: "Gelisim Takibi",
+        description: "Ailelerin anlik gorunurluk alabildigi veri destekli sporcu takip modeli.",
+        image:
+          "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=80",
+        bullets: [
+          "Aylik fiziksel analiz raporu",
+          "Mobil erisim ve veli gorunurlugu",
+          "Bireysel gelisim mentorlugu",
+        ],
+        href: "#contact",
+        ctaLabel: "Sistemi Incele",
       },
     ],
   },
   whyUs: {
-    eyebrow: "Neden Biz",
-    title: "Gelecegin sampiyonlarini bugunden yetistiren sakin ama iddiali bir kultur.",
+    title: "Sadece bir spor merkezi degil, bir",
+    highlight: "gelisim sistemi",
     description:
-      "Buz Akademi yalnizca ders veren bir kurum degil; sporcu psikolojisini, aile iletisimi ve guvenli ilerleme cizgisini ayni kalite standardinda yoneten bir gelisim ortami.",
+      "Her cocuk farkli ogrenir. Biz standart kaliplar yerine cocugun ritmine gore sekillenen, bilimsel ve surdurulebilir bir ilerleme yolu kuruyoruz.",
     image:
-      "https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&w=1200&q=80",
-    features: [
+      "https://images.unsplash.com/photo-1517837016564-bfc4fcb7d1d2?auto=format&fit=crop&w=1200&q=80",
+    statValue: "10k+",
+    statLabel: "Mutlu mezun ogrenci",
+    points: [
       {
-        title: "Uluslararasi standarda yakin metodoloji",
+        title: "Her cocuk farkli ogrenir",
         description:
-          "Teknik kadromuz gelisim planlarini yas ve seviye bazli net kilometre taslariyla kurar.",
-        icon: "medal",
+          "Hazirbulunusluk duzeyine gore sekillenen dinamik bir ogrenme haritasi olusturuyoruz.",
       },
       {
-        title: "Guvenli ve izlenebilir egitim",
+        title: "Uzman kadro, bilimsel yaklasim",
         description:
-          "Her sporcu icin devam, yuklenme ve saha disi koordinasyon duzenli takip edilir.",
-        icon: "shield",
+          "Egitmenlerimiz cocuk psikolojisi ve motor gelisim alaninda da egitimli profesyonellerdir.",
       },
       {
-        title: "Modern tesis ritmi",
+        title: "Surdurulebilir basari",
         description:
-          "Pist saatleri, isinma alanlari ve aile akisi premium bir deneyim olarak tasarlanir.",
-        icon: "map",
-      },
-      {
-        title: "Performans odakli destek",
-        description:
-          "Fiziksel gelisim, mental dayaniklilik ve surekli geri bildirim tek omurgada ilerler.",
-        icon: "dumbbell",
-      },
-    ],
-  },
-  testimonials: {
-    eyebrow: "Deneyimler",
-    title: "Sporcu ve veli tarafinda guven, ilham ve devam hissi birakiyoruz.",
-    description:
-      "Akademi atmosferinin en dogru olcusu, piste gelen sporcularin ve ailelerin hissettigi netliktir.",
-    items: [
-      {
-        name: "Aylin Yildiz",
-        role: "Veli",
-        quote:
-          "Kizim pistte hem cok daha guvenli hem de cok daha istekli. Akademinin duzeni bizi ilk haftadan itibaren rahatlatti.",
-        rating: 5,
-      },
-      {
-        name: "Deniz Erdem",
-        role: "Milli takim adayi sporcu",
-        quote:
-          "Antrenman kalitesi kadar ortam da cok kuvvetli. Her seansa ne icin geldigimi biliyorum ve ritmimi koruyabiliyorum.",
-        rating: 5,
-      },
-      {
-        name: "Mert Kaya",
-        role: "Veli",
-        quote:
-          "Iletisimleri net, ekip profesyonel ve tesis kullanimi son derece duzenli. Premium bir deneyim hissi veriyor.",
-        rating: 5,
-      },
-    ],
-  },
-  news: {
-    eyebrow: "Akademi Guncel",
-    title: "Sezon takvimi, etkinlikler ve pistten gelen yeni haberler.",
-    description:
-      "Akademi vitrinini canli tutan tum duyurular tek bir editoryal akista ilerler.",
-    items: [
-      {
-        image:
-          "https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&w=900&q=80",
-        category: "Basari Hikayesi",
-        title: "Balkan Sampiyonasi icin 3 sporcu milli havuza davet edildi",
-        description:
-          "Yarisma gelisim grubumuzdan uc sporcu yeni sezon performans havuzuna secildi.",
-        href: "#kayit",
-      },
-      {
-        image:
-          "https://images.unsplash.com/photo-1515703407324-5f753afd8be8?auto=format&fit=crop&w=900&q=80",
-        category: "Etkinlik",
-        title: "Yeni donem tanitim gunu ve ucretsiz deneme dersi",
-        description:
-          "Aileler ve aday sporcular icin pist uzeri tanisma programi acildi.",
-        href: "#kayit",
-      },
-      {
-        image:
-          "https://images.unsplash.com/photo-1526232761682-d26e03ac148e?auto=format&fit=crop&w=900&q=80",
-        category: "Duyuru",
-        title: "Milli performans atolyemiz yenilenmis programiyla basliyor",
-        description:
-          "Kuvvet, denge ve esneklik hattinda yeni salon kurgusu kullanima giriyor.",
-        href: "#kayit",
+          "Hedefimiz sadece madalya degil; ozguvenli, disiplinli ve sporu seven bireyler yetistirmektir.",
       },
     ],
   },
   cta: {
-    eyebrow: "Kayit Basvurusu",
-    title: "Sampiyonlarin arasina katilmak icin ilk adimi bugun at.",
+    title: "Sampiyonlarin Arasina Katilin",
     description:
-      "Brans, yas seviyesi ve hedefe gore sana uygun grup planini iletelim. Akademi ekibi ayni gun icinde geri donus saglar.",
-    fullNameLabel: "Adiniz soyadiniz",
-    fullNamePlaceholder: "Sporcu veya veli adi",
-    emailLabel: "E-posta adresi",
-    emailPlaceholder: "ornek@buzakademi.com",
-    phoneLabel: "Telefon numarasi",
-    phonePlaceholder: "+90 5xx xxx xx xx",
-    branchLabel: "Ilgilendiginiz brans",
-    branchPlaceholder: "Artistik patinaj, buz hokeyi, surat pateni...",
-    noteLabel: "Kisa not",
-    notePlaceholder: "Yas, deneyim seviyesi veya hedefinizden kisaca bahsedin.",
-    submitLabel: "Basvuruyu Gonder",
-    footnote:
-      "Form kurgusu su an statik fallback ile calisir; ileride Supabase uzerinden admin panelden guncellenebilir.",
+      "Ucretsiz tanisma dersi ve gelisim analizi icin formu doldurun, biz sizi arayalim.",
+    fullNameLabel: "Ad Soyad",
+    fullNamePlaceholder: "Adiniz Soyadiniz",
+    emailLabel: "Email Adresi",
+    emailPlaceholder: "eposta@adresiniz.com",
+    phoneLabel: "Telefon Numarasi",
+    phonePlaceholder: "05XX XXX XX XX",
+    submitLabel: "Beni Arayin",
+    footnote: "Form currently stores editable content only; lead akisi daha sonra Supabase basvuru tablosuna baglanabilir.",
   },
   footer: {
     description:
-      "Buz Akademi, sporculari premium egitim, rafine tesis deneyimi ve guvenli ilerleme cizgisiyle bulusturur.",
+      "Yeni nesil spor akademisi anlayisi ile cocuklarin fiziksel ve karakter gelisimine yon veriyoruz.",
     groups: [
       {
-        title: "Akademi",
+        title: "Kurumsal",
         links: [
-          { label: "Hakkimizda", href: "#neden-biz" },
-          { label: "Egitmenler", href: "#neden-biz" },
-          { label: "Branslar", href: "#branslar" },
+          { label: "Privacy Policy", href: "#" },
+          { label: "Terms of Service", href: "#" },
+          { label: "Careers", href: "#" },
+          { label: "Academy Press", href: "#" },
         ],
       },
       {
-        title: "Guncel",
+        title: "Hizli Baglantilar",
         links: [
-          { label: "Duyurular", href: "#haberler" },
-          { label: "Sezon Takvimi", href: "#haberler" },
-          { label: "Basvuru", href: "#kayit" },
-        ],
-      },
-      {
-        title: "Iletisim",
-        links: [
-          { label: "Tesisler", href: "#tesisler" },
-          { label: "Kayit Ofisi", href: "#kayit" },
-          { label: "Bize Ulasin", href: "#kayit" },
+          { label: "Yuzme Programi", href: "#programs" },
+          { label: "Cimnastik Programi", href: "#programs" },
+          { label: "Ucretsiz Deneme", href: "#contact" },
+          { label: "Subelerimiz", href: "#contact" },
         ],
       },
     ],
     socials: [
-      { label: "Instagram", href: "https://instagram.com", icon: "instagram" },
-      { label: "YouTube", href: "https://youtube.com", icon: "youtube" },
+      { label: "IG", href: "https://instagram.com", icon: "instagram" },
+      { label: "YT", href: "https://youtube.com", icon: "youtube" },
     ],
+    bottomText: "Elit Kids Athletic Academy. The Kinetic Editorial.",
+    bottomBadge: "Designed for Excellence",
   },
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function mergeUnknown(base: unknown, override: unknown): unknown {
+  if (Array.isArray(base)) {
+    return Array.isArray(override) ? override : base;
+  }
+
+  if (isRecord(base)) {
+    if (!isRecord(override)) {
+      return base;
+    }
+
+    const merged: Record<string, unknown> = { ...base };
+
+    Object.keys(base).forEach((key) => {
+      merged[key] = mergeUnknown(base[key], override[key]);
+    });
+
+    return merged;
+  }
+
+  return override ?? base;
+}
 
 export function mergeLandingContent(
   base: LandingContent,
@@ -375,53 +348,5 @@ export function mergeLandingContent(
     return base;
   }
 
-  return {
-    ...base,
-    ...override,
-    siteSettings: {
-      ...base.siteSettings,
-      ...override.siteSettings,
-    },
-    navbar: {
-      ...base.navbar,
-      ...override.navbar,
-      links: override.navbar?.links ?? base.navbar.links,
-    },
-    hero: {
-      ...base.hero,
-      ...override.hero,
-    },
-    programs: {
-      ...base.programs,
-      ...override.programs,
-      items: override.programs?.items ?? base.programs.items,
-    },
-    whyUs: {
-      ...base.whyUs,
-      ...override.whyUs,
-      features: override.whyUs?.features ?? base.whyUs.features,
-    },
-    testimonials: {
-      ...base.testimonials,
-      ...override.testimonials,
-      items: override.testimonials?.items ?? base.testimonials.items,
-    },
-    news: {
-      ...base.news,
-      ...override.news,
-      items: override.news?.items ?? base.news.items,
-    },
-    cta: {
-      ...base.cta,
-      ...override.cta,
-    },
-    footer: {
-      ...base.footer,
-      ...override.footer,
-      groups: override.footer?.groups ?? base.footer.groups,
-      socials: override.footer?.socials ?? base.footer.socials,
-    },
-    stats: override.stats ?? base.stats,
-  };
+  return mergeUnknown(base, override) as LandingContent;
 }
-
