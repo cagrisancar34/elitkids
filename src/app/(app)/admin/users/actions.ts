@@ -9,7 +9,6 @@ import {
 } from "@/lib/schemas/app-forms";
 import {
   createSupabaseAdminClient,
-  createSupabaseServerClient,
 } from "@/lib/supabase/server";
 import { getSupabaseConfig } from "@/lib/supabase/config";
 
@@ -19,10 +18,9 @@ export type AdminUserActionState = {
 };
 
 async function getCurrentOrganizationContext(userId: string) {
-  const supabase = await createSupabaseServerClient();
   const adminClient = createSupabaseAdminClient();
 
-  if (!supabase || !adminClient) {
+  if (!adminClient) {
     return {
       error: "Supabase baglantisi kurulamadi.",
       organizationId: null,
@@ -58,7 +56,17 @@ async function getCurrentOrganizationContext(userId: string) {
     };
   }
 
-  const { data: userData } = await supabase.auth.getUser();
+  const { data: userDataResult, error: userDataError } = await adminClient.auth.admin.getUserById(userId);
+
+  if (userDataError) {
+    return {
+      error: userDataError.message,
+      organizationId: null,
+      organizationSlug: null,
+    };
+  }
+
+  const userData = userDataResult;
   const metadataOrgId =
     typeof userData.user?.app_metadata?.organization_id === "string"
       ? userData.user.app_metadata.organization_id
@@ -180,9 +188,8 @@ export async function createManagedUserAction(
   }
 
   const adminClient = createSupabaseAdminClient();
-  const supabase = await createSupabaseServerClient();
 
-  if (!adminClient || !supabase) {
+  if (!adminClient) {
     const { isAdminConfigured } = getSupabaseConfig();
 
     return {
@@ -241,7 +248,7 @@ export async function createManagedUserAction(
     };
   }
 
-  const { error: profileError } = await supabase.from("profiles").insert({
+  const { error: profileError } = await adminClient.from("profiles").insert({
     id: userId,
     organization_id: orgContext.organizationId,
     full_name: parsed.data.fullName,
@@ -256,13 +263,13 @@ export async function createManagedUserAction(
     };
   }
 
-  const { error: roleError } = await supabase.from("user_roles").insert({
+  const { error: roleError } = await adminClient.from("user_roles").insert({
     profile_id: userId,
     role: parsed.data.role,
   });
 
   if (roleError) {
-    await supabase.from("profiles").delete().eq("id", userId);
+    await adminClient.from("profiles").delete().eq("id", userId);
     await adminClient.auth.admin.deleteUser(userId);
 
     return {
@@ -312,10 +319,9 @@ export async function updateUserRoleAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
   const adminClient = createSupabaseAdminClient();
 
-  if (!supabase || !adminClient) {
+  if (!adminClient) {
     const { isAdminConfigured } = getSupabaseConfig();
 
     return {
@@ -326,7 +332,7 @@ export async function updateUserRoleAction(
     };
   }
 
-  const { error: deleteError } = await supabase
+  const { error: deleteError } = await adminClient
     .from("user_roles")
     .delete()
     .eq("profile_id", parsed.data.profileId);
@@ -338,7 +344,7 @@ export async function updateUserRoleAction(
     };
   }
 
-  const { error: insertError } = await supabase.from("user_roles").insert({
+  const { error: insertError } = await adminClient.from("user_roles").insert({
     profile_id: parsed.data.profileId,
     role: parsed.data.role,
   });

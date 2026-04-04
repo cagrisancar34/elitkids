@@ -189,14 +189,13 @@ export async function getAdminUsers() {
     ] satisfies AdminUserRow[];
   }
 
-  const supabase = await createSupabaseServerClient();
   const adminClient = createSupabaseAdminClient();
 
-  if (!supabase) {
+  if (!adminClient) {
     return [] as AdminUserRow[];
   }
 
-  const { data } = await supabase
+  const { data } = await adminClient
     .from("profiles")
     .select("id, full_name, user_roles(role)")
     .limit(20);
@@ -207,18 +206,16 @@ export async function getAdminUsers() {
 
   const emailMap = new Map<string, string>();
 
-  if (adminClient) {
-    const { data: userList } = await adminClient.auth.admin.listUsers({
-      page: 1,
-      perPage: 200,
-    });
+  const { data: userList } = await adminClient.auth.admin.listUsers({
+    page: 1,
+    perPage: 200,
+  });
 
-    userList.users.forEach((user) => {
-      if (user.id && user.email) {
-        emailMap.set(user.id, user.email);
-      }
-    });
-  }
+  userList.users.forEach((user) => {
+    if (user.id && user.email) {
+      emailMap.set(user.id, user.email);
+    }
+  });
 
   return data.map((profile) => {
     const firstRole = Array.isArray(profile.user_roles) ? profile.user_roles[0] : null;
