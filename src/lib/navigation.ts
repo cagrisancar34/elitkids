@@ -33,6 +33,11 @@ export const navigationByRole: Record<AppRole, RoleNavItem[]> = {
       label: "Sistem Ayarlari",
       description: "Kurum, entegrasyon ve guvenlik tercihleri",
     },
+    {
+      href: "/admin/landing",
+      label: "Landing Page",
+      description: "Anasayfa icerigi, vitrin akisi ve CTA alanlari",
+    },
   ],
   manager: [
     {

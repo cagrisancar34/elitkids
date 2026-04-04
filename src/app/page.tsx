@@ -469,20 +469,28 @@ function mergeLandingContent(
 }
 
 async function loadLandingContent() {
-  // Future Supabase integration point:
-  // 1. homepage_settings -> hero, navbar, cta, footer top-level fields
-  // 2. homepage_stats -> stats[]
-  // 3. homepage_programs -> programs.items[]
-  // 4. homepage_features -> whyUs.features[]
-  // 5. homepage_testimonials -> testimonials.items[]
-  // 6. homepage_news -> news.items[]
-  // 7. homepage_footer_links -> footer.groups[]
-  //
-  // Example:
-  // const supabase = createSupabaseBrowserClient();
-  // const { data } = await supabase.from("homepage_settings").select("*").single();
-  // return normalizeHomepagePayload(data);
-  return null as Partial<LandingContent> | null;
+  // Future Supabase/CMS integration point:
+  // This route currently returns a single normalized payload. Later we can
+  // swap it with joined reads from homepage_settings, homepage_stats,
+  // homepage_programs, homepage_features, homepage_testimonials,
+  // homepage_news and homepage_footer_links without changing the UI layer.
+  try {
+    const response = await fetch("/api/landing-content", {
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = (await response.json()) as {
+      content?: Partial<LandingContent> | null;
+    };
+
+    return payload.content ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export default function HomePage() {

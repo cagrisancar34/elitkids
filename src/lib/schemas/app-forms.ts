@@ -144,3 +144,7 @@ export const toggleSeasonDefaultSchema = z.object({
   seasonId: z.string().uuid("Sezon secilmeli."),
   nextState: z.enum(["default", "clear"]),
 });
+
+export const updateLandingContentSchema = z.object({
+  content: z.string().min(2, "Landing content verisi eksik."),
+});
