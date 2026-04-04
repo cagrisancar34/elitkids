@@ -320,7 +320,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function mergeUnknown(base: unknown, override: unknown): unknown {
   if (Array.isArray(base)) {
-    return Array.isArray(override) ? override : base;
+    if (!Array.isArray(override)) {
+      return base;
+    }
+
+    return base.map((baseItem, index) => mergeUnknown(baseItem, override[index]));
   }
 
   if (isRecord(base)) {
