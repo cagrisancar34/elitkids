@@ -61,7 +61,7 @@ export function LoginForm({ supabaseEnabled }: { supabaseEnabled: boolean }) {
           <CardDescription>
             {supabaseEnabled
               ? "Bu form artik Supabase Auth ile gercek oturum acar ve kullaniciyi rolune gore yonlendirir."
-              : "Canli auth icin .env.local icinde Supabase URL ve publishable key tanimlanmali."}
+              : "Canli auth icin deploy ortaminda Supabase URL ve publishable key tanimlanmali."}
           </CardDescription>
         </CardHeader>
         <CardContent>

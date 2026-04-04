@@ -63,7 +63,7 @@ export async function signInWithPassword(
   if (!isConfigured) {
     return {
       error:
-        "Supabase ortam degiskenleri eksik. .env.local dosyasina URL ve publishable key eklenmeli.",
+        "Supabase ortam degiskenleri eksik. Runtime ortaminda URL ve publishable key tanimlanmali.",
     };
   }
 
