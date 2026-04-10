@@ -10,23 +10,42 @@ import {
   studentRecords,
   supportThreads,
 } from "@/lib/mock-data";
+import {
+  defaultStudentDetailQuestions,
+  getFallbackEntriesFromLegacy,
+  parseQuestionOptions,
+} from "@/lib/student-reporting";
 import { getCurrentAuthContext } from "@/lib/auth";
+import { getOrCreateOrganizationContext } from "@/lib/organization-context";
 import type {
   AnnouncementRecord,
   AdminUserRow,
+  Area,
+  AuditLogRow,
   BranchSetting,
+  Category,
   ChargeRecord,
   ChargeOption,
   CoachOption,
+  CoachStudentRecord,
   CoachSessionBoard,
+  DetailAnswerRecord,
+  DetailQuestionRecord,
+  LeadSubmissionRow,
   Metric,
   NotificationRecord,
   OrganizationSettings,
   ParentNotification,
+  ProgramFormOptions,
+  ProgramResourceAdminData,
+  ProgramRecord,
   ProgramOption,
+  ProgramType,
   SeasonSetting,
   SessionRecord,
+  SportsBranch,
   StudentRecord,
+  StudentReportCard,
   SupportThread,
 } from "@/lib/types";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
@@ -71,8 +90,156 @@ function getRelatedFullName(value: unknown) {
   return null;
 }
 
-function getStatusFromBalance(balance: number, active: boolean) {
+function getRelatedAgeBand(value: unknown) {
+  if (Array.isArray(value)) {
+    return typeof value[0]?.age_band === "string" ? value[0].age_band : null;
+  }
+
+  if (value && typeof value === "object" && "age_band" in value) {
+    return typeof value.age_band === "string" ? value.age_band : null;
+  }
+
+  return null;
+}
+
+function getRelatedName(value: unknown) {
+  if (Array.isArray(value)) {
+    return typeof value[0]?.name === "string" ? value[0].name : null;
+  }
+
+  if (value && typeof value === "object" && "name" in value) {
+    return typeof value.name === "string" ? value.name : null;
+  }
+
+  return null;
+}
+
+function getStudentInitials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+function formatBirthDate(value: string | null) {
+  if (!value) {
+    return "--.--.----";
+  }
+
+  return format(new Date(value), "dd.MM.yyyy");
+}
+
+function normalizeDetailQuestions(
+  rows:
+    | Array<{
+        id: string;
+        field_key: string;
+        label: string;
+        input_type: string;
+        helper_text: string | null;
+        placeholder: string | null;
+        options: unknown;
+        required: boolean | null;
+        active: boolean | null;
+        sort_order: number | null;
+      }>
+    | null
+    | undefined,
+): DetailQuestionRecord[] {
+  if (!rows?.length) {
+    return defaultStudentDetailQuestions;
+  }
+
+  return rows
+    .map((row) => ({
+      id: row.id,
+      fieldKey: row.field_key,
+      label: row.label,
+      inputType: (
+        row.input_type === "textarea" ||
+        row.input_type === "number" ||
+        row.input_type === "select"
+          ? row.input_type
+          : "text"
+      ) as DetailQuestionRecord["inputType"],
+      helperText: row.helper_text ?? "",
+      placeholder: row.placeholder ?? "",
+      options: parseQuestionOptions(row.options),
+      required: Boolean(row.required),
+      active: row.active ?? true,
+      sortOrder: Number(row.sort_order ?? 100),
+      source: "database" as const,
+    }))
+    .sort((left, right) => left.sortOrder - right.sortOrder);
+}
+
+function normalizeReportCardPayloadEntries(payload: unknown) {
+  if (!payload || typeof payload !== "object" || !("entries" in payload) || !Array.isArray(payload.entries)) {
+    return [] as DetailAnswerRecord[];
+  }
+
+  return payload.entries
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+
+      const inputType =
+        entry.inputType === "textarea" ||
+        entry.inputType === "number" ||
+        entry.inputType === "select"
+          ? entry.inputType
+          : "text";
+
+      return {
+        questionId: typeof entry.questionId === "string" ? entry.questionId : "",
+        fieldKey: typeof entry.fieldKey === "string" ? entry.fieldKey : "",
+        label: typeof entry.label === "string" ? entry.label : "Alan",
+        inputType,
+        value: typeof entry.value === "string" ? entry.value : "",
+        sortOrder: typeof entry.sortOrder === "number" ? entry.sortOrder : 100,
+      } satisfies DetailAnswerRecord;
+    })
+    .filter((entry): entry is DetailAnswerRecord => Boolean(entry?.fieldKey))
+    .sort((left, right) => left.sortOrder - right.sortOrder);
+}
+
+function buildStudentReportCard(input: {
+  id: string;
+  summary: string;
+  generatedAt: string | null;
+  payload: unknown;
+  legacyDetail?: {
+    category?: string | null;
+    clubName?: string | null;
+    technicalScore?: number | null;
+    disciplineScore?: number | null;
+    participationScore?: number | null;
+    strengths?: string | null;
+    improvementAreas?: string | null;
+    coachNotes?: string | null;
+  } | null;
+}) {
+  const payloadEntries = normalizeReportCardPayloadEntries(input.payload);
+  const fallbackEntries = input.legacyDetail ? getFallbackEntriesFromLegacy(input.legacyDetail) : [];
+  const entries = payloadEntries.length ? payloadEntries : fallbackEntries;
+
+  return {
+    id: input.id,
+    summary: input.summary,
+    generatedAt: formatDateLabel(input.generatedAt),
+    entries,
+  } satisfies StudentReportCard;
+}
+
+function getStudentLifecycleStatus(balance: number, active: boolean) {
   if (!active) {
+    return "Pasif";
+  }
+
+  if (balance >= 1500) {
     return "Risk";
   }
 
@@ -85,6 +252,43 @@ function getStatusFromBalance(balance: number, active: boolean) {
 
 function isLiveEnabled() {
   return getSupabaseConfig().isConfigured;
+}
+
+async function getCurrentOrganizationId() {
+  const auth = await getCurrentAuthContext();
+  if (!auth?.userId) {
+    return null;
+  }
+
+  const context = await getOrCreateOrganizationContext(auth.userId);
+  return context.organizationId;
+}
+
+export async function getStudentDetailQuestions() {
+  if (!isLiveEnabled()) {
+    return defaultStudentDetailQuestions;
+  }
+
+  const organizationId = await getCurrentOrganizationId();
+  const adminClient = createSupabaseAdminClient();
+
+  if (!organizationId || !adminClient) {
+    return defaultStudentDetailQuestions;
+  }
+
+  const { data, error } = await adminClient
+    .from("student_detail_questions")
+    .select(
+      "id, field_key, label, input_type, helper_text, placeholder, options, required, active, sort_order",
+    )
+    .eq("organization_id", organizationId)
+    .order("sort_order");
+
+  if (error) {
+    return defaultStudentDetailQuestions;
+  }
+
+  return normalizeDetailQuestions(data);
 }
 
 export async function getAdminMetrics() {
@@ -243,38 +447,22 @@ export async function getOrganizationSettingsData() {
   }
 
   const auth = await getCurrentAuthContext();
-  const supabase = await createSupabaseServerClient();
-
-  if (!supabase || !auth?.userId) {
+  if (!auth?.userId) {
     return null;
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("organization_id")
-    .eq("id", auth.userId)
-    .maybeSingle();
+  const context = await getOrCreateOrganizationContext(auth.userId);
 
-  if (!profile?.organization_id) {
-    return null;
-  }
-
-  const { data: organization } = await supabase
-    .from("organizations")
-    .select("id, name, slug, locale, timezone")
-    .eq("id", profile.organization_id)
-    .maybeSingle();
-
-  if (!organization) {
+  if (!context.organization) {
     return null;
   }
 
   return {
-    id: organization.id,
-    name: organization.name,
-    slug: organization.slug,
-    locale: organization.locale,
-    timezone: organization.timezone,
+    id: context.organization.id,
+    name: context.organization.name,
+    slug: context.organization.slug,
+    locale: context.organization.locale,
+    timezone: context.organization.timezone,
   } satisfies OrganizationSettings;
 }
 
@@ -309,20 +497,16 @@ export async function getBranchSettingsData() {
     return [] as BranchSetting[];
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("organization_id")
-    .eq("id", auth.userId)
-    .maybeSingle();
+  const context = await getOrCreateOrganizationContext(auth.userId);
 
-  if (!profile?.organization_id) {
+  if (!context.organizationId) {
     return [] as BranchSetting[];
   }
 
   const { data, error } = await supabase
     .from("branches")
     .select("id, name, slug, location, active, archived_at")
-    .eq("organization_id", profile.organization_id)
+    .eq("organization_id", context.organizationId)
     .order("name");
 
   if (error) {
@@ -373,20 +557,16 @@ export async function getSeasonSettingsData() {
     return [] as SeasonSetting[];
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("organization_id")
-    .eq("id", auth.userId)
-    .maybeSingle();
+  const context = await getOrCreateOrganizationContext(auth.userId);
 
-  if (!profile?.organization_id) {
+  if (!context.organizationId) {
     return [] as SeasonSetting[];
   }
 
   const { data, error } = await supabase
     .from("seasons")
     .select("id, title, starts_on, ends_on, is_active, is_default")
-    .eq("organization_id", profile.organization_id)
+    .eq("organization_id", context.organizationId)
     .order("starts_on", { ascending: false });
 
   if (error) {
@@ -418,7 +598,7 @@ export async function getManagerMetrics() {
 
   const [studentsCount, sessionsCount, chargesData] = await Promise.all([
     supabase.from("students").select("*", { head: true, count: "exact" }),
-    supabase.from("sessions").select("*", { head: true, count: "exact" }),
+    supabase.from("sessions").select("*", { head: true, count: "exact" }).is("cancelled_at", null),
     supabase.from("charges").select("amount, payments(amount)"),
   ]);
 
@@ -533,15 +713,23 @@ export async function getManagerStudents() {
     return studentRecords;
   }
 
-  const supabase = await createSupabaseServerClient();
+  const auth = await getCurrentAuthContext();
 
-  if (!supabase) {
+  if (!auth?.userId || (auth.role !== "manager" && auth.role !== "admin")) {
     return [] as StudentRecord[];
   }
 
-  const { data: students } = await supabase
+  const organizationContext = await getOrCreateOrganizationContext(auth.userId);
+  const adminClient = createSupabaseAdminClient();
+
+  if (!adminClient || !organizationContext.organizationId || !organizationContext.organization) {
+    return [] as StudentRecord[];
+  }
+
+  const { data: students } = await adminClient
     .from("students")
-    .select("id, full_name, active, enrollments(status, programs(title))")
+    .select("id, full_name, birth_date, gender, active")
+    .eq("organization_id", organizationContext.organizationId)
     .limit(20);
 
   if (!students?.length) {
@@ -549,22 +737,91 @@ export async function getManagerStudents() {
   }
 
   const studentIds = students.map((student) => student.id);
+  const { data: enrollments } = await adminClient
+    .from("enrollments")
+    .select("id, student_id, status, program_id, programs(title, age_band)")
+    .in("student_id", studentIds);
+
+  const enrollmentIds = (enrollments ?? []).map((enrollment) => enrollment.id);
+  const { data: charges } = await adminClient
+    .from("charges")
+    .select("id, enrollment_id, amount, status")
+    .in("enrollment_id", enrollmentIds.length ? enrollmentIds : ["00000000-0000-0000-0000-000000000000"]);
+
+  const { data: detailProfiles } = await adminClient
+    .from("student_detail_profiles")
+    .select(
+      "id, student_id, category, club_name, technical_score, discipline_score, participation_score, strengths, improvement_areas, coach_notes",
+    )
+    .in("student_id", studentIds);
+
+  const { data: reportCards } = await adminClient
+    .from("report_cards")
+    .select("id, student_id, summary, generated_at, payload")
+    .in("student_id", studentIds);
+
   const [balances, attendance] = await Promise.all([
     getStudentBalanceMap(studentIds),
     getAttendanceMap(studentIds),
   ]);
 
   return students.map((student) => {
-    const enrollment = Array.isArray(student.enrollments) ? student.enrollments[0] : student.enrollments;
+    const enrollment = (enrollments ?? []).find((item) => item.student_id === student.id);
     const balance = balances.get(student.id) ?? 0;
+    const detail = (detailProfiles ?? []).find((item) => item.student_id === student.id);
+    const reportCard = (reportCards ?? []).find((item) => item.student_id === student.id);
+    const studentCharges = (charges ?? []).filter((charge) => charge.enrollment_id === enrollment?.id);
+    const programName = getRelatedTitle(enrollment?.programs) ?? "Program baglanmadi";
+    const programAgeBand = getRelatedAgeBand(enrollment?.programs);
+    const category = detail?.category || programAgeBand || programName;
+    const legacyDetail = detail
+      ? {
+          category: detail.category ?? category,
+          clubName: detail.club_name ?? organizationContext.organization?.name ?? "Kulup baglanmadi",
+          technicalScore: detail.technical_score,
+          disciplineScore: detail.discipline_score,
+          participationScore: detail.participation_score,
+          strengths: detail.strengths ?? "",
+          improvementAreas: detail.improvement_areas ?? "",
+          coachNotes: detail.coach_notes ?? "",
+        }
+      : null;
+    const reportCardRecord = reportCard
+      ? buildStudentReportCard({
+          id: reportCard.id,
+          summary: reportCard.summary,
+          generatedAt: reportCard.generated_at,
+          payload: reportCard.payload,
+          legacyDetail,
+        })
+      : null;
 
     return {
+      id: student.id,
+      initials: getStudentInitials(student.full_name),
       name: student.full_name,
-      program: getRelatedTitle(enrollment?.programs) ?? "Program baglanmadi",
+      club: detail?.club_name || organizationContext.organization?.name || "Kulup baglanmadi",
+      category,
+      gender:
+        student.gender === "female" ? "Kadin" : student.gender === "male" ? "Erkek" : "Belirtilmedi",
+      birthDate: formatBirthDate(student.birth_date),
+      program: programName,
       coach: "Canli atama sonrasi",
       attendance: attendance.get(student.id) ?? "--",
       balance: formatTry(balance),
-      status: getStatusFromBalance(balance, student.active ?? true),
+      status: getStudentLifecycleStatus(balance, student.active ?? true),
+      programId: enrollment?.program_id,
+      chargeOptions: studentCharges
+        .filter((charge) => charge.status !== "paid")
+        .map((charge) => ({
+          id: charge.id,
+          label: `${student.full_name} / ${programName}`,
+          amount: formatTry(Number(charge.amount ?? 0)),
+          status: charge.status === "paid" ? "Odendi" : "Bekliyor",
+        })),
+      detailSaved: Boolean(reportCardRecord || detail),
+      reportCard: reportCardRecord,
+      detailEntries: reportCardRecord?.entries ?? (legacyDetail ? getFallbackEntriesFromLegacy(legacyDetail) : []),
     };
   }) satisfies StudentRecord[];
 }
@@ -572,51 +829,187 @@ export async function getManagerStudents() {
 export async function getProgramsData() {
   if (!isLiveEnabled()) {
     return [
-      { title: "Mini Ice / 6-8 Yas", detail: "Haftada 2 seans · Kontenjan 16 · Aylik ₺4.800" },
-      { title: "Power Skating / 9-12 Yas", detail: "Haftada 3 seans · Kontenjan 20 · Aylik ₺6.250" },
-      { title: "Artistik Baslangic", detail: "Haftada 2 seans · Kontenjan 14 · Aylik ₺5.400" },
-    ];
+      {
+        id: "mock-program-1",
+        title: "Mini Ice / 6-8 Yas",
+        ageBand: "6-8 Yas",
+        capacity: 16,
+        monthlyPrice: 4800,
+        detail: "Grup Dersi · 2026 Bahar · Mini Akademi · Kontenjan 16",
+        programTypeName: "Grup Dersi",
+        seasonTitle: "2026 Bahar",
+        categoryName: "Baslangic",
+        branchName: "Mini Akademi",
+        sportsBranchName: "Buz Pateni",
+        coachName: "Ece Yilmaz",
+        areaName: "Ana Pist",
+        enrolledCount: 12,
+        monthlyLessonQuota: 8,
+        status: "active",
+      },
+      {
+        id: "mock-program-2",
+        title: "Power Skating / 9-12 Yas",
+        ageBand: "9-12 Yas",
+        capacity: 20,
+        monthlyPrice: 6250,
+        detail: "Grup Dersi · 2026 Bahar · Ana Pist · Kontenjan 20",
+        programTypeName: "Grup Dersi",
+        seasonTitle: "2026 Bahar",
+        categoryName: "Yildiz B",
+        branchName: "Ana Pist",
+        sportsBranchName: "Yuzme",
+        coachName: "Hamza Sancar",
+        areaName: "Ana Pist",
+        enrolledCount: 18,
+        monthlyLessonQuota: 8,
+        status: "active",
+      },
+      {
+        id: "mock-program-3",
+        title: "Artistik Baslangic",
+        ageBand: "Baslangic",
+        capacity: 14,
+        monthlyPrice: 5400,
+        detail: "Grup Dersi · 2026 Yaz Kampi · Mini Akademi · Kontenjan 14",
+        programTypeName: "Grup Dersi",
+        seasonTitle: "2026 Yaz Kampi",
+        categoryName: "Hokey A",
+        branchName: "Mini Akademi",
+        sportsBranchName: "Jimnastik",
+        coachName: "Ece Yilmaz",
+        areaName: "Mini Salon",
+        enrolledCount: 6,
+        monthlyLessonQuota: 8,
+        status: "active",
+      },
+    ] satisfies ProgramRecord[];
   }
 
-  const supabase = await createSupabaseServerClient();
+  const auth = await getCurrentAuthContext();
+  const adminClient = createSupabaseAdminClient();
 
-  if (!supabase) {
+  if (!auth?.userId || !adminClient) {
     return [];
   }
 
-  const { data } = await supabase
+  const context = await getOrCreateOrganizationContext(auth.userId);
+
+  if (!context.organizationId) {
+    return [];
+  }
+
+  const { data } = await adminClient
     .from("programs")
-    .select("title, age_band, capacity, monthly_price")
+    .select(
+      "id, title, age_band, capacity, monthly_price, archived_at, status, notes, monthly_lesson_quota, program_type_id, season_id, category_id, branch_id, sports_branch_id, coach_profile_id, area_id, program_types(name), seasons(title), categories(name), branches(name), sports_branches(name), profiles(full_name), areas(name)",
+    )
+    .eq("organization_id", context.organizationId)
+    .is("archived_at", null)
     .order("title");
 
-  return (data ?? []).map((program) => ({
-    title: program.title,
-    detail: `${program.age_band ?? "Tum grup"} · Kontenjan ${program.capacity ?? 0} · ${formatTry(
-      Number(program.monthly_price ?? 0),
-    )}`,
-  }));
+  const programIds = (data ?? []).map((program) => program.id);
+  const { data: enrollments } = await adminClient
+    .from("enrollments")
+    .select("program_id")
+    .in("program_id", programIds.length ? programIds : ["00000000-0000-0000-0000-000000000000"]);
+
+  const enrollmentCounts = new Map<string, number>();
+  (enrollments ?? []).forEach((enrollment) => {
+    enrollmentCounts.set(enrollment.program_id, (enrollmentCounts.get(enrollment.program_id) ?? 0) + 1);
+  });
+
+  return (data ?? []).map((program) => {
+    const enrolledCount = enrollmentCounts.get(program.id) ?? 0;
+
+    return {
+      id: program.id,
+      title: program.title,
+      detail: [
+        getRelatedName(program.program_types),
+        getRelatedTitle(program.seasons),
+        getRelatedName(program.branches),
+        `Kontenjan ${Number(program.capacity ?? 0)}`,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      ageBand: program.age_band ?? "Tum grup",
+      capacity: Number(program.capacity ?? 0),
+      monthlyPrice: Number(program.monthly_price ?? 0),
+      programTypeId: program.program_type_id,
+      programTypeName: getRelatedName(program.program_types) ?? undefined,
+      seasonId: program.season_id,
+      seasonTitle: getRelatedTitle(program.seasons) ?? undefined,
+      categoryId: program.category_id,
+      categoryName: getRelatedName(program.categories) ?? undefined,
+      branchId: program.branch_id,
+      branchName: getRelatedName(program.branches) ?? undefined,
+      sportsBranchId: program.sports_branch_id,
+      sportsBranchName: getRelatedName(program.sports_branches) ?? undefined,
+      coachProfileId: program.coach_profile_id,
+      coachName: getRelatedFullName(program.profiles) ?? "Atanacak",
+      areaId: program.area_id,
+      areaName: getRelatedName(program.areas) ?? "Alan belirtilmedi",
+      notes: program.notes ?? "",
+      enrolledCount,
+      monthlyLessonQuota: Number(program.monthly_lesson_quota ?? 8),
+      status: "active",
+    };
+  }) satisfies ProgramRecord[];
 }
 
 export async function getProgramOptions() {
   if (!isLiveEnabled()) {
     return [
-      { id: "00000000-0000-0000-0000-000000000001", title: "Mini Ice / 6-8 Yas" },
-      { id: "00000000-0000-0000-0000-000000000002", title: "Power Skating / 9-12 Yas" },
-      { id: "00000000-0000-0000-0000-000000000003", title: "Artistik Baslangic" },
+      {
+        id: "00000000-0000-0000-0000-000000000001",
+        title: "Mini Ice / 6-8 Yas",
+        branchName: "Mini Akademi",
+        categoryName: "Baslangic",
+        areaName: "Ana Pist",
+      },
+      {
+        id: "00000000-0000-0000-0000-000000000002",
+        title: "Power Skating / 9-12 Yas",
+        branchName: "Ana Pist",
+        categoryName: "Yildiz B",
+        areaName: "Ana Pist",
+      },
+      {
+        id: "00000000-0000-0000-0000-000000000003",
+        title: "Artistik Baslangic",
+        branchName: "Mini Akademi",
+        categoryName: "Hokey A",
+        areaName: "Mini Salon",
+      },
     ] satisfies ProgramOption[];
   }
 
-  const supabase = await createSupabaseServerClient();
+  const auth = await getCurrentAuthContext();
+  const adminClient = createSupabaseAdminClient();
 
-  if (!supabase) {
+  if (!auth?.userId || !adminClient) {
     return [] as ProgramOption[];
   }
 
-  const { data } = await supabase.from("programs").select("id, title").order("title");
+  const context = await getOrCreateOrganizationContext(auth.userId);
+  if (!context.organizationId) {
+    return [] as ProgramOption[];
+  }
+
+  const { data } = await adminClient
+    .from("programs")
+    .select("id, title, branches(name), categories(name), areas(name)")
+    .eq("organization_id", context.organizationId)
+    .is("archived_at", null)
+    .order("title");
 
   return (data ?? []).map((program) => ({
     id: program.id,
     title: program.title,
+    branchName: getRelatedName(program.branches) ?? undefined,
+    categoryName: getRelatedName(program.categories) ?? undefined,
+    areaName: getRelatedName(program.areas) ?? undefined,
   })) satisfies ProgramOption[];
 }
 
@@ -625,15 +1018,23 @@ export async function getCoachOptions() {
     return [{ id: "00000000-0000-0000-0000-000000000101", name: "Ece Yilmaz" }] satisfies CoachOption[];
   }
 
-  const supabase = await createSupabaseServerClient();
+  const auth = await getCurrentAuthContext();
+  const adminClient = createSupabaseAdminClient();
 
-  if (!supabase) {
+  if (!auth?.userId || !adminClient) {
     return [] as CoachOption[];
   }
 
-  const { data } = await supabase
+  const context = await getOrCreateOrganizationContext(auth.userId);
+
+  if (!context.organizationId) {
+    return [] as CoachOption[];
+  }
+
+  const { data } = await adminClient
     .from("profiles")
     .select("id, full_name, user_roles(role)")
+    .eq("organization_id", context.organizationId)
     .limit(100);
 
   return (data ?? [])
@@ -648,70 +1049,253 @@ export async function getCoachOptions() {
     })) satisfies CoachOption[];
 }
 
-export async function getSessionsData() {
-  if (!isLiveEnabled()) {
-    return sessionRecords;
+export async function getProgramFormOptions(): Promise<ProgramFormOptions> {
+  const auth = await getCurrentAuthContext();
+  const adminClient = createSupabaseAdminClient();
+
+  if (!auth?.userId || !adminClient) {
+    return {
+      seasons: [],
+      branches: [],
+      programTypes: [],
+      categories: [],
+      sportsBranches: [],
+      areas: [],
+      coaches: [],
+    };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const context = await getOrCreateOrganizationContext(auth.userId);
 
-  if (!supabase) {
-    return [] as SessionRecord[];
+  if (!context.organizationId) {
+    return {
+      seasons: [],
+      branches: [],
+      programTypes: [],
+      categories: [],
+      sportsBranches: [],
+      areas: [],
+      coaches: [],
+    };
+  }
+
+  const [seasons, branches, programTypes, categories, sportsBranches, areas, coaches] = await Promise.all([
+    adminClient.from("seasons").select("id, title").eq("organization_id", context.organizationId).order("starts_on", { ascending: false }),
+    adminClient.from("branches").select("id, name").eq("organization_id", context.organizationId).is("archived_at", null).order("name"),
+    adminClient.from("program_types").select("id, name, slug").eq("organization_id", context.organizationId).order("name"),
+    adminClient.from("categories").select("id, name, slug").eq("organization_id", context.organizationId).order("name"),
+    adminClient.from("sports_branches").select("id, name, slug").eq("organization_id", context.organizationId).order("name"),
+    adminClient.from("areas").select("id, name, slug, branch_id").eq("organization_id", context.organizationId).order("name"),
+    adminClient.from("profiles").select("id, full_name, user_roles(role)").eq("organization_id", context.organizationId).limit(100),
+  ]);
+
+  return {
+    seasons: (seasons.data ?? []).map((season) => ({ id: season.id, label: season.title })),
+    branches: (branches.data ?? []).map((branch) => ({ id: branch.id, label: branch.name })),
+    programTypes: (programTypes.data ?? []) as ProgramType[],
+    categories: (categories.data ?? []) as Category[],
+    sportsBranches: (sportsBranches.data ?? []) as SportsBranch[],
+    areas: (areas.data ?? []).map((area) => ({
+      id: area.id,
+      name: area.name,
+      slug: "slug" in area ? area.slug ?? undefined : undefined,
+      branchId: area.branch_id,
+    })) satisfies Area[],
+    coaches: (coaches.data ?? [])
+      .filter((profile) =>
+        Array.isArray(profile.user_roles) ? profile.user_roles.some((role) => role.role === "coach") : false,
+      )
+      .map((profile) => ({
+        id: profile.id,
+        name: profile.full_name,
+      })) satisfies CoachOption[],
+  };
+}
+
+export async function getProgramResourceAdminData(): Promise<ProgramResourceAdminData> {
+  const auth = await getCurrentAuthContext();
+  const adminClient = createSupabaseAdminClient();
+
+  if (!auth?.userId || !adminClient) {
+    return {
+      branches: [],
+      programTypes: [],
+      categories: [],
+      sportsBranches: [],
+      areas: [],
+    };
+  }
+
+  const context = await getOrCreateOrganizationContext(auth.userId);
+
+  if (!context.organizationId) {
+    return {
+      branches: [],
+      programTypes: [],
+      categories: [],
+      sportsBranches: [],
+      areas: [],
+    };
+  }
+
+  const [branches, programTypes, categories, sportsBranches, areas] = await Promise.all([
+    adminClient.from("branches").select("id, name").eq("organization_id", context.organizationId).is("archived_at", null).order("name"),
+    adminClient.from("program_types").select("id, name, slug").eq("organization_id", context.organizationId).order("name"),
+    adminClient.from("categories").select("id, name, slug").eq("organization_id", context.organizationId).order("name"),
+    adminClient.from("sports_branches").select("id, name, slug").eq("organization_id", context.organizationId).order("name"),
+    adminClient.from("areas").select("id, name, slug, branch_id, branches(name)").eq("organization_id", context.organizationId).order("name"),
+  ]);
+
+  return {
+    branches: (branches.data ?? []).map((branch) => ({ id: branch.id, label: branch.name })),
+    programTypes: (programTypes.data ?? []).map((item) => ({
+      id: item.id,
+      name: item.name,
+      slug: item.slug,
+    })) satisfies ProgramType[],
+    categories: (categories.data ?? []).map((item) => ({
+      id: item.id,
+      name: item.name,
+      slug: item.slug,
+    })) satisfies Category[],
+    sportsBranches: (sportsBranches.data ?? []).map((item) => ({
+      id: item.id,
+      name: item.name,
+      slug: item.slug,
+    })) satisfies SportsBranch[],
+    areas: (areas.data ?? []).map((item) => ({
+      id: item.id,
+      name: item.name,
+      slug: item.slug,
+      branchId: item.branch_id,
+      branchName: getRelatedName(item.branches) ?? undefined,
+    })) satisfies Area[],
+  };
+}
+
+export async function getSessionsData() {
+  if (!isLiveEnabled()) {
+    return sessionRecords.map((session, index) => ({
+      ...session,
+      programTitle: session.title,
+      branchName: index % 2 === 0 ? "Ana Pist" : "Mini Akademi",
+      sportsBranchName: index % 2 === 0 ? "Yuzme" : "Jimnastik",
+      areaName: session.location,
+      studentCount: Number(session.roster.replace(/[^\d]/g, "") || 0),
+      capacity: 8,
+      sessionSeriesId: `mock-series-${index}`,
+      notes: "",
+    }));
   }
 
   const auth = await getCurrentAuthContext();
-  const { role, userId } = auth ?? {};
+  const adminClient = createSupabaseAdminClient();
 
-  let query = supabase
+  if (!auth?.userId || !adminClient) {
+    return [] as SessionRecord[];
+  }
+
+  const { role, userId } = auth ?? {};
+  const context = await getOrCreateOrganizationContext(auth.userId);
+
+  if (!context.organizationId) {
+    return [] as SessionRecord[];
+  }
+
+  let allowedProgramIds: string[] = [];
+
+  if (role === "parent" && userId) {
+    const { data: links } = await adminClient
+      .from("parent_student_links")
+      .select("student_id")
+      .eq("parent_profile_id", userId);
+    const studentIds = (links ?? []).map((link) => link.student_id);
+    const { data: enrollments } = await adminClient
+      .from("enrollments")
+      .select("program_id")
+      .in("student_id", studentIds.length ? studentIds : ["00000000-0000-0000-0000-000000000000"]);
+    allowedProgramIds = Array.from(new Set((enrollments ?? []).map((enrollment) => enrollment.program_id)));
+  } else {
+    const { data: programs } = await adminClient
+      .from("programs")
+      .select("id")
+      .eq("organization_id", context.organizationId)
+      .is("archived_at", null);
+    allowedProgramIds = (programs ?? []).map((program) => program.id);
+  }
+
+  let query = adminClient
     .from("sessions")
-    .select("id, title, starts_at, ends_at, location, program_id, coach_profile_id, programs(title), profiles(full_name)")
+    .select("id, title, starts_at, ends_at, location, notes, program_id, coach_profile_id, cancelled_at, area_id, session_series_id")
+    .is("cancelled_at", null)
+    .in("program_id", allowedProgramIds.length ? allowedProgramIds : ["00000000-0000-0000-0000-000000000000"])
     .order("starts_at");
 
   if (role === "coach" && userId) {
     query = query.eq("coach_profile_id", userId);
   }
 
-  if (role === "parent" && userId) {
-    const { data: links } = await supabase
-      .from("parent_student_links")
-      .select("student_id")
-      .eq("parent_profile_id", userId);
-    const studentIds = (links ?? []).map((link) => link.student_id);
-    const { data: enrollments } = await supabase
-      .from("enrollments")
-      .select("program_id")
-      .in("student_id", studentIds.length ? studentIds : ["00000000-0000-0000-0000-000000000000"]);
-    const programIds = Array.from(new Set((enrollments ?? []).map((enrollment) => enrollment.program_id)));
-    query = query.in("program_id", programIds.length ? programIds : ["00000000-0000-0000-0000-000000000000"]);
-  }
-
-  const { data: sessions } = await query.limit(12);
+  const { data: sessions } = await query.limit(200);
 
   if (!sessions?.length) {
     return [];
   }
 
   const programIds = Array.from(new Set(sessions.map((session) => session.program_id)));
-  const { data: enrollments } = await supabase
-    .from("enrollments")
-    .select("program_id")
-    .in("program_id", programIds);
+  const coachIds = Array.from(new Set(sessions.map((session) => session.coach_profile_id).filter(Boolean)));
+  const areaIds = Array.from(new Set(sessions.map((session) => session.area_id).filter(Boolean)));
+
+  const [{ data: enrollments }, { data: programs }, { data: coaches }, { data: areas }] = await Promise.all([
+    adminClient.from("enrollments").select("program_id").in("program_id", programIds),
+    adminClient
+      .from("programs")
+      .select("id, title, capacity, branches(name), sports_branches(name), areas(name)")
+      .in("id", programIds),
+    coachIds.length
+      ? adminClient.from("profiles").select("id, full_name").in("id", coachIds as string[])
+      : Promise.resolve({ data: [] as Array<{ id: string; full_name: string }> }),
+    areaIds.length
+      ? adminClient.from("areas").select("id, name").in("id", areaIds as string[])
+      : Promise.resolve({ data: [] as Array<{ id: string; name: string }> }),
+  ]);
 
   const rosterCounts = new Map<string, number>();
   (enrollments ?? []).forEach((enrollment) => {
-    rosterCounts.set(
-      enrollment.program_id,
-      (rosterCounts.get(enrollment.program_id) ?? 0) + 1,
-    );
+    rosterCounts.set(enrollment.program_id, (rosterCounts.get(enrollment.program_id) ?? 0) + 1);
   });
 
-  return sessions.map((session) => ({
-    title: session.title ?? getRelatedTitle(session.programs) ?? "Seans",
-    slot: formatDateTimeRange(session.starts_at, session.ends_at),
-    coach: getRelatedFullName(session.profiles) ?? "Atanacak",
-    roster: `${rosterCounts.get(session.program_id) ?? 0} sporcu`,
-    location: session.location ?? "Alan belirtilmedi",
-  })) satisfies SessionRecord[];
+  const programMap = new Map((programs ?? []).map((program) => [program.id, program]));
+  const coachMap = new Map((coaches ?? []).map((coach) => [coach.id, coach.full_name]));
+  const areaMap = new Map((areas ?? []).map((area) => [area.id, area.name]));
+
+  return sessions.map((session) => {
+    const program = programMap.get(session.program_id);
+    const studentCount = rosterCounts.get(session.program_id) ?? 0;
+    const capacity = Number(program?.capacity ?? 0);
+
+    return {
+      id: session.id,
+      title: session.title ?? program?.title ?? "Seans",
+      slot: formatDateTimeRange(session.starts_at, session.ends_at),
+      coach: session.coach_profile_id ? coachMap.get(session.coach_profile_id) ?? "Atanacak" : "Atanacak",
+      roster: `${studentCount} / ${capacity || studentCount} sporcu`,
+      location: session.location ?? areaMap.get(session.area_id ?? "") ?? "Alan belirtilmedi",
+      programTitle: program?.title ?? undefined,
+      branchName: getRelatedName(program?.branches) ?? undefined,
+      sportsBranchName: getRelatedName(program?.sports_branches) ?? undefined,
+      areaName: areaMap.get(session.area_id ?? "") ?? getRelatedName(program?.areas) ?? undefined,
+      studentCount,
+      capacity,
+      sessionSeriesId: session.session_series_id,
+      programId: session.program_id,
+      coachId: session.coach_profile_id,
+      areaId: session.area_id,
+      notes: session.notes ?? "",
+      startsAt: session.starts_at,
+      endsAt: session.ends_at,
+      status: "active",
+    };
+  }) satisfies SessionRecord[];
 }
 
 export async function getCoachSessionBoards() {
@@ -725,7 +1309,8 @@ export async function getCoachSessionBoards() {
       students: studentRecords.slice(0, 3).map((student) => ({
         studentId: `${index}-${student.name}`,
         name: student.name,
-        status: student.status === "Aktif" ? "present" : "late",
+        status: student.status === "Aktif" ? "present" : "absent",
+        note: "",
       })),
     })) satisfies CoachSessionBoard[];
   }
@@ -737,11 +1322,17 @@ export async function getCoachSessionBoards() {
     return [] as CoachSessionBoard[];
   }
 
-  const { data: sessions } = await supabase
+  let sessionQuery = supabase
     .from("sessions")
     .select("id, title, starts_at, ends_at, location, program_id")
-    .eq("coach_profile_id", auth.userId)
+    .is("cancelled_at", null)
     .order("starts_at");
+
+  if (auth.role !== "admin") {
+    sessionQuery = sessionQuery.eq("coach_profile_id", auth.userId);
+  }
+
+  const { data: sessions } = await sessionQuery;
 
   if (!sessions?.length) {
     return [] as CoachSessionBoard[];
@@ -756,7 +1347,7 @@ export async function getCoachSessionBoards() {
   const sessionIds = sessions.map((session) => session.id);
   const { data: attendanceRows } = await supabase
     .from("attendance_records")
-    .select("session_id, student_id, status")
+    .select("session_id, student_id, status, note")
     .in("session_id", sessionIds);
 
   return sessions.map((session) => {
@@ -779,6 +1370,7 @@ export async function getCoachSessionBoards() {
           studentId: enrollment.student_id,
           name: getRelatedFullName(enrollment.students) ?? "Ogrenci",
           status: attendance?.status ?? "present",
+          note: attendance?.note ?? "",
         };
       }),
     };
@@ -961,24 +1553,29 @@ export async function getCoachMetrics() {
     return metricsByRole.coach;
   }
 
+  const sessionProgramQuery = supabase.from("sessions").select("program_id").is("cancelled_at", null);
+  const sessionCountQuery = supabase
+    .from("sessions")
+    .select("*", { head: true, count: "exact" })
+    .is("cancelled_at", null);
+
+  if (auth.role !== "admin") {
+    sessionProgramQuery.eq("coach_profile_id", auth.userId);
+    sessionCountQuery.eq("coach_profile_id", auth.userId);
+  }
+
+  const sessionProgramsResult = await sessionProgramQuery;
+  const programIds = sessionProgramsResult.data?.map((row) => row.program_id) ?? [
+    "00000000-0000-0000-0000-000000000000",
+  ];
+
   const [{ count: sessionCount }, { count: rosterCount }, { count: pendingAttendance }] = await Promise.all([
-    supabase.from("sessions").select("*", { head: true, count: "exact" }).eq("coach_profile_id", auth.userId),
+    sessionCountQuery,
     supabase
       .from("enrollments")
       .select("id", { head: true, count: "exact" })
-      .in(
-        "program_id",
-        (
-          await supabase
-            .from("sessions")
-            .select("program_id")
-            .eq("coach_profile_id", auth.userId)
-        ).data?.map((row) => row.program_id) ?? ["00000000-0000-0000-0000-000000000000"],
-      ),
-    supabase
-      .from("attendance_records")
-      .select("*", { head: true, count: "exact" })
-      .eq("status", "absent"),
+      .in("program_id", programIds),
+    supabase.from("attendance_records").select("*", { head: true, count: "exact" }).eq("status", "absent"),
   ]);
 
   return [
@@ -991,51 +1588,109 @@ export async function getCoachMetrics() {
 export async function getCoachStudents() {
   if (!isLiveEnabled()) {
     return studentRecords.map((student) => ({
+      id: student.id,
+      initials: student.initials,
       name: student.name,
+      club: student.club,
+      category: student.category,
+      gender: student.gender,
+      birthDate: student.birthDate,
       program: student.program,
       coach: student.coach,
       attendance: student.attendance,
       status: student.status,
-    }));
+      detailSaved: student.detailSaved,
+      reportCard: student.reportCard ?? null,
+      detailEntries: student.detailEntries ?? [],
+    })) satisfies CoachStudentRecord[];
   }
 
-  const supabase = await createSupabaseServerClient();
   const auth = await getCurrentAuthContext();
+  const adminClient = createSupabaseAdminClient();
 
-  if (!supabase || !auth?.userId) {
-    return [];
+  if (!adminClient || !auth?.userId) {
+    return [] as CoachStudentRecord[];
   }
 
-  const { data: coachSessions } = await supabase
-    .from("sessions")
-    .select("program_id")
-    .eq("coach_profile_id", auth.userId);
+  let coachSessionsQuery = adminClient.from("sessions").select("program_id").is("cancelled_at", null);
+
+  if (auth.role !== "admin") {
+    coachSessionsQuery = coachSessionsQuery.eq("coach_profile_id", auth.userId);
+  }
+
+  const { data: coachSessions } = await coachSessionsQuery;
 
   const programIds = Array.from(new Set((coachSessions ?? []).map((session) => session.program_id)));
-  const { data: enrollments } = await supabase
+  const { data: enrollments } = await adminClient
     .from("enrollments")
     .select("student_id, programs(title)")
     .in("program_id", programIds.length ? programIds : ["00000000-0000-0000-0000-000000000000"]);
 
   const studentIds = Array.from(new Set((enrollments ?? []).map((enrollment) => enrollment.student_id)));
-  const { data: students } = await supabase
+  const { data: students } = await adminClient
     .from("students")
-    .select("id, full_name, active")
+    .select("id, full_name, birth_date, gender, active")
     .in("id", studentIds.length ? studentIds : ["00000000-0000-0000-0000-000000000000"]);
+
+  const organizationContext = await getOrCreateOrganizationContext(auth.userId);
+  const { data: detailProfiles } = await adminClient
+    .from("student_detail_profiles")
+    .select(
+      "student_id, category, club_name, technical_score, discipline_score, participation_score, strengths, improvement_areas, coach_notes",
+    )
+    .in("student_id", studentIds.length ? studentIds : ["00000000-0000-0000-0000-000000000000"]);
+
+  const { data: reportCards } = await adminClient
+    .from("report_cards")
+    .select("id, student_id, summary, generated_at, payload")
+    .in("student_id", studentIds.length ? studentIds : ["00000000-0000-0000-0000-000000000000"]);
 
   const attendance = await getAttendanceMap(studentIds);
 
   return (students ?? []).map((student) => {
     const enrollment = (enrollments ?? []).find((item) => item.student_id === student.id);
+    const detail = (detailProfiles ?? []).find((item) => item.student_id === student.id);
+    const reportCard = (reportCards ?? []).find((item) => item.student_id === student.id);
+    const legacyDetail = detail
+      ? {
+          category: detail.category ?? getRelatedTitle(enrollment?.programs) ?? "Kategori",
+          clubName: detail.club_name ?? organizationContext.organization?.name ?? "Kulup",
+          technicalScore: detail.technical_score,
+          disciplineScore: detail.discipline_score,
+          participationScore: detail.participation_score,
+          strengths: detail.strengths ?? "",
+          improvementAreas: detail.improvement_areas ?? "",
+          coachNotes: detail.coach_notes ?? "",
+        }
+      : null;
+    const reportCardRecord = reportCard
+      ? buildStudentReportCard({
+          id: reportCard.id,
+          summary: reportCard.summary,
+          generatedAt: reportCard.generated_at,
+          payload: reportCard.payload,
+          legacyDetail,
+        })
+      : null;
 
     return {
+      id: student.id,
+      initials: getStudentInitials(student.full_name),
       name: student.full_name,
+      club: legacyDetail?.clubName ?? organizationContext.organization?.name ?? "Kulup",
+      category: legacyDetail?.category ?? getRelatedTitle(enrollment?.programs) ?? "Kategori",
+      gender:
+        student.gender === "female" ? "Kadin" : student.gender === "male" ? "Erkek" : "Belirtilmedi",
+      birthDate: formatBirthDate(student.birth_date),
       program: getRelatedTitle(enrollment?.programs) ?? "Program baglanmadi",
       coach: "Atanan roster",
       attendance: attendance.get(student.id) ?? "--",
       status: student.active ? "Aktif" : "Risk",
+      detailSaved: Boolean(reportCardRecord || detail),
+      reportCard: reportCardRecord,
+      detailEntries: reportCardRecord?.entries ?? (legacyDetail ? getFallbackEntriesFromLegacy(legacyDetail) : []),
     };
-  });
+  }) satisfies CoachStudentRecord[];
 }
 
 export async function getParentMetrics() {
@@ -1050,12 +1705,19 @@ export async function getParentMetrics() {
     return metricsByRole.parent;
   }
 
-  const { data: links } = await supabase
-    .from("parent_student_links")
-    .select("student_id")
-    .eq("parent_profile_id", auth.userId);
+  let studentIds: string[] = [];
 
-  const studentIds = (links ?? []).map((link) => link.student_id);
+  if (auth.role === "admin") {
+    const { data: students } = await supabase.from("students").select("id");
+    studentIds = (students ?? []).map((student) => student.id);
+  } else {
+    const { data: links } = await supabase
+      .from("parent_student_links")
+      .select("student_id")
+      .eq("parent_profile_id", auth.userId);
+    studentIds = (links ?? []).map((link) => link.student_id);
+  }
+
   const sessions = await getSessionsData();
   const charges = await getChargeData();
   const attendance = await getAttendanceMap(studentIds);
@@ -1117,12 +1779,17 @@ export async function getParentNotificationsData() {
     return [] as ParentNotification[];
   }
 
-  const { data } = await supabase
+  let query = supabase
     .from("notifications")
     .select("id, title, body, channel, read_at")
-    .eq("profile_id", auth.userId)
     .order("read_at", { ascending: true, nullsFirst: true })
     .limit(8);
+
+  if (auth.role !== "admin") {
+    query = query.eq("profile_id", auth.userId);
+  }
+
+  const { data } = await query;
 
   return (data ?? []).map((notification) => ({
     id: notification.id,
@@ -1131,6 +1798,108 @@ export async function getParentNotificationsData() {
     channel: notification.channel === "in_app" ? "In-app" : notification.channel,
     status: notification.read_at ? "Okundu" : "Okunmadi",
   })) satisfies ParentNotification[];
+}
+
+export async function getParentReportCards() {
+  const auth = await getCurrentAuthContext();
+
+  if (!auth?.userId) {
+    return [] as Array<
+      StudentReportCard & {
+        studentId: string;
+        studentName: string;
+      }
+    >;
+  }
+
+  if (!isLiveEnabled()) {
+    return studentRecords
+      .filter((student) => student.reportCard)
+      .map((student) => ({
+        studentId: student.id,
+        studentName: student.name,
+        ...(student.reportCard as StudentReportCard),
+      }));
+  }
+
+  const adminClient = createSupabaseAdminClient();
+  if (!adminClient) {
+    return [] as Array<
+      StudentReportCard & {
+        studentId: string;
+        studentName: string;
+      }
+    >;
+  }
+
+  let studentIds: string[] = [];
+
+  if (auth.role === "admin") {
+    const { data: students } = await adminClient.from("students").select("id");
+    studentIds = (students ?? []).map((student) => student.id);
+  } else {
+    const { data: links } = await adminClient
+      .from("parent_student_links")
+      .select("student_id")
+      .eq("parent_profile_id", auth.userId);
+    studentIds = (links ?? []).map((link) => link.student_id);
+  }
+
+  if (!studentIds.length) {
+    return [] as Array<
+      StudentReportCard & {
+        studentId: string;
+        studentName: string;
+      }
+    >;
+  }
+
+  const { data: students } = await adminClient
+    .from("students")
+    .select("id, full_name")
+    .in("id", studentIds);
+
+  const { data: detailProfiles } = await adminClient
+    .from("student_detail_profiles")
+    .select(
+      "student_id, category, club_name, technical_score, discipline_score, participation_score, strengths, improvement_areas, coach_notes",
+    )
+    .in("student_id", studentIds);
+
+  const { data: reportCards } = await adminClient
+    .from("report_cards")
+    .select("id, student_id, summary, generated_at, payload")
+    .in("student_id", studentIds)
+    .order("generated_at", { ascending: false });
+
+  return (reportCards ?? []).map((reportCard) => {
+    const student = (students ?? []).find((item) => item.id === reportCard.student_id);
+    const detail = (detailProfiles ?? []).find((item) => item.student_id === reportCard.student_id);
+    const normalized = buildStudentReportCard({
+      id: reportCard.id,
+      summary: reportCard.summary,
+      generatedAt: reportCard.generated_at,
+      payload: reportCard.payload,
+      legacyDetail: detail
+        ? {
+            category: detail.category,
+            clubName: detail.club_name,
+            technicalScore: detail.technical_score,
+            disciplineScore: detail.discipline_score,
+            participationScore: detail.participation_score,
+            strengths: detail.strengths,
+            improvementAreas: detail.improvement_areas,
+            coachNotes: detail.coach_notes,
+          }
+        : null,
+    });
+
+    return {
+      studentId: reportCard.student_id,
+      studentName: student?.full_name ?? "Sporcu",
+      ...normalized,
+    };
+  });
 }
 
 export async function getSupportThreadsData() {
@@ -1145,15 +1914,184 @@ export async function getSupportThreadsData() {
     return [] as SupportThread[];
   }
 
-  const { data } = await supabase
+  let query = supabase
     .from("support_threads")
     .select("subject, status, created_at")
-    .eq("parent_profile_id", auth.userId)
     .order("created_at", { ascending: false });
+
+  if (auth.role !== "admin") {
+    query = query.eq("parent_profile_id", auth.userId);
+  }
+
+  const { data } = await query;
 
   return (data ?? []).map((thread) => ({
     subject: thread.subject,
     status: thread.status === "open" ? "Yanit bekliyor" : "Cozuldu",
     updatedAt: formatDateLabel(thread.created_at),
   })) satisfies SupportThread[];
+}
+
+export async function getAuditLogRows() {
+  if (!isLiveEnabled()) {
+    return [
+      {
+        event: "Landing page guncellendi",
+        actor: "Cagri Sancar",
+        scope: "Landing editoru",
+        createdAt: "05 Nis 2026",
+      },
+      {
+        event: "Yeni yonetici kullanicisi acildi",
+        actor: "Cagri Sancar",
+        scope: "Kullanici ve roller",
+        createdAt: "04 Nis 2026",
+      },
+    ] satisfies AuditLogRow[];
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const adminClient = createSupabaseAdminClient();
+  const organizationId = await getCurrentOrganizationId();
+
+  if (!supabase || !adminClient || !organizationId) {
+    return [] as AuditLogRow[];
+  }
+
+  const { data } = await supabase
+    .from("audit_logs")
+    .select("actor_profile_id, event_type, scope, created_at")
+    .eq("organization_id", organizationId)
+    .order("created_at", { ascending: false })
+    .limit(12);
+
+  const actorIds = Array.from(new Set((data ?? []).map((row) => row.actor_profile_id).filter(Boolean)));
+  const { data: profiles } = actorIds.length
+    ? await adminClient.from("profiles").select("id, full_name").in("id", actorIds)
+    : { data: [] as Array<{ id: string; full_name: string }> };
+
+  const actorMap = new Map((profiles ?? []).map((profile) => [profile.id, profile.full_name]));
+
+  return (data ?? []).map((row) => ({
+    event: row.event_type,
+    actor: row.actor_profile_id ? actorMap.get(row.actor_profile_id) ?? "Sistem" : "Sistem",
+    scope: row.scope,
+    createdAt: formatDateLabel(row.created_at),
+  })) satisfies AuditLogRow[];
+}
+
+export async function getLeadSubmissionRows() {
+  if (!isLiveEnabled()) {
+    return [
+      {
+        fullName: "Doga Yilmaz",
+        email: "doga.veli@example.com",
+        phone: "0533 204 11 90",
+        status: "Yeni",
+        createdAt: "05 Nis 2026",
+      },
+    ] satisfies LeadSubmissionRow[];
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const organizationId = await getCurrentOrganizationId();
+
+  if (!supabase || !organizationId) {
+    return [] as LeadSubmissionRow[];
+  }
+
+  const { data } = await supabase
+    .from("lead_submissions")
+    .select("full_name, email, phone, status, created_at")
+    .eq("organization_id", organizationId)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  return (data ?? []).map((row) => ({
+    fullName: row.full_name,
+    email: row.email,
+    phone: row.phone,
+    status:
+      row.status === "new"
+        ? "Yeni"
+        : row.status === "contacted"
+          ? "Arandi"
+          : row.status === "qualified"
+            ? "Uygun"
+            : "Kapandi",
+    createdAt: formatDateLabel(row.created_at),
+  })) satisfies LeadSubmissionRow[];
+}
+
+export async function getManagerAttendanceBoards() {
+  if (!isLiveEnabled()) {
+    return sessionRecords.slice(0, 3).map((session, index) => ({
+      sessionId: `manager-attendance-${index}`,
+      title: session.title,
+      slot: session.slot,
+      location: session.location,
+      roster: session.roster,
+      students: studentRecords.slice(0, 3).map((student) => ({
+        studentId: `${index}-${student.name}`,
+        name: student.name,
+        status: student.status === "Aktif" ? "present" : "absent",
+        note: "",
+      })),
+    })) satisfies CoachSessionBoard[];
+  }
+
+  const supabase = await createSupabaseServerClient();
+
+  if (!supabase) {
+    return [] as CoachSessionBoard[];
+  }
+
+  const { data: sessions } = await supabase
+    .from("sessions")
+    .select("id, title, starts_at, ends_at, location, program_id")
+    .is("cancelled_at", null)
+    .order("starts_at")
+    .limit(12);
+
+  if (!sessions?.length) {
+    return [] as CoachSessionBoard[];
+  }
+
+  const programIds = Array.from(new Set(sessions.map((session) => session.program_id)));
+  const { data: enrollments } = await supabase
+    .from("enrollments")
+    .select("program_id, student_id, students(full_name)")
+    .in("program_id", programIds);
+
+  const sessionIds = sessions.map((session) => session.id);
+  const { data: attendanceRows } = await supabase
+    .from("attendance_records")
+    .select("session_id, student_id, status, note")
+    .in("session_id", sessionIds);
+
+  return sessions.map((session) => {
+    const students = (enrollments ?? [])
+      .filter((enrollment) => enrollment.program_id === session.program_id)
+      .map((enrollment) => {
+        const attendance = (attendanceRows ?? []).find(
+          (row) => row.session_id === session.id && row.student_id === enrollment.student_id,
+        );
+
+        return {
+          studentId: enrollment.student_id,
+          name: getRelatedFullName(enrollment.students) ?? "Ogrenci",
+          status: attendance?.status ?? "present",
+          note: attendance?.note ?? "",
+        };
+      });
+
+    return {
+      sessionId: session.id,
+      title: session.title,
+      slot: formatDateTimeRange(session.starts_at, session.ends_at),
+      location: session.location ?? "Alan belirtilmedi",
+      roster: `${students.length} sporcu`,
+      students,
+    };
+  }) satisfies CoachSessionBoard[];
 }

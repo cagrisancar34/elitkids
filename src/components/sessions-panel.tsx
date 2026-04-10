@@ -1,231 +1,373 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Clock3, MapPin, UserRound } from "lucide-react";
+import {
+  addDays,
+  addWeeks,
+  differenceInMinutes,
+  format,
+  isWithinInterval,
+  parseISO,
+  startOfWeek,
+  subWeeks,
+} from "date-fns";
+import { tr } from "date-fns/locale";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { SessionActions } from "@/components/session-actions";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import type { SessionRecord } from "@/lib/types";
+import type { Area, AttendanceStudent, CoachOption, ProgramOption, SessionRecord } from "@/lib/types";
 
-type SessionFilter = "all" | "full" | "open";
-type SessionSort = "slot-asc" | "coach-asc" | "title-asc";
+type SessionView = "calendar" | "list";
 
-function rosterValue(roster: string) {
-  const match = roster.match(/(\d+)\s*\/\s*(\d+)/);
+const startHour = 9;
+const endHour = 21;
+const rowHeight = 92;
 
-  if (!match) {
-    const fallback = Number(roster.replace(/[^\d]/g, "") || 0);
-    return { current: fallback, capacity: fallback };
-  }
-
-  return {
-    current: Number(match[1]),
-    capacity: Number(match[2]),
-  };
+function toMinuteOffset(dateIso: string) {
+  const date = parseISO(dateIso);
+  return (date.getHours() - startHour) * 60 + date.getMinutes();
 }
 
-export function SessionsPanel({ sessions }: { sessions: SessionRecord[] }) {
-  const [filter, setFilter] = useState<SessionFilter>("all");
-  const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<SessionSort>("slot-asc");
+function getWeekRangeLabel(weekStart: Date) {
+  const weekEnd = addDays(weekStart, 6);
+  return `${format(weekStart, "d MMM", { locale: tr })} - ${format(weekEnd, "d MMM", { locale: tr })}`;
+}
 
-  const counts = useMemo(
-    () => ({
-      all: sessions.length,
-      full: sessions.filter((session) => {
-        const roster = rosterValue(session.roster);
-        return roster.capacity > 0 && roster.current >= roster.capacity;
-      }).length,
-      open: sessions.filter((session) => {
-        const roster = rosterValue(session.roster);
-        return roster.capacity === 0 || roster.current < roster.capacity;
-      }).length,
-    }),
+function getSessionTone(session: SessionRecord) {
+  const value = `${session.sportsBranchName ?? ""} ${session.programTitle ?? session.title}`.toLocaleLowerCase("tr-TR");
+
+  if (value.includes("elit") || value.includes("artistik")) {
+    return "bg-[linear-gradient(180deg,rgba(197,156,255,0.38),rgba(157,112,242,0.26))] border-[rgba(180,129,255,0.45)]";
+  }
+
+  if (value.includes("yuzme")) {
+    return "bg-[linear-gradient(180deg,rgba(173,247,196,0.55),rgba(132,226,165,0.32))] border-[rgba(88,190,122,0.45)]";
+  }
+
+  return "bg-[linear-gradient(180deg,rgba(222,237,255,0.82),rgba(202,225,255,0.55))] border-[rgba(131,180,248,0.5)]";
+}
+
+function buildAttendanceMap(attendanceBoards: Array<{ sessionId: string; students: AttendanceStudent[] }>) {
+  return new Map(attendanceBoards.map((board) => [board.sessionId, board.students]));
+}
+
+export function SessionsPanel({
+  sessions,
+  programs,
+  coaches,
+  areas,
+  attendanceBoards,
+  showSummary = true,
+}: {
+  sessions: SessionRecord[];
+  programs: ProgramOption[];
+  coaches: CoachOption[];
+  areas: Area[];
+  attendanceBoards: Array<{ sessionId: string; students: AttendanceStudent[] }>;
+  showSummary?: boolean;
+}) {
+  const [view, setView] = useState<SessionView>("calendar");
+  const [search, setSearch] = useState("");
+  const [sportsBranchFilter, setSportsBranchFilter] = useState("all");
+  const [coachFilter, setCoachFilter] = useState("all");
+  const [areaFilter, setAreaFilter] = useState("all");
+  const [weekStart, setWeekStart] = useState(() =>
+    startOfWeek(sessions[0]?.startsAt ? parseISO(sessions[0].startsAt) : new Date(), { weekStartsOn: 1 }),
+  );
+
+  const attendanceMap = useMemo(() => buildAttendanceMap(attendanceBoards), [attendanceBoards]);
+
+  const sportsBranchOptions = useMemo(
+    () => ["all", ...Array.from(new Set(sessions.map((session) => session.sportsBranchName).filter(Boolean)))],
     [sessions],
   );
 
-  const normalizedSearch = search.trim().toLocaleLowerCase("tr-TR");
-
   const filteredSessions = useMemo(() => {
-    return sessions
-      .filter((session) => {
-        const roster = rosterValue(session.roster);
+    const normalizedSearch = search.trim().toLocaleLowerCase("tr-TR");
 
-        if (filter === "full") {
-          return roster.capacity > 0 && roster.current >= roster.capacity;
-        }
+    return sessions.filter((session) => {
+      if (sportsBranchFilter !== "all" && session.sportsBranchName !== sportsBranchFilter) {
+        return false;
+      }
 
-        if (filter === "open") {
-          return roster.capacity === 0 || roster.current < roster.capacity;
-        }
+      if (coachFilter !== "all" && session.coach !== coachFilter) {
+        return false;
+      }
 
-        return true;
-      })
-      .filter((session) => {
-        if (!normalizedSearch) {
-          return true;
-        }
+      if (areaFilter !== "all" && (session.areaName ?? session.location) !== areaFilter) {
+        return false;
+      }
 
-        const haystack =
-          `${session.title} ${session.slot} ${session.coach} ${session.location} ${session.roster}`.toLocaleLowerCase(
-            "tr-TR",
-          );
+      if (normalizedSearch) {
+        const haystack = `${session.title} ${session.programTitle ?? ""} ${session.coach} ${session.location}`.toLocaleLowerCase("tr-TR");
         return haystack.includes(normalizedSearch);
-      })
-      .sort((left, right) => {
-        if (sort === "coach-asc") {
-          return left.coach.localeCompare(right.coach, "tr");
-        }
+      }
 
-        if (sort === "title-asc") {
-          return left.title.localeCompare(right.title, "tr");
-        }
+      return true;
+    });
+  }, [areaFilter, coachFilter, search, sessions, sportsBranchFilter]);
 
-        return left.slot.localeCompare(right.slot, "tr");
-      });
-  }, [filter, normalizedSearch, sessions, sort]);
+  const calendarSessions = useMemo(() => {
+    const weekEnd = addDays(weekStart, 6);
+    return filteredSessions.filter(
+      (session) =>
+        session.startsAt &&
+        isWithinInterval(parseISO(session.startsAt), { start: weekStart, end: weekEnd }),
+    );
+  }, [filteredSessions, weekStart]);
 
-  const hasCustomView = filter !== "all" || search.length > 0 || sort !== "slot-asc";
+  const dayColumns = useMemo(
+    () =>
+      Array.from({ length: 7 }, (_, index) => {
+        const date = addDays(weekStart, index);
+        return {
+          key: format(date, "yyyy-MM-dd"),
+          label: format(date, "EEE", { locale: tr }).toLocaleUpperCase("tr-TR"),
+          dateLabel: format(date, "d MMM", { locale: tr }),
+          date,
+        };
+      }),
+    [weekStart],
+  );
+
+  const hourLabels = useMemo(() => Array.from({ length: endHour - startHour + 1 }, (_, index) => startHour + index), []);
 
   return (
     <div className="grid gap-6">
-      <section className="grid gap-4 md:grid-cols-3">
-        <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Toplam seans</div>
-          <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">{counts.all}</div>
-        </div>
-        <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Dolular</div>
-          <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">{counts.full}</div>
-        </div>
-        <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Yer acik</div>
-          <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">{counts.open}</div>
-        </div>
-      </section>
+      {showSummary ? (
+        <section className="grid gap-4 md:grid-cols-4">
+          <SummaryMetric label="Toplam seans" value={sessions.length} />
+          <SummaryMetric label="Haftalik gorunen" value={calendarSessions.length} />
+          <SummaryMetric label="Kullanilan alan" value={new Set(sessions.map((session) => session.areaName ?? session.location)).size} />
+          <SummaryMetric label="Aktif egitmen" value={new Set(sessions.map((session) => session.coach)).size} />
+        </section>
+      ) : null}
 
-      <section className="grid gap-4">
-        <div className="surface-muted flex flex-wrap gap-2 rounded-full px-3 py-2">
-          {[
-            ["all", "Tum seanslar", counts.all],
-            ["open", "Yer acik", counts.open],
-            ["full", "Dolu", counts.full],
-          ].map(([key, label, count]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setFilter(key as SessionFilter)}
-              className={
-                filter === key
-                  ? "rounded-full bg-white px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.16em] text-primary shadow-[0_10px_22px_rgba(44,47,49,0.08)]"
-                  : "rounded-full px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:bg-white/60 hover:text-foreground"
-              }
-            >
-              {label} · {count}
-            </button>
-          ))}
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-[1fr_220px]">
+      <section className="surface-panel grid gap-5 rounded-[1.8rem] border border-white/50 px-6 py-6">
+        <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr_1fr_1.1fr]">
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Seans ara: baslik, koc, alan veya saat"
-            aria-label="Seans ara"
+            placeholder="Seans, antrenor veya grup ara..."
           />
-          <Select
-            value={sort}
-            onChange={(event) => setSort(event.target.value as SessionSort)}
-            aria-label="Seans siralama"
-          >
-            <option value="slot-asc">Saate gore</option>
-            <option value="coach-asc">Koca gore A-Z</option>
-            <option value="title-asc">Basliga gore A-Z</option>
+          <Select value={sportsBranchFilter} onChange={(event) => setSportsBranchFilter(event.target.value)}>
+            <option value="all">Tum branslar</option>
+            {sportsBranchOptions.filter(Boolean).map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </Select>
+          <Select value={coachFilter} onChange={(event) => setCoachFilter(event.target.value)}>
+            <option value="all">Tum egitmenler</option>
+            {coaches.map((coach) => (
+              <option key={coach.id} value={coach.name}>
+                {coach.name}
+              </option>
+            ))}
+          </Select>
+          <Select value={areaFilter} onChange={(event) => setAreaFilter(event.target.value)}>
+            <option value="all">Tum alanlar</option>
+            {areas.map((area) => (
+              <option key={area.id} value={area.name}>
+                {area.name}
+              </option>
+            ))}
           </Select>
         </div>
 
-        {hasCustomView ? (
-          <div className="flex justify-end">
-            <Button
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="surface-muted inline-flex rounded-full p-2">
+            <button
               type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setFilter("all");
-                setSearch("");
-                setSort("slot-asc");
-              }}
+              onClick={() => setView("calendar")}
+              className={
+                view === "calendar"
+                  ? "rounded-full bg-white px-6 py-3 text-sm font-semibold text-primary shadow-[0_12px_28px_rgba(15,33,66,0.12)]"
+                  : "rounded-full px-6 py-3 text-sm font-semibold text-muted-foreground"
+              }
             >
-              Filtreleri temizle
-            </Button>
+              Takvim Gorunumu
+            </button>
+            <button
+              type="button"
+              onClick={() => setView("list")}
+              className={
+                view === "list"
+                  ? "rounded-full bg-white px-6 py-3 text-sm font-semibold text-primary shadow-[0_12px_28px_rgba(15,33,66,0.12)]"
+                  : "rounded-full px-6 py-3 text-sm font-semibold text-muted-foreground"
+              }
+            >
+              Liste Gorunumu
+            </button>
           </div>
-        ) : null}
 
-        <div className="grid gap-6 xl:grid-cols-2">
-          {filteredSessions.length ? (
-            filteredSessions.map((session) => {
-              const roster = rosterValue(session.roster);
-              const ratio = roster.capacity > 0 ? Math.round((roster.current / roster.capacity) * 100) : 100;
-              const isFull = roster.capacity > 0 && roster.current >= roster.capacity;
+          <div className="surface-muted inline-flex items-center gap-3 rounded-full px-4 py-3">
+            <button
+              type="button"
+              onClick={() => setWeekStart((current) => subWeeks(current, 1))}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-foreground"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <div className="text-center">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Hafta</div>
+              <div className="mt-1 text-xl font-semibold tracking-[-0.03em] text-foreground">{getWeekRangeLabel(weekStart)}</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setWeekStart((current) => addWeeks(current, 1))}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-foreground"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {view === "calendar" ? (
+        <section className="surface-panel overflow-hidden rounded-[1.8rem] border border-white/50">
+          <div className="grid grid-cols-[96px_repeat(7,minmax(0,1fr))] border-b border-[#dde5f0]">
+            <div className="border-r border-[#dde5f0] px-4 py-5 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Saat
+            </div>
+            {dayColumns.map((day) => (
+              <div key={day.key} className="border-r border-[#dde5f0] px-4 py-5 text-center last:border-r-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{day.label}</div>
+                <div className="mt-2 text-[1.65rem] font-semibold tracking-[-0.04em] text-foreground">{day.dateLabel}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-[96px_repeat(7,minmax(0,1fr))]">
+            <div className="border-r border-[#dde5f0]">
+              {hourLabels.map((hour) => (
+                <div
+                  key={hour}
+                  className="border-b border-[#eef2f7] px-4 py-3 text-center text-sm font-semibold text-muted-foreground"
+                  style={{ height: rowHeight }}
+                >
+                  {String(hour).padStart(2, "0")}:00
+                </div>
+              ))}
+            </div>
+
+            {dayColumns.map((day) => {
+              const daySessions = calendarSessions.filter(
+                (session) =>
+                  session.startsAt && format(parseISO(session.startsAt), "yyyy-MM-dd") === day.key,
+              );
 
               return (
-                <article key={`${session.title}-${session.slot}`} className="surface-panel rounded-[1.7rem] border border-white/40 px-6 py-6">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="inline-flex rounded-full bg-secondary px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-secondary-foreground">
-                      <Clock3 className="mr-1.5 h-3.5 w-3.5" />
-                      {session.slot}
-                    </div>
+                <div key={day.key} className="relative border-r border-[#dde5f0] last:border-r-0" style={{ height: rowHeight * hourLabels.length }}>
+                  {hourLabels.map((hour) => (
                     <div
-                      className={
-                        isFull
-                          ? "rounded-full bg-[rgba(179,27,37,0.08)] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-destructive"
-                          : "rounded-full bg-[rgba(2,83,205,0.08)] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-primary"
-                      }
-                    >
-                      {isFull ? "Dolu" : "Acilabilir"}
-                    </div>
-                  </div>
+                      key={`${day.key}-${hour}`}
+                      className="border-b border-[#eef2f7]"
+                      style={{ height: rowHeight }}
+                    />
+                  ))}
 
-                  <div className="mt-5">
-                    <h3 className="font-display text-[1.75rem] font-semibold leading-tight tracking-[-0.04em] text-foreground">
+                  {daySessions.map((session) => {
+                    if (!session.startsAt || !session.endsAt) {
+                      return null;
+                    }
+
+                    const top = (toMinuteOffset(session.startsAt) / 60) * rowHeight;
+                    const duration = Math.max(
+                      (differenceInMinutes(parseISO(session.endsAt), parseISO(session.startsAt)) / 60) * rowHeight,
+                      92,
+                    );
+                    const students = attendanceMap.get(session.id) ?? [];
+
+                    return (
+                      <div
+                        key={session.id}
+                        className={`absolute left-3 right-3 overflow-hidden rounded-[1.4rem] border px-4 py-3 shadow-[0_18px_38px_rgba(22,38,65,0.14)] ${getSessionTone(session)}`}
+                        style={{ top, height: duration }}
+                      >
+                        <div className="text-xl font-semibold tracking-[-0.04em] text-foreground">{session.title}</div>
+                        <div className="mt-1 text-sm text-slate-700">
+                          {format(parseISO(session.startsAt), "HH:mm")} - {format(parseISO(session.endsAt), "HH:mm")}
+                        </div>
+                        <div className="mt-1 text-sm text-slate-700">
+                          {session.studentCount ?? 0} ogrenci · {session.coach}
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <SessionActions
+                            session={session}
+                            programs={programs}
+                            coaches={coaches}
+                            areas={areas}
+                            students={students}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ) : (
+        <div className="grid gap-4">
+          {filteredSessions.length ? (
+            filteredSessions.map((session) => (
+              <article
+                key={session.id}
+                className="surface-panel rounded-[1.6rem] border border-white/50 px-6 py-5"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
+                      {session.sportsBranchName ?? "Seans"}
+                    </div>
+                    <h3 className="mt-2 font-display text-[1.9rem] font-semibold tracking-[-0.04em] text-foreground">
                       {session.title}
                     </h3>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                      {session.startsAt
+                        ? format(parseISO(session.startsAt), "d MMMM EEEE, HH:mm", { locale: tr })
+                        : "Tarih bekleniyor"}{" "}
+                      · {session.areaName ?? session.location}
+                    </p>
                   </div>
-
-                  <div className="mt-5 grid gap-3 text-sm leading-6 text-muted-foreground">
-                    <div className="inline-flex items-center gap-2">
-                      <UserRound className="h-4 w-4" />
-                      {session.coach}
-                    </div>
-                    <div className="inline-flex items-center gap-2">
-                      <MapPin className="h-4 w-4" />
-                      {session.location}
-                    </div>
-                  </div>
-
-                  <div className="mt-6">
-                    <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                      <span>Doluluk</span>
-                      <span>{session.roster}</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-[#eef1f3]">
-                      <div
-                        className={isFull ? "h-2 rounded-full bg-destructive" : "h-2 rounded-full bg-[linear-gradient(135deg,#0253cd,#0048b5)]"}
-                        style={{ width: `${Math.min(ratio, 100)}%` }}
-                      />
+                  <div className="text-right">
+                    <div className="rounded-full bg-secondary px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-secondary-foreground">
+                      {session.studentCount ?? 0} / {session.capacity ?? 0} sporcu
                     </div>
                   </div>
-                </article>
-              );
-            })
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <SessionActions
+                    session={session}
+                    programs={programs}
+                    coaches={coaches}
+                    areas={areas}
+                    students={attendanceMap.get(session.id) ?? []}
+                  />
+                </div>
+              </article>
+            ))
           ) : (
-            <div className="surface-muted rounded-[1.25rem] p-4 text-sm leading-6 text-muted-foreground">
-              Bu filtre ve arama sonucunda gosterilecek seans yok.
+            <div className="surface-muted rounded-[1.25rem] p-5 text-sm leading-6 text-muted-foreground">
+              Bu filtrelerle gosterilecek seans bulunmuyor.
             </div>
           )}
         </div>
-      </section>
+      )}
+    </div>
+  );
+}
+
+function SummaryMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
+      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
+      <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">{value}</div>
     </div>
   );
 }

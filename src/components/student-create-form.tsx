@@ -9,13 +9,14 @@ import {
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import type { ProgramRecord } from "@/lib/types";
 
 const initialState: ActionState = {
   error: null,
   success: null,
 };
 
-export function StudentCreateForm({ programs }: { programs: string[] }) {
+export function StudentCreateForm({ programs }: { programs: ProgramRecord[] }) {
   const [state, formAction] = useActionState(createStudentAction, initialState);
 
   return (
@@ -33,16 +34,16 @@ export function StudentCreateForm({ programs }: { programs: string[] }) {
         <Input id="birthDate" name="birthDate" type="date" />
       </div>
       <div className="grid gap-2">
-        <label className="text-sm font-medium text-foreground" htmlFor="programTitle">
+        <label className="text-sm font-medium text-foreground" htmlFor="programId">
           Program
         </label>
-        <Select id="programTitle" name="programTitle" defaultValue="">
+        <Select id="programId" name="programId" defaultValue="">
           <option value="" disabled>
             Program sec
           </option>
           {programs.map((program) => (
-            <option key={program} value={program}>
-              {program}
+            <option key={program.id} value={program.id}>
+              {program.title}
             </option>
           ))}
         </Select>

@@ -2,11 +2,10 @@
 
 import { useMemo, useState } from "react";
 
-import { DataTable } from "@/components/data-table";
-import { Button } from "@/components/ui/button";
+import { CoachStudentActions } from "@/components/coach-student-actions";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import type { CoachStudentRecord } from "@/lib/types";
+import type { CoachStudentRecord, DetailQuestionRecord } from "@/lib/types";
 
 type CoachFilter = "all" | "active" | "risk";
 type CoachSort = "name-asc" | "attendance-desc" | "program-asc";
@@ -19,7 +18,17 @@ function attendanceValue(value: string) {
   return Number(value.replace(/[^\d]/g, "") || 0);
 }
 
-export function CoachStudentsPanel({ students }: { students: CoachStudentRecord[] }) {
+function statusTone(status: string) {
+  return status.toLocaleLowerCase("tr-TR").includes("risk") ? "bg-amber-500" : "bg-emerald-500";
+}
+
+export function CoachStudentsPanel({
+  students,
+  questions,
+}: {
+  students: CoachStudentRecord[];
+  questions: DetailQuestionRecord[];
+}) {
   const [filter, setFilter] = useState<CoachFilter>("all");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<CoachSort>("name-asc");
@@ -44,9 +53,10 @@ export function CoachStudentsPanel({ students }: { students: CoachStudentRecord[
         }
 
         const haystack =
-          `${student.name} ${student.program} ${student.coach} ${student.attendance} ${student.status}`.toLocaleLowerCase(
+          `${student.name} ${student.program} ${student.category} ${student.club} ${student.status}`.toLocaleLowerCase(
             "tr-TR",
           );
+
         return haystack.includes(normalizedSearch);
       })
       .sort((left, right) => {
@@ -63,12 +73,6 @@ export function CoachStudentsPanel({ students }: { students: CoachStudentRecord[
   }, [filter, normalizedSearch, sort, students]);
 
   const hasCustomView = filter !== "all" || search.length > 0 || sort !== "name-asc";
-  const averageAttendance = filteredStudents.length
-    ? Math.round(
-        filteredStudents.reduce((sum, student) => sum + attendanceValue(student.attendance), 0) /
-          filteredStudents.length,
-      )
-    : 0;
 
   return (
     <div className="grid gap-6">
@@ -78,12 +82,14 @@ export function CoachStudentsPanel({ students }: { students: CoachStudentRecord[
           <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">{counts.all}</div>
         </div>
         <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Aktif ogrenci</div>
-          <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">{counts.active}</div>
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Detay girilen</div>
+          <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">
+            {students.filter((student) => student.detailSaved).length}
+          </div>
         </div>
         <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Ortalama devam</div>
-          <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">%{averageAttendance}</div>
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Risk sinyali</div>
+          <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">{counts.risk}</div>
         </div>
       </section>
 
@@ -113,7 +119,7 @@ export function CoachStudentsPanel({ students }: { students: CoachStudentRecord[
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Roster ara: ad, program veya devam"
+            placeholder="Roster ara: ad, program veya kategori"
             aria-label="Roster ara"
           />
           <Select
@@ -129,10 +135,9 @@ export function CoachStudentsPanel({ students }: { students: CoachStudentRecord[
 
         {hasCustomView ? (
           <div className="flex justify-end">
-            <Button
+            <button
               type="button"
-              variant="ghost"
-              size="sm"
+              className="text-sm font-medium text-primary"
               onClick={() => {
                 setFilter("all");
                 setSearch("");
@@ -140,20 +145,70 @@ export function CoachStudentsPanel({ students }: { students: CoachStudentRecord[
               }}
             >
               Filtreleri temizle
-            </Button>
+            </button>
           </div>
         ) : null}
 
-        <DataTable
-          columns={[
-            { key: "name", label: "Ogrenci" },
-            { key: "program", label: "Program" },
-            { key: "coach", label: "Koc" },
-            { key: "attendance", label: "Devam" },
-            { key: "status", label: "Durum" },
-          ]}
-          rows={filteredStudents}
-        />
+        <div className="overflow-hidden rounded-[1.7rem] border border-white/50 bg-white/92">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1000px] border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 text-left">
+                  {["Ogrenci", "Kulup", "Kategori", "Program", "Devam", "Durum", ""].map((label) => (
+                    <th
+                      key={label}
+                      className="px-6 py-5 text-sm font-semibold uppercase tracking-[0.16em] text-[#71809a]"
+                    >
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredStudents.length ? (
+                  filteredStudents.map((student) => (
+                    <tr key={student.id} className="border-b border-slate-100 align-top last:border-b-0">
+                      <td className="px-6 py-6">
+                        <div className="flex items-center gap-4">
+                          <div className="flex h-14 w-14 items-center justify-center rounded-[1.2rem] bg-[linear-gradient(135deg,#dcecff,#d7d8ff)] text-xl font-bold text-slate-700">
+                            {student.initials}
+                          </div>
+                          <div>
+                            <div className="text-[1.05rem] font-semibold text-slate-800">{student.name}</div>
+                            <div className="mt-1 text-sm text-[#7e8aa2]">{student.birthDate}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-6 text-[1.02rem] font-semibold text-slate-700">{student.club}</td>
+                      <td className="px-6 py-6">
+                        <span className="inline-flex rounded-full bg-[rgba(133,94,255,0.12)] px-4 py-2 text-sm font-semibold text-[#7b49ff]">
+                          {student.category}
+                        </span>
+                      </td>
+                      <td className="px-6 py-6 text-[1.02rem] font-semibold text-slate-700">{student.program}</td>
+                      <td className="px-6 py-6 text-[1.02rem] font-semibold text-slate-700">{student.attendance}</td>
+                      <td className="px-6 py-6">
+                        <div className="inline-flex items-center gap-2 text-[1rem] font-semibold text-slate-700">
+                          <span className={`h-3 w-3 rounded-full ${statusTone(student.status)}`} />
+                          {student.status}
+                        </div>
+                      </td>
+                      <td className="px-6 py-6">
+                        <CoachStudentActions student={student} questions={questions} />
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-12 text-center text-sm text-muted-foreground">
+                      Bu filtreye uygun ogrenci bulunamadi.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </section>
     </div>
   );

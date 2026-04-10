@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 
+import { logAuditEvent } from "@/lib/audit";
 import { getCurrentAuthContext } from "@/lib/auth";
+import { getOrCreateOrganizationContext } from "@/lib/organization-context";
 import {
   createBranchSchema,
   createSeasonSchema,
@@ -14,41 +16,12 @@ import {
   updateOrganizationSettingsSchema,
   updateSeasonSchema,
 } from "@/lib/schemas/app-forms";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 export type SettingsActionState = {
   error: string | null;
   success: string | null;
 };
-
-async function getOrganizationIdForAdmin(userId: string) {
-  const supabase = await createSupabaseServerClient();
-
-  if (!supabase) {
-    return {
-      error: "Supabase baglantisi kurulamadi.",
-      organizationId: null,
-    };
-  }
-
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("organization_id")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (error || !profile?.organization_id) {
-    return {
-      error: "Kurum baglami cozulmedi.",
-      organizationId: null,
-    };
-  }
-
-  return {
-    error: null,
-    organizationId: profile.organization_id,
-  };
-}
 
 async function requireAdminSettingsContext() {
   const auth = await getCurrentAuthContext();
@@ -62,12 +35,15 @@ async function requireAdminSettingsContext() {
     };
   }
 
-  const supabase = await createSupabaseServerClient();
-  const context = await getOrganizationIdForAdmin(auth.userId);
+  const supabase = createSupabaseAdminClient();
+  const context = await getOrCreateOrganizationContext(auth.userId);
 
   if (!supabase || !context.organizationId) {
     return {
-      error: context.error ?? "Supabase baglantisi kurulamadi.",
+      error:
+        context.error === "Kurum baglami cozulmedi."
+          ? "Once Kurum sekmesinden kurum kaydini olustur veya mevcut kurumu bagla."
+          : context.error ?? "Supabase baglantisi kurulamadi.",
       auth,
       organizationId: null,
       supabase: null,
@@ -93,7 +69,7 @@ function getMissingTableMessage(code: string | undefined, tableName: string) {
 async function clearDefaultSeason(
   organizationId: string,
   currentSeasonId: string | null,
-  supabase: NonNullable<Awaited<ReturnType<typeof createSupabaseServerClient>>>,
+  supabase: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
 ) {
   let query = supabase.from("seasons").update({ is_default: false }).eq("organization_id", organizationId);
 
@@ -131,7 +107,7 @@ export async function updateOrganizationSettingsAction(
     };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
 
   if (!supabase) {
     return {
@@ -140,15 +116,13 @@ export async function updateOrganizationSettingsAction(
     };
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("organization_id")
-    .eq("id", auth.userId)
-    .maybeSingle();
+  const orgContext = await getOrCreateOrganizationContext(auth.userId, {
+    createIfMissing: parsed.data,
+  });
 
-  if (profileError || !profile?.organization_id) {
+  if (!orgContext.organizationId) {
     return {
-      error: "Kurum baglami cozulmedi.",
+      error: orgContext.error ?? "Kurum baglami cozulmedi.",
       success: null,
     };
   }
@@ -161,7 +135,7 @@ export async function updateOrganizationSettingsAction(
       locale: parsed.data.locale,
       timezone: parsed.data.timezone,
     })
-    .eq("id", profile.organization_id);
+    .eq("id", orgContext.organizationId);
 
   if (updateError) {
     return {
@@ -173,6 +147,17 @@ export async function updateOrganizationSettingsAction(
   revalidatePath("/admin");
   revalidatePath("/admin/settings");
   revalidatePath("/");
+
+  await logAuditEvent({
+    organizationId: orgContext.organizationId,
+    actorProfileId: auth.userId,
+    actorRole: auth.role,
+    eventType: "Kurum ayarlari guncellendi",
+    scope: "Sistem ayarlari",
+    entityType: "organizations",
+    entityId: orgContext.organizationId,
+    payload: parsed.data,
+  });
 
   return {
     error: null,
@@ -219,6 +204,16 @@ export async function createBranchAction(
   }
 
   revalidatePath("/admin/settings");
+
+  await logAuditEvent({
+    organizationId: context.organizationId,
+    actorProfileId: context.auth?.userId,
+    actorRole: context.auth?.role,
+    eventType: "Yeni sube olusturuldu",
+    scope: "Sistem ayarlari",
+    entityType: "branches",
+    payload: parsed.data,
+  });
 
   return {
     error: null,
@@ -301,6 +296,16 @@ export async function createSeasonAction(
   }
 
   revalidatePath("/admin/settings");
+
+  await logAuditEvent({
+    organizationId: context.organizationId,
+    actorProfileId: context.auth?.userId,
+    actorRole: context.auth?.role,
+    eventType: "Yeni sezon olusturuldu",
+    scope: "Sistem ayarlari",
+    entityType: "seasons",
+    payload: parsed.data,
+  });
 
   return {
     error: null,

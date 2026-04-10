@@ -750,6 +750,60 @@ async function ensureSupportMessage(threadId, authorProfileId, body) {
   }
 }
 
+async function ensureAuditLog(organizationId, actorProfileId, actorRole, eventType, scope, payload = {}) {
+  const existing = await maybeSingle(
+    supabase
+      .from("audit_logs")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("event_type", eventType)
+      .eq("scope", scope),
+  );
+
+  if (existing) {
+    return;
+  }
+
+  const { error } = await supabase.from("audit_logs").insert({
+    organization_id: organizationId,
+    actor_profile_id: actorProfileId,
+    actor_role: actorRole,
+    event_type: eventType,
+    scope,
+    payload,
+  });
+
+  if (error && error.code !== "PGRST205") {
+    throw error;
+  }
+}
+
+async function ensureLeadSubmission(organizationId, fullName, email, phone, status) {
+  const existing = await maybeSingle(
+    supabase
+      .from("lead_submissions")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("email", email),
+  );
+
+  if (existing) {
+    return;
+  }
+
+  const { error } = await supabase.from("lead_submissions").insert({
+    organization_id: organizationId,
+    full_name: fullName,
+    email,
+    phone,
+    status,
+  });
+
+  if (error && error.code !== "PGRST205") {
+    throw error;
+  }
+}
+
 async function main() {
   const organizationId = await ensureOrganization();
   const userMap = new Map();
@@ -928,6 +982,30 @@ async function main() {
     threadId,
     profileMap.get("operasyon@elitkids.com"),
     "Kontenjan onayi sonrasi size donus yapacagiz.",
+  );
+
+  await ensureAuditLog(
+    organizationId,
+    profileMap.get("cagrisancar@gmail.com"),
+    "admin",
+    "Landing page guncellendi",
+    "Landing editoru",
+    { source: "seed" },
+  );
+  await ensureAuditLog(
+    organizationId,
+    profileMap.get("cagrisancar@gmail.com"),
+    "admin",
+    "Yeni kullanici olusturuldu",
+    "Kullanici ve roller",
+    { source: "seed" },
+  );
+  await ensureLeadSubmission(
+    organizationId,
+    "Deniz Tunc",
+    "deniz.veli@example.com",
+    "05325000001",
+    "new",
   );
 
   console.log(

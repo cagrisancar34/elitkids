@@ -21,6 +21,7 @@ import {
 
 import { signOut } from "@/app/(auth)/login/actions";
 import { BrandMark } from "@/components/brand-mark";
+import type { DashboardContextCard, DashboardPrimaryAction } from "@/components/dashboard-page";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { navigationByRole, roleLabels } from "@/lib/navigation";
@@ -31,6 +32,8 @@ type AppShellProps = {
   title: string;
   description: string;
   eyebrow?: string;
+  contextCard?: DashboardContextCard;
+  primaryAction?: DashboardPrimaryAction;
   children: React.ReactNode;
 };
 
@@ -39,60 +42,66 @@ export function AppShell({
   title,
   description,
   eyebrow,
+  contextCard,
+  primaryAction,
   children,
 }: AppShellProps) {
   const pathname = usePathname();
   const navigation = navigationByRole[role];
   const quickAction = getQuickAction(role);
+  const headerAction = primaryAction ?? quickAction;
+  const heroContext = contextCard ?? getDefaultContextCard(role);
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(2,83,205,0.12),transparent_18%),linear-gradient(180deg,#f7f9fb_0%,#f1f4f6_100%)]">
-      <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:w-72 lg:flex-col lg:bg-[linear-gradient(180deg,#0b0f10_0%,#12181a_100%)] lg:px-4 lg:py-4 lg:text-[var(--rail-foreground)] lg:shadow-[20px_0_40px_rgba(0,0,0,0.18)]">
+      <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:w-72 lg:flex-col lg:overflow-hidden lg:bg-[linear-gradient(180deg,#0b0f10_0%,#12181a_100%)] lg:px-4 lg:py-4 lg:text-[var(--rail-foreground)] lg:shadow-[20px_0_40px_rgba(0,0,0,0.18)]">
         <div className="rounded-[1.75rem] bg-white/4 px-4 py-5">
           <BrandMark inverse />
         </div>
 
-        <div className="mt-6 rounded-[1.5rem] bg-white/6 px-4 py-4">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-white/42">Aktif yuzey</div>
-          <div className="mt-2 font-display text-[1.75rem] font-semibold">{roleLabels[role]}</div>
-          <p className="mt-2 text-sm leading-6 text-white/62">
-            Stitch shadcn duzeni, Supabase ile calisan operasyon akisina dogrudan aktarildi.
-          </p>
+        <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+          <div className="mt-6 rounded-[1.5rem] bg-white/6 px-4 py-4">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-white/42">Aktif yuzey</div>
+            <div className="mt-2 font-display text-[1.75rem] font-semibold">{roleLabels[role]}</div>
+            <p className="mt-2 text-sm leading-6 text-white/62">
+              Stitch shadcn duzeni, Supabase ile calisan operasyon akisina dogrudan aktarildi.
+            </p>
+          </div>
+
+          <nav className="mt-8 space-y-1.5 px-2 pr-3">
+            {navigation.map((item) => {
+              const active =
+                pathname === item.href || (item.href !== `/${role}` && pathname.startsWith(item.href));
+              const Icon = getNavIcon(item.href, item.label);
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  data-active={active}
+                  className={cn(
+                    "pulse-strip group flex items-start gap-3 rounded-[1.15rem] px-4 py-3.5 transition-all",
+                    active
+                      ? "bg-[#d5e3fc] text-[#0b0f10] shadow-[0_0_15px_rgba(2,83,205,0.22)]"
+                      : "text-white/58 hover:bg-white/5 hover:text-white",
+                  )}
+                >
+                  <Icon className={cn("mt-0.5 h-[18px] w-[18px] shrink-0", active ? "text-primary" : "text-white/55")} />
+                  <div className="space-y-1">
+                    <div className={cn("font-medium", active ? "text-foreground" : "text-white/86")}>
+                      {item.label}
+                    </div>
+                    <div className={cn("text-sm leading-5", active ? "text-foreground/62" : "text-white/45")}>
+                      {item.description}
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </nav>
         </div>
 
-        <nav className="mt-8 space-y-1.5 px-2">
-          {navigation.map((item) => {
-            const active =
-              pathname === item.href || (item.href !== `/${role}` && pathname.startsWith(item.href));
-            const Icon = getNavIcon(item.href, item.label);
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                data-active={active}
-                className={cn(
-                  "pulse-strip group flex items-start gap-3 rounded-[1.15rem] px-4 py-3.5 transition-all",
-                  active
-                    ? "bg-[#d5e3fc] text-[#0b0f10] shadow-[0_0_15px_rgba(2,83,205,0.22)]"
-                    : "text-white/58 hover:bg-white/5 hover:text-white",
-                )}
-              >
-                <Icon className={cn("mt-0.5 h-[18px] w-[18px] shrink-0", active ? "text-primary" : "text-white/55")} />
-                <div className="space-y-1">
-                  <div className={cn("font-medium", active ? "text-foreground" : "text-white/86")}>
-                    {item.label}
-                  </div>
-                  <div className={cn("text-sm leading-5", active ? "text-foreground/62" : "text-white/45")}>
-                    {item.description}
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="mt-auto space-y-3 px-2 pb-2">
+        <div className="mt-3 space-y-3 px-2 pb-2">
           <Link
             href={quickAction.href}
             className="flex items-center justify-center gap-2 rounded-[1rem] bg-[linear-gradient(135deg,#0253cd,#0048b5)] px-4 py-3.5 text-sm font-semibold text-white shadow-[0_18px_30px_rgba(2,83,205,0.22)]"
@@ -128,6 +137,9 @@ export function AppShell({
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-3">
+                <Link href={headerAction.href} className={cn(buttonVariants({ size: "sm" }), "h-11 rounded-full px-5")}>
+                  {headerAction.label}
+                </Link>
                 <button className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/70 text-muted-foreground transition-colors hover:text-foreground">
                   <Bell className="h-4 w-4" />
                 </button>
@@ -164,17 +176,19 @@ export function AppShell({
               </div>
               <div className="surface-panel rounded-[1.9rem] border border-white/50 p-6">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  Calisma baglami
+                  {heroContext.eyebrow}
                 </div>
                 <div className="mt-3 font-display text-2xl font-semibold text-foreground">
-                  {roleLabels[role]}
+                  {heroContext.title}
                 </div>
                 <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                  Stitch ekranlarindaki data-once ritmi; koyu rail, sakin yuzey katmanlari ve hizli taranan paneller ile korunuyor.
+                  {heroContext.description}
                 </p>
-                <div className="mt-5 inline-flex items-center rounded-full bg-secondary px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-secondary-foreground">
-                  Aktif operasyon
-                </div>
+                {heroContext.badge ? (
+                  <div className="mt-5 inline-flex items-center rounded-full bg-secondary px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-secondary-foreground">
+                    {heroContext.badge}
+                  </div>
+                ) : null}
               </div>
             </section>
 
@@ -196,6 +210,16 @@ export function AppShell({
       </div>
     </div>
   );
+}
+
+function getDefaultContextCard(role: AppRole): DashboardContextCard {
+  return {
+    eyebrow: "Calisma baglami",
+    title: roleLabels[role],
+    description:
+      "Stitch ekranlarindaki data-once ritmi; koyu rail, sakin yuzey katmanlari ve hizli taranan paneller ile korunuyor.",
+    badge: "Aktif operasyon",
+  };
 }
 
 function getNavIcon(href: string, label: string) {

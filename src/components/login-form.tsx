@@ -3,15 +3,16 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { ArrowRight, KeyRound } from "lucide-react";
+import Link from "next/link";
 
-import {
-  signInWithDemoRole,
-  signInWithPassword,
-} from "@/app/(auth)/login/actions";
+import { requestMagicLinkAction } from "@/app/(auth)/actions";
+import { signInWithDemoRole, signInWithPassword } from "@/app/(auth)/login/actions";
+import { AuthEmailActionForm } from "@/components/auth-email-action-form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { roleLabels } from "@/lib/navigation";
+import { isDemoAuthEnabled } from "@/lib/supabase/config";
 import type { AppRole } from "@/lib/types";
 
 const roles: AppRole[] = ["admin", "manager", "coach", "parent"];
@@ -32,28 +33,31 @@ function SignInButton() {
 
 export function LoginForm({ supabaseEnabled }: { supabaseEnabled: boolean }) {
   const [state, formAction] = useActionState(signInWithPassword, initialAuthState);
+  const demoEnabled = isDemoAuthEnabled();
 
   return (
     <div className="grid gap-5">
-      <Card>
-        <CardHeader>
-          <CardTitle>{supabaseEnabled ? "Demo gecisi" : "Canli demo gecisi"}</CardTitle>
-          <CardDescription>
-            Rol bazli ekranlari hizlica gezmek icin bir demo oturumu baslat.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3">
-          {roles.map((role) => (
-            <form key={role} action={signInWithDemoRole}>
-              <input type="hidden" name="role" value={role} />
-              <Button type="submit" variant={role === "manager" ? "default" : "secondary"} className="w-full justify-between">
-                {roleLabels[role]} paneline gir
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </form>
-          ))}
-        </CardContent>
-      </Card>
+      {demoEnabled ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{supabaseEnabled ? "Demo gecisi" : "Canli demo gecisi"}</CardTitle>
+            <CardDescription>
+              Rol bazli ekranlari hizlica gezmek icin bir demo oturumu baslat.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            {roles.map((role) => (
+              <form key={role} action={signInWithDemoRole}>
+                <input type="hidden" name="role" value={role} />
+                <Button type="submit" variant={role === "manager" ? "default" : "secondary"} className="w-full justify-between">
+                  {roleLabels[role]} paneline gir
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </form>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -95,6 +99,29 @@ export function LoginForm({ supabaseEnabled }: { supabaseEnabled: boolean }) {
             <SignInButton />
             {state.error ? <p className="text-sm leading-6 text-muted-foreground">{state.error}</p> : null}
           </form>
+          <div className="mt-4 flex items-center justify-between text-sm">
+            <Link href="/forgot-password" className="font-medium text-primary">
+              Sifremi unuttum
+            </Link>
+            <Link href="/invite" className="font-medium text-primary">
+              Davet baglantisi
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Magic link</CardTitle>
+          <CardDescription>
+            Sifresiz giris icin oturum baglantisini e-posta adresine gonderebilirsin.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AuthEmailActionForm
+            action={requestMagicLinkAction}
+            submitLabel="Magic link gonder"
+          />
         </CardContent>
       </Card>
     </div>

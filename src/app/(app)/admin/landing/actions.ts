@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { getActorOrganizationId, logAuditEvent } from "@/lib/audit";
 import { getCurrentAuthContext } from "@/lib/auth";
 import {
   defaultLandingContent,
@@ -68,6 +69,20 @@ export async function updateLandingContentAction(
       success: null,
     };
   }
+
+  const organizationId = await getActorOrganizationId(auth.userId);
+  await logAuditEvent({
+    organizationId,
+    actorProfileId: auth.userId,
+    actorRole: auth.role,
+    eventType: "Landing page guncellendi",
+    scope: "Landing editoru",
+    entityType: "homepage_settings",
+    payload: {
+      navbarLinks: nextContent.navbar.links.length,
+      programCards: nextContent.programs.items.length,
+    },
+  });
 
   revalidatePath("/");
   revalidatePath("/admin");

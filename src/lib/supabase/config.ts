@@ -17,13 +17,14 @@ export function getSupabaseConfig() {
     "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
     "NEXT_PUBLIC_SUPABASE_ANON_KEY",
   );
-  const serviceRoleKey = readEnv("SUPABASE_SERVICE_ROLE_KEY");
 
   return {
     url,
     publishableKey,
-    serviceRoleKey,
     isConfigured: Boolean(url && publishableKey),
-    isAdminConfigured: Boolean(url && serviceRoleKey),
   };
+}
+
+export function isDemoAuthEnabled() {
+  return process.env.NODE_ENV !== "production" && process.env.ENABLE_DEMO_AUTH !== "false";
 }

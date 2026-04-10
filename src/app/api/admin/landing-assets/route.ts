@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentAuthContext } from "@/lib/auth";
+import { buildRateLimitHeaders, consumeRateLimit } from "@/lib/rate-limit";
+import { extractClientSecurityContext } from "@/lib/request-security";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 const BUCKET_NAME = "homepage-assets";
+const MAX_SIZE = 6 * 1024 * 1024;
 
 function sanitizeSegment(value: string) {
   return value
@@ -15,11 +18,25 @@ function sanitizeSegment(value: string) {
 
 export async function POST(request: Request) {
   const auth = await getCurrentAuthContext();
+  const securityContext = extractClientSecurityContext(request);
+  const rateLimit = consumeRateLimit({
+    bucket: "admin:landing-asset-upload",
+    key: auth?.userId ?? securityContext.submittedIp ?? "anonymous",
+    limit: 20,
+    windowMs: 10 * 60 * 1000,
+  });
 
   if (!auth || auth.role !== "admin" || auth.mode !== "supabase" || !auth.userId) {
     return NextResponse.json(
       { error: "Bu islem yalnizca admin tarafindan yapilabilir." },
       { status: 403 },
+    );
+  }
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: `Cok fazla yukleme denemesi yapildi. Lutfen ${rateLimit.retryAfterSeconds} saniye sonra tekrar dene.` },
+      { status: 429, headers: buildRateLimitHeaders(rateLimit) },
     );
   }
 
@@ -37,21 +54,15 @@ export async function POST(request: Request) {
   const field = String(formData.get("field") ?? "landing");
 
   if (!(file instanceof File)) {
-    return NextResponse.json({ error: "Gecerli bir dosya secilmedi." }, { status: 400 });
+    return NextResponse.json({ error: "Gecerli bir dosya secilmedi." }, { status: 400, headers: buildRateLimitHeaders(rateLimit) });
   }
 
   if (!file.type.startsWith("image/")) {
-    return NextResponse.json({ error: "Yalnizca gorsel dosyasi yuklenebilir." }, { status: 400 });
+    return NextResponse.json({ error: "Yalnizca gorsel dosyasi yuklenebilir." }, { status: 400, headers: buildRateLimitHeaders(rateLimit) });
   }
 
-  const { error: bucketError } = await adminClient.storage.createBucket(BUCKET_NAME, {
-    public: true,
-    fileSizeLimit: 6 * 1024 * 1024,
-    allowedMimeTypes: ["image/png", "image/jpeg", "image/webp", "image/svg+xml"],
-  });
-
-  if (bucketError && !bucketError.message.toLowerCase().includes("already exists")) {
-    return NextResponse.json({ error: bucketError.message }, { status: 500 });
+  if (file.size > MAX_SIZE) {
+    return NextResponse.json({ error: "Dosya boyutu 6MB sinirini asiyor." }, { status: 400, headers: buildRateLimitHeaders(rateLimit) });
   }
 
   const extension = file.name.split(".").pop()?.toLowerCase() ?? "png";
@@ -67,12 +78,12 @@ export async function POST(request: Request) {
     });
 
   if (uploadError) {
-    return NextResponse.json({ error: uploadError.message }, { status: 500 });
+    return NextResponse.json({ error: uploadError.message }, { status: 500, headers: buildRateLimitHeaders(rateLimit) });
   }
 
   const {
     data: { publicUrl },
   } = adminClient.storage.from(BUCKET_NAME).getPublicUrl(objectPath);
 
-  return NextResponse.json({ url: publicUrl });
+  return NextResponse.json({ url: publicUrl }, { headers: buildRateLimitHeaders(rateLimit) });
 }

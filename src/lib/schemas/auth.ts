@@ -6,3 +6,11 @@ export const credentialsSchema = z.object({
 });
 
 export type CredentialsSchema = z.infer<typeof credentialsSchema>;
+
+export const emailOnlySchema = z.object({
+  email: z.string().email("Gecerli bir e-posta adresi gir."),
+});
+
+export const passwordResetSchema = z.object({
+  password: z.string().min(8, "Sifre en az 8 karakter olmali."),
+});

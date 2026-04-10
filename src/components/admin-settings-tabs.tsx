@@ -34,13 +34,7 @@ export function AdminSettingsTabs({
             <CardDescription>Marka kimligi ve locale tercihleri artik gercek organization kaydina yazilir.</CardDescription>
           </CardHeader>
           <CardContent>
-            {organization ? (
-              <OrganizationSettingsForm organization={organization} />
-            ) : (
-              <div className="rounded-[1.25rem] bg-accent p-4 text-sm leading-6 text-muted-foreground">
-                Organization kaydi okunamadi. Admin profilinin kurum baglantisini kontrol et.
-              </div>
-            )}
+            <OrganizationSettingsForm organization={organization} />
           </CardContent>
         </Card>
       </TabsContent>

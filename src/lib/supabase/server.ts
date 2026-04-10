@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 import { getSupabaseConfig } from "@/lib/supabase/config";
+import { getSupabaseServerConfig } from "@/lib/supabase/server-config";
 
 type ServerClientOptions = {
   writeCookies?: boolean;
@@ -36,7 +37,7 @@ export async function createSupabaseServerClient(options: ServerClientOptions = 
 }
 
 export function createSupabaseAdminClient() {
-  const { url, serviceRoleKey } = getSupabaseConfig();
+  const { url, serviceRoleKey } = getSupabaseServerConfig();
 
   if (!url || !serviceRoleKey) {
     return null;

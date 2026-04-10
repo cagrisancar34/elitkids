@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { getActorOrganizationId, logAuditEvent } from "@/lib/audit";
 import { getCurrentAuthContext } from "@/lib/auth";
 import { createManualPaymentSchema } from "@/lib/schemas/app-forms";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
@@ -104,8 +105,25 @@ export async function createManualPaymentAction(
 
   revalidatePath("/manager");
   revalidatePath("/manager/finance");
+  revalidatePath("/manager/students");
   revalidatePath("/parent");
   revalidatePath("/parent/payments");
+
+  const organizationId = await getActorOrganizationId(auth.userId);
+  await logAuditEvent({
+    organizationId,
+    actorProfileId: auth.userId,
+    actorRole: auth.role,
+    eventType: "Manuel odeme girildi",
+    scope: "Finans",
+    entityType: "payments",
+    entityId: parsed.data.chargeId,
+    payload: {
+      chargeId: parsed.data.chargeId,
+      amount: parsed.data.amount,
+      status,
+    },
+  });
 
   return {
     error: null,

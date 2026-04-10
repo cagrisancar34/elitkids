@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { logAuditEvent } from "@/lib/audit";
 import { getCurrentAuthContext } from "@/lib/auth";
 import { createAnnouncementSchema } from "@/lib/schemas/app-forms";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
@@ -117,6 +118,19 @@ export async function createAnnouncementAction(
   revalidatePath("/manager/announcements");
   revalidatePath("/parent");
   revalidatePath("/coach");
+
+  await logAuditEvent({
+    organizationId: profile.organization_id,
+    actorProfileId: auth.userId,
+    actorRole: auth.role,
+    eventType: "Duyuru yayinlandi",
+    scope: "Duyuru ve bildirim",
+    entityType: "announcements",
+    payload: {
+      title: parsed.data.title,
+      audienceRole: audienceRole ?? "all",
+    },
+  });
 
   return {
     error: null,

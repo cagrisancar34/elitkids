@@ -51,11 +51,7 @@ export function AdminUserCreateForm({ adminEnabled }: { adminEnabled: boolean })
       </div>
       {!adminEnabled ? (
         <p className="text-sm text-destructive">
-          Kullanici olusturmak icin Cloudflare Variables and Secrets alanina
-          {" "}
-          <span className="font-semibold">SUPABASE_SERVICE_ROLE_KEY</span>
-          {" "}
-          eklenmeli.
+          Kullanici olusturma icin deploy ortaminda yonetici yazma secret&apos;i tanimli olmali.
         </p>
       ) : null}
       {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}

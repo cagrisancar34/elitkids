@@ -54,11 +54,7 @@ export function AdminRoleForm({
       </div>
       {!adminEnabled ? (
         <p className="text-sm text-destructive">
-          Rol guncellemek icin Cloudflare Variables and Secrets alanina
-          {" "}
-          <span className="font-semibold">SUPABASE_SERVICE_ROLE_KEY</span>
-          {" "}
-          eklenmeli.
+          Rol guncelleme icin deploy ortaminda yonetici yazma secret&apos;i tanimli olmali.
         </p>
       ) : null}
       {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}

@@ -15,15 +15,16 @@ import {
   Waves,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { PreRegistrationModal } from "@/components/pre-registration-modal";
+import { TrackedButton } from "@/components/tracked-button";
+import { TrackedLinkButton } from "@/components/tracked-link-button";
 import {
   defaultLandingContent,
   mergeLandingContent,
   type IconKey,
   type LandingContent,
 } from "@/lib/landing-content";
+import { trackPhoneClick, trackWhatsAppClick } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 
 const iconMap = {
@@ -67,6 +68,7 @@ async function loadLandingContent() {
 export default function HomePage() {
   const [content, setContent] = useState(defaultLandingContent);
   const [hasScrolled, setHasScrolled] = useState(false);
+  const [isPreRegistrationOpen, setIsPreRegistrationOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -114,33 +116,53 @@ export default function HomePage() {
     );
   }, [content.siteSettings.brandName, content.siteSettings.logoImage, content.siteSettings.logoLabel]);
 
+  const normalizedPhone = content.siteSettings.contactPhone.replace(/[^\d+]/g, "");
+  const whatsappDigits = content.siteSettings.contactPhone.replace(/\D/g, "");
+
   return (
     <div className="min-h-screen bg-[#091224] text-white">
       <div className="fixed inset-x-0 top-0 z-50 px-3 py-3 md:px-6">
         <header
           className={cn(
-            "mx-auto flex max-w-[1320px] items-center justify-between rounded-full border px-4 py-3 transition-all duration-300 md:px-6",
+            "mx-auto flex max-w-[1420px] items-center justify-between rounded-[2rem] border px-4 py-3 transition-all duration-300 md:px-8 md:py-4",
             hasScrolled
               ? "border-white/10 bg-[#08101f]/92 shadow-[0_18px_48px_rgba(0,0,0,0.45)] backdrop-blur-2xl"
               : "border-white/6 bg-[#08101f]/60 backdrop-blur-xl",
           )}
         >
-          <Link href="/" className="flex items-center gap-2.5">
-            {logoNode}
-            <span className="font-display text-sm font-extrabold tracking-tight text-white">
-              {content.siteSettings.brandName}
-            </span>
+          <Link href="/" className="flex items-center gap-3 md:gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-sky-300 to-[#42baf9] shadow-[0_14px_30px_rgba(66,186,249,0.28)]">
+              {content.siteSettings.logoImage ? (
+                <img
+                  src={content.siteSettings.logoImage}
+                  alt={content.siteSettings.brandName}
+                  className="h-14 w-14 rounded-full object-cover"
+                />
+              ) : (
+                <span className="text-lg font-black tracking-[-0.04em] text-[#071223]">
+                  {content.siteSettings.logoLabel}
+                </span>
+              )}
+            </div>
+            <div className="hidden min-w-0 sm:block">
+              <div className="font-display text-[1.05rem] font-extrabold tracking-[-0.04em] text-white">
+                {content.siteSettings.brandName}
+              </div>
+              <div className="mt-0.5 text-[0.7rem] font-medium uppercase tracking-[0.34em] text-slate-400">
+                {content.siteSettings.brandTagline}
+              </div>
+            </div>
           </Link>
 
-          <nav className="hidden items-center gap-6 md:flex">
+          <nav className="hidden items-center gap-10 md:flex">
             {content.navbar.links.map((link, index) => (
               <a
                 key={`${link.label}-${index}`}
                 href={link.href}
                 className={cn(
-                  "text-[11px] font-semibold tracking-tight transition-colors",
+                  "text-base font-bold tracking-[-0.03em] transition-colors",
                   index === 0
-                    ? "border-b border-sky-300 pb-1 text-sky-200"
+                    ? "border-b-2 border-sky-300 pb-2 text-sky-300"
                     : "text-slate-300 hover:text-white",
                 )}
               >
@@ -149,64 +171,80 @@ export default function HomePage() {
             ))}
           </nav>
 
-          <Button
-            asChild
-            size="sm"
-            className="h-8 rounded-full bg-sky-400 px-4 text-[11px] font-bold text-[#071223] hover:bg-sky-300"
-          >
-            <a href={content.navbar.ctaHref}>{content.navbar.ctaLabel}</a>
-          </Button>
+          <div className="flex items-center gap-3">
+            <div className="hidden items-center gap-2 rounded-full border border-white/12 bg-white/[0.03] px-4 py-3 text-sm text-slate-200 lg:flex">
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.75)]" />
+              <span>{content.navbar.statusLabel}</span>
+            </div>
+            <TrackedButton
+              className="h-12 rounded-full bg-[#0f6bff] px-6 text-sm font-bold text-white shadow-[0_18px_38px_rgba(15,107,255,0.28)] hover:bg-[#3384ff] md:px-8"
+              trackingName={content.navbar.ctaLabel}
+              trackingLocation="navbar"
+              onClick={() => setIsPreRegistrationOpen(true)}
+            >
+              {content.navbar.ctaLabel}
+            </TrackedButton>
+          </div>
         </header>
       </div>
 
       <main>
-        <section className="relative overflow-hidden pt-24">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(58,173,255,0.14),transparent_26%),linear-gradient(180deg,#091224_0%,#0a1427_100%)]" />
-          <div className="mx-auto max-w-[1320px] px-4 pb-18 pt-10 md:px-6 md:pb-24 md:pt-16">
-            <div className="grid items-center gap-10 lg:grid-cols-[1.05fr_0.95fr]">
-              <div className="max-w-[560px]">
-                <h1 className="max-w-[10.5ch] font-display text-[3rem] font-black leading-[0.92] tracking-[-0.055em] text-white sm:text-[3.5rem] md:text-[4.4rem]">
+        <section className="relative overflow-hidden pt-28 md:pt-32">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(64,164,255,0.18),transparent_24%),radial-gradient(circle_at_top_left,rgba(65,131,255,0.12),transparent_20%),linear-gradient(180deg,#091224_0%,#0a1427_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:112px_112px] opacity-70" />
+          <div className="absolute inset-y-0 right-0 w-[36%] bg-[radial-gradient(circle_at_center,rgba(57,164,255,0.18),transparent_60%)]" />
+          <div className="relative mx-auto max-w-[1420px] px-5 pb-18 pt-8 md:px-8 md:pb-24 md:pt-14">
+            <div className="grid items-center gap-10 xl:grid-cols-[1.12fr_0.88fr]">
+              <div className="max-w-[820px]">
+                <div className="inline-flex rounded-full border border-sky-300/28 bg-sky-300/[0.08] px-6 py-3 text-sm font-semibold uppercase tracking-[0.32em] text-sky-200 shadow-[0_20px_40px_rgba(34,164,255,0.08)]">
+                  {content.hero.eyebrow}
+                </div>
+
+                <h1 className="mt-10 max-w-[9ch] whitespace-pre-line font-display text-[3.6rem] font-black leading-[0.9] tracking-[-0.065em] text-white sm:text-[4.3rem] lg:text-[5.7rem] xl:text-[6.2rem]">
                   {content.hero.title}
-                  <span className="block bg-gradient-to-r from-sky-200 via-sky-300 to-[#2ba9ff] bg-clip-text text-transparent">
+                  <span className="mt-1 block whitespace-pre-line bg-gradient-to-b from-sky-300 via-[#44c5ff] to-[#1b98ff] bg-clip-text text-transparent">
                     {content.hero.highlight}
                   </span>
-                  gelisir.
                 </h1>
 
-                <p className="mt-5 max-w-[490px] text-[15px] leading-7 text-slate-300 md:text-base">
+                <p className="mt-9 max-w-[640px] text-[1.15rem] leading-[1.7] text-slate-300 md:text-[1.25rem]">
                   {content.hero.description}
                 </p>
 
-                <div className="mt-8 flex flex-wrap gap-3">
-                  <Button
-                    asChild
-                    className="h-12 rounded-full bg-sky-400 px-6 text-sm font-bold text-[#081224] shadow-[0_18px_40px_rgba(43,169,255,0.28)] hover:bg-sky-300"
+                <div className="mt-12 flex flex-wrap gap-4">
+                  <TrackedButton
+                    className="h-14 rounded-[1.2rem] bg-[#0f6bff] px-8 text-lg font-bold text-white shadow-[0_20px_44px_rgba(15,107,255,0.35)] hover:bg-[#3384ff]"
+                    trackingName={content.hero.primaryCtaLabel}
+                    trackingLocation="hero_primary"
+                    onClick={() => setIsPreRegistrationOpen(true)}
                   >
-                    <a href={content.hero.primaryCtaHref}>{content.hero.primaryCtaLabel}</a>
-                  </Button>
-                  <Button
-                    asChild
+                    {content.hero.primaryCtaLabel}
+                  </TrackedButton>
+                  <TrackedLinkButton
+                    href={content.hero.secondaryCtaHref}
                     variant="outline"
-                    className="h-12 rounded-full border-white/10 bg-white/[0.03] px-6 text-sm font-bold text-white hover:bg-white/[0.06]"
+                    className="h-14 rounded-[1.2rem] border-white/14 bg-white/[0.03] px-8 text-lg font-bold text-white hover:bg-white/[0.06]"
+                    trackingName={content.hero.secondaryCtaLabel}
+                    trackingLocation="hero_secondary"
                   >
-                    <a href={content.hero.secondaryCtaHref}>{content.hero.secondaryCtaLabel}</a>
-                  </Button>
+                    {content.hero.secondaryCtaLabel}
+                  </TrackedLinkButton>
                 </div>
               </div>
 
-              <div className="grid grid-cols-[1.05fr_0.85fr] gap-4 lg:justify-self-end">
-                <div className="overflow-hidden rounded-[1.9rem] bg-[#0e1a31] shadow-[0_30px_70px_rgba(0,0,0,0.28)]">
+              <div className="grid grid-cols-2 items-end gap-6 xl:justify-self-end">
+                <div className="overflow-hidden rounded-[2rem] border border-white/[0.06] bg-[#0e1a31] shadow-[0_30px_70px_rgba(0,0,0,0.32)]">
                   <img
                     src={content.hero.visualPrimaryImage}
                     alt={`${content.siteSettings.brandName} hero bir`}
-                    className="aspect-[0.88] h-full w-full object-cover"
+                    className="aspect-[0.72] h-full w-full object-cover"
                   />
                 </div>
-                <div className="overflow-hidden rounded-[1.9rem] bg-[#0e1a31] shadow-[0_30px_70px_rgba(0,0,0,0.28)]">
+                <div className="overflow-hidden rounded-[2rem] border border-white/[0.06] bg-[#0e1a31] shadow-[0_30px_70px_rgba(0,0,0,0.32)] xl:translate-y-[-58px]">
                   <img
                     src={content.hero.visualSecondaryImage}
                     alt={`${content.siteSettings.brandName} hero iki`}
-                    className="aspect-[0.88] h-full w-full object-cover"
+                    className="aspect-[0.98] h-full w-full object-cover"
                   />
                 </div>
               </div>
@@ -308,13 +346,54 @@ export default function HomePage() {
                         </div>
                       ))}
                     </div>
-                    <Button
-                      asChild
+                    <TrackedLinkButton
+                      href={program.href}
                       variant="outline"
                       className="mt-5 h-10 w-full rounded-full border-white/[0.06] bg-white/[0.02] text-sm font-semibold text-white hover:bg-white/[0.05]"
+                      trackingName={program.ctaLabel}
+                      trackingLocation={`program_card_${program.title}`}
                     >
-                      <a href={program.href}>{program.ctaLabel}</a>
-                    </Button>
+                      {program.ctaLabel}
+                    </TrackedLinkButton>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="coaches" className="border-t border-white/[0.04] bg-[#0b162b]">
+          <div className="mx-auto max-w-[1320px] px-4 py-18 md:px-6 md:py-24">
+            <div className="max-w-2xl">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.26em] text-sky-300">
+                {content.coaches.eyebrow}
+              </div>
+              <h2 className="mt-4 font-display text-[2.2rem] font-black tracking-[-0.05em] text-white md:text-[2.8rem]">
+                {content.coaches.title}
+              </h2>
+              <p className="mt-4 text-sm leading-7 text-slate-400 md:text-base">
+                {content.coaches.description}
+              </p>
+            </div>
+
+            <div className="mt-10 grid gap-5 lg:grid-cols-3">
+              {content.coaches.items.map((coach) => (
+                <article
+                  key={coach.name}
+                  className="overflow-hidden rounded-[1.45rem] border border-white/[0.05] bg-[#111a2f] shadow-[0_18px_52px_rgba(0,0,0,0.18)]"
+                >
+                  <div className="relative h-64 overflow-hidden">
+                    <img src={coach.image} alt={coach.name} className="h-full w-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#111a2f] via-[#111a2f]/10 to-transparent" />
+                  </div>
+                  <div className="px-5 pb-5 pt-4">
+                    <div className="text-[11px] uppercase tracking-[0.22em] text-sky-300">
+                      {coach.specialty}
+                    </div>
+                    <h3 className="mt-3 font-display text-[1.35rem] font-bold tracking-[-0.03em] text-white">
+                      {coach.name}
+                    </h3>
+                    <p className="mt-3 text-sm leading-7 text-slate-400">{coach.bio}</p>
                   </div>
                 </article>
               ))}
@@ -368,6 +447,32 @@ export default function HomePage() {
 
         <section id="contact" className="border-t border-white/[0.04] bg-[#091224]">
           <div className="mx-auto max-w-[1320px] px-4 py-18 md:px-6 md:py-24">
+            <div className="mb-10 max-w-3xl">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.26em] text-sky-300">
+                {content.faq.eyebrow}
+              </div>
+              <h2 className="mt-4 font-display text-[2.1rem] font-black tracking-[-0.05em] text-white md:text-[2.7rem]">
+                {content.faq.title}
+              </h2>
+              <p className="mt-4 text-sm leading-7 text-slate-400 md:text-base">
+                {content.faq.description}
+              </p>
+            </div>
+
+            <div className="mb-10 grid gap-4 lg:grid-cols-2">
+              {content.faq.items.map((item) => (
+                <div
+                  key={item.question}
+                  className="rounded-[1.4rem] border border-white/[0.05] bg-[#111a2f] px-5 py-5 shadow-[0_16px_42px_rgba(0,0,0,0.15)]"
+                >
+                  <div className="font-display text-[1.15rem] font-bold tracking-[-0.03em] text-white">
+                    {item.question}
+                  </div>
+                  <p className="mt-3 text-sm leading-7 text-slate-400">{item.answer}</p>
+                </div>
+              ))}
+            </div>
+
             <div className="overflow-hidden rounded-[1.8rem] border border-white/[0.05] bg-[#111a2f] shadow-[0_24px_60px_rgba(0,0,0,0.2)] md:grid md:grid-cols-[0.95fr_1.05fr]">
               <div className="bg-[#42baf9] px-7 py-8 text-[#071223] md:px-10 md:py-10">
                 <h2 className="max-w-[12ch] font-display text-[2rem] font-black leading-[0.96] tracking-[-0.04em]">
@@ -377,40 +482,68 @@ export default function HomePage() {
                   {content.cta.description}
                 </p>
                 <div className="mt-8 space-y-3 text-sm font-semibold">
-                  <div>{content.siteSettings.contactPhone}</div>
+                  <a
+                    href={`tel:${normalizedPhone}`}
+                    onClick={() => trackPhoneClick("cta_contact_panel")}
+                    className="block hover:text-[#0d3350]"
+                  >
+                    {content.siteSettings.contactPhone}
+                  </a>
                   <div>{content.siteSettings.location}</div>
                 </div>
               </div>
 
-              <div className="px-7 py-8 md:px-10 md:py-10">
+              <div className="flex flex-col justify-between gap-6 px-7 py-8 md:px-10 md:py-10">
                 <div className="grid gap-4">
-                  <FormField label={content.cta.fullNameLabel}>
-                    <Input
-                      placeholder={content.cta.fullNamePlaceholder}
-                      className="h-11 rounded-[0.95rem] border-white/[0.05] bg-[#202a3f] text-white placeholder:text-slate-500"
-                    />
-                  </FormField>
-                  <FormField label={content.cta.emailLabel}>
-                    <Input
-                      placeholder={content.cta.emailPlaceholder}
-                      className="h-11 rounded-[0.95rem] border-white/[0.05] bg-[#202a3f] text-white placeholder:text-slate-500"
-                    />
-                  </FormField>
-                  <FormField label={content.cta.phoneLabel}>
-                    <Input
-                      placeholder={content.cta.phonePlaceholder}
-                      className="h-11 rounded-[0.95rem] border-white/[0.05] bg-[#202a3f] text-white placeholder:text-slate-500"
-                    />
-                  </FormField>
-                  <FormField label="Mesaj">
-                    <Textarea
-                      placeholder={content.cta.description}
-                      className="min-h-24 rounded-[0.95rem] border-white/[0.05] bg-[#202a3f] text-white placeholder:text-slate-500"
-                    />
-                  </FormField>
-                  <Button className="h-11 rounded-[0.95rem] bg-sky-400 text-sm font-bold text-[#071223] hover:bg-sky-300">
+                  <div className="rounded-[1rem] border border-white/[0.05] bg-[#202a3f] px-4 py-4">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                      On kayit mantigi
+                    </div>
+                    <p className="mt-3 text-sm leading-7 text-slate-300">
+                      Basvuru once on kayit havuzuna duser. Ekibimiz inceleyip uygun programa aktive ettiginde ogrenci kaydi olusur.
+                    </p>
+                  </div>
+                  <div className="grid gap-2 text-sm text-slate-400">
+                    <div>• Ogrenci ve veli bilgileri tek formda toplanir</div>
+                    <div>• KVKK ve veli izin metni okunup onaylanir</div>
+                    <div>• Fotograf yukleme ve program secimi ayni akista tamamlanir</div>
+                  </div>
+                </div>
+                <div className="grid gap-3">
+                  <TrackedButton
+                    type="button"
+                    className="h-12 rounded-[0.95rem] bg-sky-400 text-sm font-bold text-[#071223] hover:bg-sky-300"
+                    trackingName={content.cta.submitLabel}
+                    trackingLocation="cta_panel"
+                    onClick={() => setIsPreRegistrationOpen(true)}
+                  >
                     {content.cta.submitLabel}
-                  </Button>
+                  </TrackedButton>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <TrackedLinkButton
+                      href={`https://wa.me/${whatsappDigits}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      variant="outline"
+                      className="h-11 rounded-[0.95rem] border-white/[0.08] bg-white/[0.02] text-sm font-semibold text-white hover:bg-white/[0.05]"
+                      trackingName="WhatsApp"
+                      trackingLocation="cta_panel"
+                      eventType="whatsapp_click"
+                    >
+                      WhatsApp ile Ulas
+                    </TrackedLinkButton>
+                    <TrackedLinkButton
+                      href={`tel:${normalizedPhone}`}
+                      variant="outline"
+                      className="h-11 rounded-[0.95rem] border-white/[0.08] bg-white/[0.02] text-sm font-semibold text-white hover:bg-white/[0.05]"
+                      trackingName="Telefon"
+                      trackingLocation="cta_panel"
+                      eventType="phone_click"
+                    >
+                      Telefon ile Ara
+                    </TrackedLinkButton>
+                  </div>
+                  <p className="text-xs leading-6 text-slate-500">{content.cta.footnote}</p>
                 </div>
               </div>
             </div>
@@ -434,6 +567,12 @@ export default function HomePage() {
                   <a
                     key={social.label}
                     href={social.href}
+                    onClick={() => {
+                      if (social.label.toLowerCase().includes("whats")) {
+                        trackWhatsAppClick("footer_social");
+                        return;
+                      }
+                    }}
                     className="flex h-8 w-8 items-center justify-center rounded-full bg-[#121b2f] text-[10px] font-bold text-slate-300 hover:bg-sky-300 hover:text-[#071223]"
                   >
                     {social.label}
@@ -468,23 +607,8 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
-    </div>
-  );
-}
 
-function FormField({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-        {label}
-      </span>
-      {children}
-    </label>
+      <PreRegistrationModal open={isPreRegistrationOpen} onOpenChange={setIsPreRegistrationOpen} />
+    </div>
   );
 }

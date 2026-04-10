@@ -6,13 +6,14 @@ import { LoginForm } from "@/components/login-form";
 import { buttonVariants } from "@/components/ui/button";
 import { academyProfile } from "@/lib/mock-data";
 import { redirectIfAuthenticated } from "@/lib/auth";
-import { getSupabaseConfig } from "@/lib/supabase/config";
+import { getSupabaseConfig, isDemoAuthEnabled } from "@/lib/supabase/config";
 import { cn } from "@/lib/utils";
 
 export default async function LoginPage() {
   await redirectIfAuthenticated();
 
   const { isConfigured } = getSupabaseConfig();
+  const demoEnabled = isDemoAuthEnabled();
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(2,83,205,0.12),_transparent_24%),linear-gradient(180deg,#f7f9fb_0%,#eef2f5_100%)] px-5 py-5 lg:px-8">
@@ -36,10 +37,12 @@ export default async function LoginPage() {
                 <Link href="/" className={cn(buttonVariants({ variant: "secondary" }))}>
                   Ana sayfaya don
                 </Link>
-                <Link href="/manager" className={cn(buttonVariants({ variant: "ghost" }), "border border-white/14 bg-white/8 text-white hover:bg-white/14")}>
-                  Yonetici arayuzune bak
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
+                {demoEnabled ? (
+                  <Link href="/manager" className={cn(buttonVariants({ variant: "ghost" }), "border border-white/14 bg-white/8 text-white hover:bg-white/14")}>
+                    Yonetici arayuzune bak
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                ) : null}
               </div>
             </div>
           </div>

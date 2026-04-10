@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { logAuditEvent } from "@/lib/audit";
 import { getCurrentAuthContext } from "@/lib/auth";
 import {
   createManagedUserSchema,
@@ -10,7 +11,7 @@ import {
 import {
   createSupabaseAdminClient,
 } from "@/lib/supabase/server";
-import { getSupabaseConfig } from "@/lib/supabase/config";
+import { getSupabaseServerConfig } from "@/lib/supabase/server-config";
 
 export type AdminUserActionState = {
   error: string | null;
@@ -190,12 +191,12 @@ export async function createManagedUserAction(
   const adminClient = createSupabaseAdminClient();
 
   if (!adminClient) {
-    const { isAdminConfigured } = getSupabaseConfig();
+    const { isAdminConfigured } = getSupabaseServerConfig();
 
     return {
       error: isAdminConfigured
         ? "Supabase yonetici baglantisi kurulamadi."
-        : "Kullanici olusturmak icin SUPABASE_SERVICE_ROLE_KEY secret'i deploy ortaminda tanimlanmali.",
+        : "Kullanici olusturmak icin deploy ortaminda yonetici yazma secret'i tanimlanmali.",
       success: null,
     };
   }
@@ -281,6 +282,21 @@ export async function createManagedUserAction(
   revalidatePath("/admin");
   revalidatePath("/admin/users");
 
+  await logAuditEvent({
+    organizationId: orgContext.organizationId,
+    actorProfileId: auth.userId,
+    actorRole: auth.role,
+    eventType: "Yeni kullanici olusturuldu",
+    scope: "Kullanici ve roller",
+    entityType: "profiles",
+    entityId: userId,
+    payload: {
+      email: parsed.data.email,
+      role: parsed.data.role,
+      fullName: parsed.data.fullName,
+    },
+  });
+
   return {
     error: null,
     success: `${parsed.data.fullName} kullanicisi ${parsed.data.role} rolu ile olusturuldu.`,
@@ -322,15 +338,17 @@ export async function updateUserRoleAction(
   const adminClient = createSupabaseAdminClient();
 
   if (!adminClient) {
-    const { isAdminConfigured } = getSupabaseConfig();
+    const { isAdminConfigured } = getSupabaseServerConfig();
 
     return {
       error: isAdminConfigured
         ? "Supabase baglantisi kurulamadi."
-        : "Rol guncellemek icin SUPABASE_SERVICE_ROLE_KEY secret'i deploy ortaminda tanimlanmali.",
+        : "Rol guncellemek icin deploy ortaminda yonetici yazma secret'i tanimlanmali.",
       success: null,
     };
   }
+
+  const orgContext = await getCurrentOrganizationContext(auth.userId);
 
   const { error: deleteError } = await adminClient
     .from("user_roles")
@@ -364,6 +382,19 @@ export async function updateUserRoleAction(
 
   revalidatePath("/admin");
   revalidatePath("/admin/users");
+
+  await logAuditEvent({
+    organizationId: orgContext.organizationId,
+    actorProfileId: auth.userId,
+    actorRole: auth.role,
+    eventType: "Kullanici rolu guncellendi",
+    scope: "Kullanici ve roller",
+    entityType: "user_roles",
+    entityId: parsed.data.profileId,
+    payload: {
+      nextRole: parsed.data.role,
+    },
+  });
   revalidatePath("/manager");
   revalidatePath("/coach");
   revalidatePath("/parent");

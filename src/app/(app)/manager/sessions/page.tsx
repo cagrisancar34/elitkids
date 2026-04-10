@@ -1,19 +1,34 @@
 import { DashboardPage } from "@/components/dashboard-page";
+import {
+  WorkspaceContentLayout,
+  WorkspaceHighlight,
+  WorkspaceKpiCard,
+  WorkspaceMainColumn,
+  WorkspacePanel,
+  WorkspaceSideColumn,
+  WorkspaceStatGrid,
+} from "@/components/operations-workspace";
 import { SessionCreateForm } from "@/components/session-create-form";
 import { SessionsPanel } from "@/components/sessions-panel";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  getManagerAttendanceBoards,
   getCoachOptions,
+  getProgramFormOptions,
   getProgramOptions,
   getSessionsData,
 } from "@/lib/dashboard-data";
 
 export default async function ManagerSessionsPage() {
-  const [sessions, programs, coaches] = await Promise.all([
+  const [sessions, programs, coaches, attendanceBoards, formOptions] = await Promise.all([
     getSessionsData(),
     getProgramOptions(),
     getCoachOptions(),
+    getManagerAttendanceBoards(),
+    getProgramFormOptions(),
   ]);
+  const openSessions = sessions.filter((session) => !session.roster.includes("/"));
+  const assignedCoaches = new Set(sessions.map((session) => session.coach).filter((coach) => coach !== "Atanacak")).size;
+  const activeLocations = new Set(sessions.map((session) => session.location)).size;
 
   return (
     <DashboardPage
@@ -21,32 +36,76 @@ export default async function ManagerSessionsPage() {
       eyebrow="Takvim ve saha"
       title="Seanslar"
       description="Koc atamalari, lokasyonlar ve doluluk gibi saha sinyalleri karmasik takvim chrome'u olmadan okunur hale getirildi."
+      primaryAction={{ href: "/manager/sessions", label: "Yeni seans" }}
+      contextCard={{
+        eyebrow: "Takvim sinyali",
+        title: `${sessions.length} aktif seans`,
+        description: "Gunluk, haftalik ve liste gorunumleriyle saha planlamasi ayni modulde akiyor.",
+        badge: `${activeLocations} alan`,
+      }}
     >
-      <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <SessionsPanel sessions={sessions} />
-        <div className="grid gap-6">
-          <div className="overflow-hidden rounded-[1.9rem] bg-[linear-gradient(180deg,#0b0f10_0%,#12181a_100%)] p-6 text-white shadow-[0_24px_50px_rgba(11,15,16,0.22)]">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/46">Saha planlama</div>
-            <div className="mt-4 font-display text-[2.4rem] font-semibold leading-[0.95] tracking-[-0.05em]">
-              Seans doluluklari ve alan atamalari tek bakista planlamaya donusuyor.
-            </div>
-            <p className="mt-4 text-sm leading-6 text-white/64">
-              Stitch seans ekranindaki gibi kartlar hem takvim hissi hem de roster doluluk sinyali veriyor.
-            </p>
-          </div>
-          <Card>
-            <CardHeader>
-              <CardTitle>Yeni seans planla</CardTitle>
-              <CardDescription>
-                Program, koc ve saat bilgisini ayni yerden olustur. Kayitli ogrenciler sonraki adimda roster listesine baglanir.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <SessionCreateForm programs={programs} coaches={coaches} />
-            </CardContent>
-          </Card>
-        </div>
-      </section>
+      <WorkspaceStatGrid>
+        <WorkspaceKpiCard
+          label="Toplam seans"
+          value={sessions.length}
+          description="Gunluk ve haftalik akista gorunen aktif seans bloklari."
+          badge="Takvim"
+        />
+        <WorkspaceKpiCard
+          label="Atanan koc"
+          value={assignedCoaches}
+          description="Seanslara baglanmis farkli egitmen sayisi."
+          accent="green"
+          badge="Kadro"
+        />
+        <WorkspaceKpiCard
+          label="Acik roster"
+          value={openSessions.length}
+          description="Doluluk sinyaline gore hala yer acik gorunen bloklar."
+          accent="amber"
+          badge="Kontenjan"
+        />
+        <WorkspaceKpiCard
+          label="Kullanilan alan"
+          value={activeLocations}
+          description="Planlamada ayni anda aktif gorunen saha ve lokasyonlar."
+          accent="violet"
+          badge="Tesis"
+        />
+      </WorkspaceStatGrid>
+
+      <WorkspaceContentLayout>
+        <WorkspaceMainColumn>
+          <WorkspacePanel
+            title="Seans takvimi"
+            description="Gunluk, haftalik ve liste modlari ayni veri omurgasini kullanir; saha planlamasi tek yerde kalir."
+            contentClassName="pt-0"
+          >
+            <SessionsPanel
+              sessions={sessions}
+              programs={programs}
+              coaches={coaches}
+              areas={formOptions.areas}
+              attendanceBoards={attendanceBoards}
+              showSummary={false}
+            />
+          </WorkspacePanel>
+        </WorkspaceMainColumn>
+        <WorkspaceSideColumn>
+          <WorkspaceHighlight
+            eyebrow="Saha planlama"
+            title="Seans doluluklari ve alan atamalari tek bakista planlamaya donusuyor."
+            description="Stitch seans ekranindaki gibi takvim hissi korunurken, roster doluluk sinyali ve yeni seans formu sag kolonda destekleniyor."
+            badge="Gunluk / haftalik / liste"
+          />
+          <WorkspacePanel
+            title="Yeni seans planla"
+            description="Program, koc ve saat bilgisini ayni yerden olustur. Kayitli ogrenciler sonraki adimda roster listesine baglanir."
+          >
+            <SessionCreateForm programs={programs} coaches={coaches} areas={formOptions.areas} />
+          </WorkspacePanel>
+        </WorkspaceSideColumn>
+      </WorkspaceContentLayout>
     </DashboardPage>
   );
 }

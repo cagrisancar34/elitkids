@@ -29,10 +29,12 @@ export type LandingContent = {
   };
   navbar: {
     links: Array<{ label: string; href: string }>;
+    statusLabel: string;
     ctaLabel: string;
     ctaHref: string;
   };
   hero: {
+    eyebrow: string;
     title: string;
     highlight: string;
     description: string;
@@ -72,6 +74,17 @@ export type LandingContent = {
       ctaLabel: string;
     }>;
   };
+  coaches: {
+    eyebrow: string;
+    title: string;
+    description: string;
+    items: Array<{
+      name: string;
+      specialty: string;
+      bio: string;
+      image: string;
+    }>;
+  };
   whyUs: {
     title: string;
     highlight: string;
@@ -82,6 +95,15 @@ export type LandingContent = {
     points: Array<{
       title: string;
       description: string;
+    }>;
+  };
+  faq: {
+    eyebrow: string;
+    title: string;
+    description: string;
+    items: Array<{
+      question: string;
+      answer: string;
     }>;
   };
   cta: {
@@ -131,18 +153,20 @@ export const defaultLandingContent: LandingContent = {
       { label: "Why Us", href: "#why-us" },
       { label: "Contact", href: "#contact" },
     ],
-    ctaLabel: "Uye Girisi",
+    statusLabel: "Canli vitrinde",
+    ctaLabel: "Hemen Kayit Ol",
     ctaHref: "/login",
   },
   hero: {
-    title: "Cocugunuz sadece spor yapmaz,",
-    highlight: "dogru sistemle",
+    eyebrow: "Premium gelisim modeli",
+    title: "Silivri Elit Kids'de",
+    highlight: "Cocugunuz sadece\nspor yapmaz,\ndogru sistemle\ngelisir.",
     description:
       "Planli, guvenli ve olculebilir gelisim modeli ile gelecegin saglikli nesillerini yetistiriyoruz.",
-    primaryCtaLabel: "On Kayit Formu",
+    primaryCtaLabel: "Hemen Kayit Ol",
     primaryCtaHref: "#contact",
-    secondaryCtaLabel: "Biz Kimiz?",
-    secondaryCtaHref: "#why-us",
+    secondaryCtaLabel: "Programlari Incele",
+    secondaryCtaHref: "#programs",
     visualPrimaryImage:
       "https://images.unsplash.com/photo-1602211844066-d3bb556e983b?auto=format&fit=crop&w=900&q=80",
     visualSecondaryImage:
@@ -242,6 +266,35 @@ export const defaultLandingContent: LandingContent = {
       },
     ],
   },
+  coaches: {
+    eyebrow: "Egitmenler",
+    title: "Cocugun ritmine gore yon veren uzman kadro.",
+    description:
+      "Her egitmen saha deneyimini pedagojik yaklasim ve net iletisim diliyle birlestirir.",
+    items: [
+      {
+        name: "Ece Yilmaz",
+        specialty: "Artistik patinaj ve temel motor gelisim",
+        bio: "Minik sporcularin denge, ritim ve ozguven gelisimini adim adim takip eder.",
+        image:
+          "https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=900&q=80",
+      },
+      {
+        name: "Mert Demir",
+        specialty: "Power skating ve atletik hiz calismalari",
+        bio: "Temel teknigi guc, hiz ve surekli saha disiplini ile birlestiren performans odakli akisi yonetir.",
+        image:
+          "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=900&q=80",
+      },
+      {
+        name: "Selin Acar",
+        specialty: "Cimnastik, esneklik ve postur egitimi",
+        bio: "Koordinasyon ve vucut farkindaligini erken yas gruplarinda guvenli sekilde insa eder.",
+        image:
+          "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=900&q=80",
+      },
+    ],
+  },
   whyUs: {
     title: "Sadece bir spor merkezi degil, bir",
     highlight: "gelisim sistemi",
@@ -266,6 +319,34 @@ export const defaultLandingContent: LandingContent = {
         title: "Surdurulebilir basari",
         description:
           "Hedefimiz sadece madalya degil; ozguvenli, disiplinli ve sporu seven bireyler yetistirmektir.",
+      },
+    ],
+  },
+  faq: {
+    eyebrow: "Sik sorulan sorular",
+    title: "Kayit, deneme dersi ve gelisim takibi hakkinda net cevaplar.",
+    description:
+      "Velilerin ilk gorusmeden kayit anina kadar sordugu en kritik basliklari tek yerde topladik.",
+    items: [
+      {
+        question: "Deneme dersi sunuyor musunuz?",
+        answer:
+          "Evet. Yas grubu ve uygun kontenjana gore ucretsiz tanisma dersi planliyoruz.",
+      },
+      {
+        question: "Veli panelinde hangi bilgiler gorulur?",
+        answer:
+          "Program takvimi, devam durumu, tahakkuklar, odemeler ve duyurular tek panelde gorulur.",
+      },
+      {
+        question: "Kayit olduktan sonra gelisim nasil takip edilir?",
+        answer:
+          "Seans devam durumu, egitmen notlari ve donemsel performans sinyalleri veliye acik sekilde tutulur.",
+      },
+      {
+        question: "Program degisikligi veya yenileme nasil yapilir?",
+        answer:
+          "Destek paneli veya yonetici ekibi uzerinden talep olusturularak yeni program/plana gecis saglanir.",
       },
     ],
   },

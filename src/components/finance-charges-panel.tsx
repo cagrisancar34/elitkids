@@ -29,7 +29,13 @@ function chargeKey(status: string) {
   return "pending";
 }
 
-export function FinanceChargesPanel({ charges }: { charges: ChargeRecord[] }) {
+export function FinanceChargesPanel({
+  charges,
+  showSummary = true,
+}: {
+  charges: ChargeRecord[];
+  showSummary?: boolean;
+}) {
   const [filter, setFilter] = useState<ChargeFilter>("all");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<ChargeSort>("due");
@@ -93,30 +99,32 @@ export function FinanceChargesPanel({ charges }: { charges: ChargeRecord[] }) {
 
   return (
     <div className="grid gap-6">
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Tum tahakkuklar</div>
-          <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">{counts.all}</div>
-        </div>
-        <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Odeme bekleyen</div>
-          <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">
-            ₺{totals.pending.toLocaleString("tr-TR")}
+      {showSummary ? (
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Tum tahakkuklar</div>
+            <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">{counts.all}</div>
           </div>
-        </div>
-        <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Takipteki hacim</div>
-          <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">
-            ₺{totals.follow.toLocaleString("tr-TR")}
+          <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Odeme bekleyen</div>
+            <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">
+              ₺{totals.pending.toLocaleString("tr-TR")}
+            </div>
           </div>
-        </div>
-        <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Kapanan tahsilat</div>
-          <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">
-            ₺{totals.paid.toLocaleString("tr-TR")}
+          <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Takipteki hacim</div>
+            <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">
+              ₺{totals.follow.toLocaleString("tr-TR")}
+            </div>
           </div>
-        </div>
-      </section>
+          <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Kapanan tahsilat</div>
+            <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">
+              ₺{totals.paid.toLocaleString("tr-TR")}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-4">
         <div className="surface-muted flex flex-wrap gap-2 rounded-full px-3 py-2">

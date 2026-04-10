@@ -196,10 +196,50 @@ export function AdminLandingEditor({
     });
   }
 
+  function updateCoaches(field: keyof LandingContent["coaches"], value: string) {
+    updateRoot("coaches", {
+      ...content.coaches,
+      [field]: value,
+    });
+  }
+
+  function updateCoachItem(
+    index: number,
+    field: "name" | "specialty" | "bio" | "image",
+    value: string,
+  ) {
+    updateRoot("coaches", {
+      ...content.coaches,
+      items: content.coaches.items.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item,
+      ),
+    });
+  }
+
   function updateWhyUs(field: keyof LandingContent["whyUs"], value: string) {
     updateRoot("whyUs", {
       ...content.whyUs,
       [field]: value,
+    });
+  }
+
+  function updateFaq(field: keyof LandingContent["faq"], value: string) {
+    updateRoot("faq", {
+      ...content.faq,
+      [field]: value,
+    });
+  }
+
+  function updateFaqItem(
+    index: number,
+    field: "question" | "answer",
+    value: string,
+  ) {
+    updateRoot("faq", {
+      ...content.faq,
+      items: content.faq.items.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item,
+      ),
     });
   }
 
@@ -345,7 +385,9 @@ export function AdminLandingEditor({
           <TabsTrigger value="stats">Stats</TabsTrigger>
           <TabsTrigger value="system">4G Sistem</TabsTrigger>
           <TabsTrigger value="programs">Programlar</TabsTrigger>
+          <TabsTrigger value="coaches">Egitmenler</TabsTrigger>
           <TabsTrigger value="why-us">Why Us</TabsTrigger>
+          <TabsTrigger value="faq">SSS</TabsTrigger>
           <TabsTrigger value="cta">CTA</TabsTrigger>
           <TabsTrigger value="footer">Footer</TabsTrigger>
         </TabsList>
@@ -401,6 +443,11 @@ export function AdminLandingEditor({
                   onChange={(value) => updateNavbar("ctaLabel", value)}
                 />
                 <TextField
+                  label="Status etiketi"
+                  value={content.navbar.statusLabel}
+                  onChange={(value) => updateNavbar("statusLabel", value)}
+                />
+                <TextField
                   label="Navbar CTA href"
                   value={content.navbar.ctaHref}
                   onChange={(value) => updateNavbar("ctaHref", value)}
@@ -447,11 +494,16 @@ export function AdminLandingEditor({
             />
             <FieldGrid>
               <TextField
+                label="Hero badge"
+                value={content.hero.eyebrow}
+                onChange={(value) => updateHero("eyebrow", value)}
+              />
+              <TextAreaField
                 label="Baslik"
                 value={content.hero.title}
                 onChange={(value) => updateHero("title", value)}
               />
-              <TextField
+              <TextAreaField
                 label="Vurgulu metin"
                 value={content.hero.highlight}
                 onChange={(value) => updateHero("highlight", value)}
@@ -755,6 +807,69 @@ export function AdminLandingEditor({
           </SectionGrid>
         </TabsContent>
 
+        <TabsContent value="coaches">
+          <Panel>
+            <SectionHeading
+              title="Egitmenler section"
+              description="Landing page uzerindeki uzman kadro ve tanitim kartlari."
+            />
+            <FieldGrid>
+              <TextField
+                label="Section label"
+                value={content.coaches.eyebrow}
+                onChange={(value) => updateCoaches("eyebrow", value)}
+              />
+              <TextField
+                label="Section baslik"
+                value={content.coaches.title}
+                onChange={(value) => updateCoaches("title", value)}
+              />
+              <TextAreaField
+                label="Section aciklama"
+                value={content.coaches.description}
+                onChange={(value) => updateCoaches("description", value)}
+                className="md:col-span-2"
+              />
+            </FieldGrid>
+
+            <div className="mt-5 grid gap-4">
+              {content.coaches.items.map((item, index) => (
+                <SubPanel
+                  key={`${item.name}-${index}`}
+                  title={`Egitmen karti ${index + 1}`}
+                  description="Landing coach spotlight karti."
+                >
+                  <FieldGrid>
+                    <TextField
+                      label="Ad soyad"
+                      value={item.name}
+                      onChange={(value) => updateCoachItem(index, "name", value)}
+                    />
+                    <TextField
+                      label="Uzmanlik"
+                      value={item.specialty}
+                      onChange={(value) => updateCoachItem(index, "specialty", value)}
+                    />
+                    <TextAreaField
+                      label="Bio"
+                      value={item.bio}
+                      onChange={(value) => updateCoachItem(index, "bio", value)}
+                      className="md:col-span-2"
+                    />
+                    <AssetField
+                      label="Gorsel"
+                      value={item.image}
+                      onChange={(value) => updateCoachItem(index, "image", value)}
+                      uploadKey={`coach-${index + 1}`}
+                      className="md:col-span-2"
+                    />
+                  </FieldGrid>
+                </SubPanel>
+              ))}
+            </div>
+          </Panel>
+        </TabsContent>
+
         <TabsContent value="cta">
           <Panel>
             <SectionHeading
@@ -816,6 +931,58 @@ export function AdminLandingEditor({
                 className="md:col-span-2"
               />
             </FieldGrid>
+          </Panel>
+        </TabsContent>
+
+        <TabsContent value="faq">
+          <Panel>
+            <SectionHeading
+              title="SSS section"
+              description="Kayit, deneme dersi ve veli paneli hakkindaki sik sorulan sorular."
+            />
+            <FieldGrid>
+              <TextField
+                label="Section label"
+                value={content.faq.eyebrow}
+                onChange={(value) => updateFaq("eyebrow", value)}
+              />
+              <TextField
+                label="Section baslik"
+                value={content.faq.title}
+                onChange={(value) => updateFaq("title", value)}
+              />
+              <TextAreaField
+                label="Section aciklama"
+                value={content.faq.description}
+                onChange={(value) => updateFaq("description", value)}
+                className="md:col-span-2"
+              />
+            </FieldGrid>
+
+            <div className="mt-5 grid gap-4">
+              {content.faq.items.map((item, index) => (
+                <SubPanel
+                  key={`${item.question}-${index}`}
+                  title={`SSS maddesi ${index + 1}`}
+                  description="Landing FAQ satiri."
+                >
+                  <FieldGrid>
+                    <TextField
+                      label="Soru"
+                      value={item.question}
+                      onChange={(value) => updateFaqItem(index, "question", value)}
+                      className="md:col-span-2"
+                    />
+                    <TextAreaField
+                      label="Cevap"
+                      value={item.answer}
+                      onChange={(value) => updateFaqItem(index, "answer", value)}
+                      className="md:col-span-2"
+                    />
+                  </FieldGrid>
+                </SubPanel>
+              ))}
+            </div>
           </Panel>
         </TabsContent>
 
@@ -1039,13 +1206,13 @@ function TextField({
 }) {
   return (
     <div className={className}>
-      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
         {label}
       </label>
       <Input
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="border-white/8 bg-[#121f36] text-white placeholder:text-slate-500"
+        className="border-slate-200/90 bg-[#f7f9fc] text-slate-950 placeholder:text-slate-400 focus-visible:border-sky-300 focus-visible:bg-white focus-visible:ring-sky-300/15"
       />
     </div>
   );
@@ -1064,13 +1231,13 @@ function TextAreaField({
 }) {
   return (
     <div className={className}>
-      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
         {label}
       </label>
       <Textarea
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="min-h-28 border-white/8 bg-[#121f36] text-white placeholder:text-slate-500"
+        className="min-h-28 border-slate-200/90 bg-[#f7f9fc] text-slate-950 placeholder:text-slate-400 focus-visible:border-sky-300 focus-visible:bg-white focus-visible:ring-sky-300/15"
       />
     </div>
   );
@@ -1091,13 +1258,13 @@ function SelectField({
 }) {
   return (
     <div className={className}>
-      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
         {label}
       </label>
       <Select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="border-white/8 bg-[#121f36] text-white"
+        className="border-slate-200/90 bg-[#f7f9fc] text-slate-950 focus-visible:border-sky-300 focus-visible:bg-white focus-visible:ring-sky-300/15"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -1163,7 +1330,7 @@ function AssetField({
 
   return (
     <div className={className}>
-      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
         {label}
       </label>
       <div className="rounded-[1.25rem] border border-dashed border-white/10 bg-[#121f36] p-4">
@@ -1195,7 +1362,7 @@ function AssetField({
             <Input
               value={value}
               onChange={(event) => onChange(event.target.value)}
-              className="border-white/8 bg-[#0e182b] text-white placeholder:text-slate-500"
+              className="border-slate-200/90 bg-[#f7f9fc] text-slate-950 placeholder:text-slate-400 focus-visible:border-sky-300 focus-visible:bg-white focus-visible:ring-sky-300/15"
               placeholder="https://..."
             />
             {uploadError ? <p className="text-sm text-rose-300">{uploadError}</p> : null}

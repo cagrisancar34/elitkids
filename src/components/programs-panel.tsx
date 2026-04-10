@@ -1,18 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowRight, CalendarDays, UsersRound } from "lucide-react";
+import { CalendarDays, UsersRound } from "lucide-react";
 
+import { DataTable } from "@/components/data-table";
+import { ProgramActions } from "@/components/program-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-
-type ProgramCard = {
-  title: string;
-  detail: string;
-};
+import type { ProgramFormOptions, ProgramRecord } from "@/lib/types";
 
 type ProgramSort = "title-asc" | "capacity-desc" | "price-desc";
+type ProgramView = "cards" | "table";
 
 function parseCapacity(detail: string) {
   const match = detail.match(/Kontenjan\s+(\d+)/i);
@@ -63,10 +62,19 @@ function getCategoryTone(category: string) {
   return "bg-secondary text-secondary-foreground";
 }
 
-export function ProgramsPanel({ programs }: { programs: ProgramCard[] }) {
+export function ProgramsPanel({
+  programs,
+  formOptions,
+  showSummary = true,
+}: {
+  programs: ProgramRecord[];
+  formOptions: ProgramFormOptions;
+  showSummary?: boolean;
+}) {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<ProgramSort>("title-asc");
   const [category, setCategory] = useState<string>("all");
+  const [view, setView] = useState<ProgramView>("cards");
 
   const categories = useMemo(
     () => ["all", ...Array.from(new Set(programs.map((program) => getProgramCategory(program.title))))],
@@ -111,22 +119,24 @@ export function ProgramsPanel({ programs }: { programs: ProgramCard[] }) {
 
   return (
     <div className="grid gap-6">
-      <section className="grid gap-4 md:grid-cols-3">
-        <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Toplam program</div>
-          <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">{programs.length}</div>
-        </div>
-        <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">En yuksek kontenjan</div>
-          <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">{highestCapacity}</div>
-        </div>
-        <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">En yuksek aylik</div>
-          <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">
-            ₺{highestPrice.toLocaleString("tr-TR")}
+      {showSummary ? (
+        <section className="grid gap-4 md:grid-cols-3">
+          <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Toplam program</div>
+            <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">{programs.length}</div>
           </div>
-        </div>
-      </section>
+          <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">En yuksek kontenjan</div>
+            <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">{highestCapacity}</div>
+          </div>
+          <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">En yuksek aylik</div>
+            <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">
+              ₺{highestPrice.toLocaleString("tr-TR")}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-4">
         <div className="surface-muted flex flex-wrap items-center gap-2 rounded-full px-3 py-2">
@@ -164,8 +174,28 @@ export function ProgramsPanel({ programs }: { programs: ProgramCard[] }) {
           </Select>
         </div>
 
-        {hasCustomView ? (
-          <div className="flex justify-end">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="surface-muted inline-flex rounded-full px-2 py-2">
+            {[
+              ["cards", "Kart gorunumu"],
+              ["table", "Tablo gorunumu"],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setView(key as ProgramView)}
+                className={
+                  view === key
+                    ? "rounded-full bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-primary shadow-[0_10px_22px_rgba(44,47,49,0.08)]"
+                    : "rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:bg-white/60 hover:text-foreground"
+                }
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {hasCustomView ? (
             <Button
               type="button"
               variant="ghost"
@@ -178,89 +208,116 @@ export function ProgramsPanel({ programs }: { programs: ProgramCard[] }) {
             >
               Filtreleri temizle
             </Button>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
 
-        <div className="grid gap-6 xl:grid-cols-2">
-          {filteredPrograms.length ? (
-            filteredPrograms.map((program) => {
-              const detailParts = program.detail.split("·").map((item) => item.trim()).filter(Boolean);
+        {view === "table" ? (
+          <DataTable
+            columns={[
+              { key: "title", label: "Program" },
+              { key: "category", label: "Kategori" },
+              { key: "capacity", label: "Kontenjan" },
+              { key: "price", label: "Aylik" },
+              { key: "status", label: "Durum" },
+            ]}
+            rows={filteredPrograms.map((program) => {
               const categoryLabel = getProgramCategory(program.title);
               const capacity = parseCapacity(program.detail);
-              const price = parsePrice(program.detail);
               const filled = estimateOccupancy(program.title, capacity);
               const ratio = capacity > 0 ? Math.round((filled / capacity) * 100) : 0;
 
-              return (
-                <article
-                  key={program.title}
-                  className="surface-panel flex flex-col rounded-[1.7rem] border border-white/40 px-6 py-6"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className={`inline-flex rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] ${getCategoryTone(categoryLabel)}`}>
-                      {categoryLabel}
-                    </div>
-                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#eef1f3] text-muted-foreground">
-                      <UsersRound className="h-5 w-5" />
-                    </div>
-                  </div>
+              return {
+                title: program.title,
+                category: categoryLabel,
+                capacity: `${filled} / ${capacity || "--"}`,
+                price: `₺${parsePrice(program.detail).toLocaleString("tr-TR")}`,
+                status: ratio >= 95 ? "Kontenjan dolu" : "Program acik",
+              };
+            })}
+          />
+        ) : (
+          <div className="grid gap-6 xl:grid-cols-2">
+            {filteredPrograms.length ? (
+              filteredPrograms.map((program) => {
+                const detailParts = program.detail.split("·").map((item) => item.trim()).filter(Boolean);
+                const categoryLabel = getProgramCategory(program.title);
+                const capacity = parseCapacity(program.detail);
+                const price = parsePrice(program.detail);
+                const filled = estimateOccupancy(program.title, capacity);
+                const ratio = capacity > 0 ? Math.round((filled / capacity) * 100) : 0;
 
-                  <div className="mt-5">
-                    <h3 className="font-display text-[1.75rem] font-semibold leading-tight tracking-[-0.04em] text-foreground">
-                      {program.title}
-                    </h3>
-                    <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                      {detailParts[0] ?? program.detail}
-                    </p>
-                  </div>
-
-                  <div className="mt-6 grid grid-cols-2 gap-4">
-                    <div className="surface-muted rounded-[1.1rem] px-4 py-4">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Kontenjan</div>
-                      <div className="mt-2 font-display text-2xl font-semibold tracking-[-0.04em] text-foreground">
-                        {filled} / {capacity || "--"}
+                return (
+                  <article
+                    key={program.id}
+                    className="surface-panel flex flex-col rounded-[1.7rem] border border-white/40 px-6 py-6"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className={`inline-flex rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] ${getCategoryTone(categoryLabel)}`}>
+                        {categoryLabel}
+                      </div>
+                      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#eef1f3] text-muted-foreground">
+                        <UsersRound className="h-5 w-5" />
                       </div>
                     </div>
-                    <div className="surface-muted rounded-[1.1rem] px-4 py-4">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Aylik</div>
-                      <div className="mt-2 font-display text-2xl font-semibold tracking-[-0.04em] text-foreground">
-                        ₺{price.toLocaleString("tr-TR")}
+
+                    <div className="mt-5">
+                      <h3 className="font-display text-[1.75rem] font-semibold leading-tight tracking-[-0.04em] text-foreground">
+                        {program.title}
+                      </h3>
+                      <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                        {detailParts[0] ?? program.detail}
+                      </p>
+                    </div>
+
+                    <div className="mt-6 grid grid-cols-2 gap-4">
+                      <div className="surface-muted rounded-[1.1rem] px-4 py-4">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Kontenjan</div>
+                        <div className="mt-2 font-display text-2xl font-semibold tracking-[-0.04em] text-foreground">
+                          {filled} / {capacity || "--"}
+                        </div>
+                      </div>
+                      <div className="surface-muted rounded-[1.1rem] px-4 py-4">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Aylik</div>
+                        <div className="mt-2 font-display text-2xl font-semibold tracking-[-0.04em] text-foreground">
+                          ₺{price.toLocaleString("tr-TR")}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="mt-6">
-                    <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                      <span>Doluluk</span>
-                      <span>%{ratio}</span>
+                    <div className="mt-6">
+                      <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                        <span>Doluluk</span>
+                        <span>%{ratio}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-[#eef1f3]">
+                        <div
+                          className="h-2 rounded-full bg-[linear-gradient(135deg,#0253cd,#0048b5)]"
+                          style={{ width: `${Math.min(ratio, 100)}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-2 rounded-full bg-[#eef1f3]">
-                      <div
-                        className="h-2 rounded-full bg-[linear-gradient(135deg,#0253cd,#0048b5)]"
-                        style={{ width: `${Math.min(ratio, 100)}%` }}
-                      />
-                    </div>
-                  </div>
 
-                  <div className="mt-6 flex items-center justify-between gap-3">
-                    <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                      <CalendarDays className="h-4 w-4" />
-                      {detailParts[1] ?? "Planlama acik"}
+                    <div className="mt-6 flex items-center justify-between gap-3">
+                      <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                        <CalendarDays className="h-4 w-4" />
+                        {detailParts[1] ?? "Planlama acik"}
+                      </div>
+                      <Button type="button" variant={ratio >= 95 ? "secondary" : "outline"} size="sm">
+                        {ratio >= 95 ? "Kontenjan dolu" : "Program acik"}
+                      </Button>
                     </div>
-                    <Button type="button" variant={ratio >= 95 ? "secondary" : "outline"} size="sm">
-                      {ratio >= 95 ? "Kontenjan dolu" : "Program detayi"}
-                      <ArrowRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </article>
-              );
-            })
-          ) : (
-            <div className="surface-muted rounded-[1.25rem] p-4 text-sm leading-6 text-muted-foreground">
-              Bu arama sonucunda gosterilecek program yok.
-            </div>
-          )}
-        </div>
+
+                    <ProgramActions program={program} options={formOptions} />
+                  </article>
+                );
+              })
+            ) : (
+              <div className="surface-muted rounded-[1.25rem] p-4 text-sm leading-6 text-muted-foreground">
+                Bu arama sonucunda gosterilecek program yok.
+              </div>
+            )}
+          </div>
+        )}
       </section>
     </div>
   );
