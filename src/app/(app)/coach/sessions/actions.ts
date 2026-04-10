@@ -4,8 +4,11 @@ import { revalidatePath } from "next/cache";
 
 import { getActorOrganizationId, logAuditEvent } from "@/lib/audit";
 import { getCurrentAuthContext } from "@/lib/auth";
-import { cycleContainsSessionDate, resolveAttendanceStatus } from "@/lib/program-workspace";
+import { resolveAttendanceStatus } from "@/lib/program-workspace";
+import { sendAttendanceWhatsAppSchema } from "@/lib/schemas/app-forms";
+import { markSessionAllocationConsumed } from "@/lib/session-allocations";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { queueAttendanceAbsentDispatch } from "@/lib/whatsapp-server";
 
 export type AttendanceActionState = {
   error: string | null;
@@ -47,7 +50,7 @@ export async function saveAttendanceAction(
 
   const { data: session } = await supabase
     .from("sessions")
-    .select("id, starts_at, program_id")
+    .select("id, starts_at, program_id, session_series_id")
     .eq("id", sessionId)
     .maybeSingle();
 
@@ -57,6 +60,8 @@ export async function saveAttendanceAction(
       success: null,
     };
   }
+
+  const organizationId = (await getActorOrganizationId(auth.userId)) ?? "";
 
   for (const [key, value] of statusEntries) {
     const studentId = key.replace("status:", "");
@@ -89,33 +94,45 @@ export async function saveAttendanceAction(
       });
     }
 
-    const { data: cycles } = await supabase
-      .from("student_package_cycles")
-      .select("id, cycle_start, cycle_end, used_lessons")
+    let enrollmentQuery = supabase
+      .from("enrollments")
+      .select("id, starts_on, ends_on")
       .eq("student_id", studentId)
       .eq("program_id", session.program_id)
       .eq("status", "active")
-      .order("cycle_start", { ascending: false });
+      .lte("starts_on", session.starts_at.slice(0, 10))
+      .order("starts_on", { ascending: false })
+      .limit(10);
 
-    const matchingCycle = (cycles ?? []).find((cycle) =>
-      cycleContainsSessionDate(cycle.cycle_start, cycle.cycle_end, session.starts_at.slice(0, 10)),
+    if (session.session_series_id) {
+      enrollmentQuery = enrollmentQuery.eq("session_series_id", session.session_series_id);
+    }
+
+    const { data: enrollments } = await enrollmentQuery;
+    const matchingEnrollment = (enrollments ?? []).find(
+      (enrollment) =>
+        !enrollment.ends_on || enrollment.ends_on >= session.starts_at.slice(0, 10),
     );
 
-    if (matchingCycle) {
-      const nextUsedLessons =
-        existing?.status === "present" && status !== "present"
-          ? Math.max(Number(matchingCycle.used_lessons ?? 0) - 1, 0)
-          : existing?.status !== "present" && status === "present"
-            ? Number(matchingCycle.used_lessons ?? 0) + 1
-            : Number(matchingCycle.used_lessons ?? 0);
-
-      if (nextUsedLessons !== Number(matchingCycle.used_lessons ?? 0)) {
-        await supabase
-          .from("student_package_cycles")
-          .update({ used_lessons: nextUsedLessons })
-          .eq("id", matchingCycle.id);
-      }
+    if (!matchingEnrollment?.id) {
+      continue;
     }
+
+    const { data: student } = await supabase
+      .from("students")
+      .select("full_name")
+      .eq("id", studentId)
+      .maybeSingle();
+
+    await markSessionAllocationConsumed(supabase, {
+      organizationId,
+      enrollmentId: matchingEnrollment.id,
+      studentId,
+      studentName: student?.full_name ?? "Ogrenci",
+      programId: session.program_id,
+      startsOn: matchingEnrollment.starts_on ?? session.starts_at.slice(0, 10),
+      sessionId,
+    });
   }
 
   revalidatePath("/coach");
@@ -125,7 +142,6 @@ export async function saveAttendanceAction(
   revalidatePath("/parent");
   revalidatePath("/parent/schedule");
 
-  const organizationId = await getActorOrganizationId(auth.userId);
   await logAuditEvent({
     organizationId,
     actorProfileId: auth.userId,
@@ -142,5 +158,114 @@ export async function saveAttendanceAction(
   return {
     error: null,
     success: "Yoklama kaydedildi.",
+  };
+}
+
+export async function sendAttendanceWhatsAppAction(
+  _previousState: AttendanceActionState,
+  formData: FormData,
+): Promise<AttendanceActionState> {
+  const auth = await getCurrentAuthContext();
+
+  if (!auth || (auth.role !== "coach" && auth.role !== "manager" && auth.role !== "admin") || !auth.userId) {
+    return {
+      error: "Bu islem icin yetkin yok.",
+      success: null,
+    };
+  }
+
+  const parsed = sendAttendanceWhatsAppSchema.safeParse({
+    sessionId: formData.get("sessionId"),
+    studentId: formData.get("studentId"),
+  });
+
+  if (!parsed.success) {
+    return {
+      error: parsed.error.issues[0]?.message ?? "Devamsizlik bildirimi formu gecersiz.",
+      success: null,
+    };
+  }
+
+  const supabase = createSupabaseAdminClient();
+
+  if (!supabase) {
+    return {
+      error: "Supabase baglantisi kurulamadi.",
+      success: null,
+    };
+  }
+
+  const { data: attendance } = await supabase
+    .from("attendance_records")
+    .select("status")
+    .eq("session_id", parsed.data.sessionId)
+    .eq("student_id", parsed.data.studentId)
+    .maybeSingle();
+
+  if (attendance?.status !== "absent") {
+    return {
+      error: "Veliye WhatsApp gondermek icin once yoklamayi gelmedi olarak kaydet.",
+      success: null,
+    };
+  }
+
+  const { data: session } = await supabase
+    .from("sessions")
+    .select("id, title, starts_at")
+    .eq("id", parsed.data.sessionId)
+    .maybeSingle();
+
+  const { data: student } = await supabase
+    .from("students")
+    .select("id, full_name")
+    .eq("id", parsed.data.studentId)
+    .maybeSingle();
+
+  const organizationId = await getActorOrganizationId(auth.userId);
+
+  if (!session?.id || !student?.id || !organizationId) {
+    return {
+      error: "Seans veya ogrenci bilgisi bulunamadi.",
+      success: null,
+    };
+  }
+
+  try {
+    await queueAttendanceAbsentDispatch({
+      organizationId,
+      sessionId: session.id,
+      sessionTitle: session.title,
+      sessionDate: session.starts_at,
+      studentId: student.id,
+      studentName: student.full_name,
+    });
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Devamsizlik dispatch'i olusturulamadi.",
+      success: null,
+    };
+  }
+
+  await logAuditEvent({
+    organizationId,
+    actorProfileId: auth.userId,
+    actorRole: auth.role,
+    eventType: "Devamsizlik bildirimi gonderildi",
+    scope: "Yoklama",
+    entityType: "attendance_records",
+    entityId: parsed.data.studentId,
+    payload: {
+      sessionId: parsed.data.sessionId,
+      studentId: parsed.data.studentId,
+    },
+  });
+
+  revalidatePath("/coach/sessions");
+  revalidatePath("/manager/attendance");
+  revalidatePath("/admin/settings");
+
+  return {
+    error: null,
+    success: "Devamsizlik bildirimi veliye WhatsApp kuyruguna alindi.",
   };
 }

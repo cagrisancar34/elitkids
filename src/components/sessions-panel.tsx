@@ -150,7 +150,7 @@ export function SessionsPanel({
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Seans, antrenor veya grup ara..."
+            placeholder="Grup, program urunu veya egitmen ara..."
           />
           <Select value={sportsBranchFilter} onChange={(event) => setSportsBranchFilter(event.target.value)}>
             <option value="all">Tum branslar</option>
@@ -188,8 +188,8 @@ export function SessionsPanel({
                   ? "rounded-full bg-white px-6 py-3 text-sm font-semibold text-primary shadow-[0_12px_28px_rgba(15,33,66,0.12)]"
                   : "rounded-full px-6 py-3 text-sm font-semibold text-muted-foreground"
               }
-            >
-              Takvim Gorunumu
+              >
+              Takvim
             </button>
             <button
               type="button"
@@ -199,8 +199,8 @@ export function SessionsPanel({
                   ? "rounded-full bg-white px-6 py-3 text-sm font-semibold text-primary shadow-[0_12px_28px_rgba(15,33,66,0.12)]"
                   : "rounded-full px-6 py-3 text-sm font-semibold text-muted-foreground"
               }
-            >
-              Liste Gorunumu
+              >
+              Liste
             </button>
           </div>
 
@@ -289,11 +289,14 @@ export function SessionsPanel({
                         style={{ top, height: duration }}
                       >
                         <div className="text-xl font-semibold tracking-[-0.04em] text-foreground">{session.title}</div>
+                        {session.programTitle ? (
+                          <div className="mt-1 text-sm text-slate-700">Program: {session.programTitle}</div>
+                        ) : null}
                         <div className="mt-1 text-sm text-slate-700">
                           {format(parseISO(session.startsAt), "HH:mm")} - {format(parseISO(session.endsAt), "HH:mm")}
                         </div>
                         <div className="mt-1 text-sm text-slate-700">
-                          {session.studentCount ?? 0} ogrenci · {session.coach}
+                          {session.studentCount ?? 0} kayitli sporcu · {session.coach}
                         </div>
                         <div className="mt-3 flex flex-wrap gap-2">
                           <SessionActions
@@ -328,6 +331,9 @@ export function SessionsPanel({
                     <h3 className="mt-2 font-display text-[1.9rem] font-semibold tracking-[-0.04em] text-foreground">
                       {session.title}
                     </h3>
+                    {session.programTitle ? (
+                      <p className="mt-2 text-sm font-medium text-foreground/80">Program urunu: {session.programTitle}</p>
+                    ) : null}
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">
                       {session.startsAt
                         ? format(parseISO(session.startsAt), "d MMMM EEEE, HH:mm", { locale: tr })
@@ -337,7 +343,7 @@ export function SessionsPanel({
                   </div>
                   <div className="text-right">
                     <div className="rounded-full bg-secondary px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-secondary-foreground">
-                      {session.studentCount ?? 0} / {session.capacity ?? 0} sporcu
+                      {session.studentCount ?? 0} / {session.capacity ?? 0} kayitli sporcu
                     </div>
                   </div>
                 </div>

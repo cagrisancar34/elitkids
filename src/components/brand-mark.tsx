@@ -20,7 +20,7 @@ export function BrandMark({ inverse = false }: { inverse?: boolean }) {
             inverse ? "text-white" : "text-foreground",
           )}
         >
-          Elit Kids Akademi
+          Elit Sanat ve Spor Kulubu
         </div>
         <p
           className={cn(
@@ -28,7 +28,7 @@ export function BrandMark({ inverse = false }: { inverse?: boolean }) {
             inverse ? "text-white/56" : "text-muted-foreground",
           )}
         >
-          Buz Ustu Operasyon Sistemi
+          Spor Okulu Operasyon Sistemi
         </p>
       </div>
     </div>

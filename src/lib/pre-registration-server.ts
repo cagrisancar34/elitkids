@@ -11,6 +11,7 @@ import type {
   PreRegistrationNote,
   PreRegistrationOption,
   PreRegistrationRecord,
+  PreRegistrationSessionSeriesOption,
   PreRegistrationSettings,
   PreRegistrationStatus,
 } from "@/lib/types";
@@ -31,6 +32,7 @@ type OptionBundle = {
   branches: PreRegistrationOption[];
   seasons: PreRegistrationOption[];
   programs: PreRegistrationOption[];
+  sessionSeries: PreRegistrationSessionSeriesOption[];
 };
 
 const PRE_REGISTRATION_ASSET_BUCKET = "pre-registration-assets";
@@ -134,10 +136,11 @@ export async function getPreRegistrationOptionsForOrganization(
       branches: [],
       seasons: [],
       programs: [],
+      sessionSeries: [],
     };
   }
 
-  const [{ data: branches }, { data: seasons }, { data: programs }] = await Promise.all([
+  const [{ data: branches }, { data: seasons }, { data: programs }, { data: sessionSeries }] = await Promise.all([
     adminClient
       .from("branches")
       .select("id, name")
@@ -156,12 +159,43 @@ export async function getPreRegistrationOptionsForOrganization(
       .eq("organization_id", organizationId)
       .is("archived_at", null)
       .order("title"),
+    adminClient
+      .from("session_series")
+      .select("id, title, program_id, start_time, weekdays")
+      .in("status", ["active", "paused"])
+      .order("starts_on", { ascending: true }),
   ]);
+
+  const programLabelMap = new Map((programs ?? []).map((item) => [item.id, item.title]));
+  const weekdayLabels: Record<number, string> = {
+    1: "Pzt",
+    2: "Sal",
+    3: "Car",
+    4: "Per",
+    5: "Cum",
+    6: "Cts",
+    7: "Paz",
+  };
 
   return {
     branches: (branches ?? []).map((item) => ({ id: item.id, label: item.name })),
     seasons: (seasons ?? []).map((item) => ({ id: item.id, label: item.title })),
     programs: (programs ?? []).map((item) => ({ id: item.id, label: item.title })),
+    sessionSeries: (sessionSeries ?? [])
+      .filter((item) => Boolean(programLabelMap.get(item.program_id)))
+      .map((item) => ({
+        id: item.id,
+        programId: item.program_id,
+        label: [
+          item.title,
+          Array.isArray(item.weekdays)
+            ? item.weekdays.map((day) => weekdayLabels[Number(day)]).filter(Boolean).join(" / ")
+            : "",
+          item.start_time ?? "",
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      })) satisfies PreRegistrationSessionSeriesOption[],
   };
 }
 
@@ -176,6 +210,7 @@ export async function getPublicPreRegistrationPayload() {
         branches: [],
         seasons: [],
         programs: [],
+        sessionSeries: [],
       },
     };
   }
@@ -253,6 +288,7 @@ export async function getOperatorPreRegistrations() {
         branches: [],
         seasons: [],
         programs: [],
+        sessionSeries: [],
       },
       error: "Bu alan icin yetkin yok.",
     };
@@ -267,6 +303,7 @@ export async function getOperatorPreRegistrations() {
         branches: [],
         seasons: [],
         programs: [],
+        sessionSeries: [],
       },
       error: context.error ?? "Kurum baglami cozulmedi.",
     };
@@ -281,6 +318,7 @@ export async function getOperatorPreRegistrations() {
         branches: [],
         seasons: [],
         programs: [],
+        sessionSeries: [],
       },
       error: "Supabase admin baglantisi kurulamadi.",
     };

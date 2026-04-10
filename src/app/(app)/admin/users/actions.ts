@@ -12,6 +12,10 @@ import {
   createSupabaseAdminClient,
 } from "@/lib/supabase/server";
 import { getSupabaseServerConfig } from "@/lib/supabase/server-config";
+import {
+  createRecoveryLinkForEmail,
+  queueRegistrationCompletedDispatch,
+} from "@/lib/whatsapp-server";
 
 export type AdminUserActionState = {
   error: string | null;
@@ -178,6 +182,8 @@ export async function createManagedUserAction(
     fullName: formData.get("fullName"),
     email: formData.get("email"),
     password: formData.get("password"),
+    phone: formData.get("phone"),
+    whatsappOptIn: formData.get("whatsappOptIn"),
     role: formData.get("role"),
   });
 
@@ -253,6 +259,7 @@ export async function createManagedUserAction(
     id: userId,
     organization_id: orgContext.organizationId,
     full_name: parsed.data.fullName,
+    phone: parsed.data.phone || null,
   });
 
   if (profileError) {
@@ -296,6 +303,19 @@ export async function createManagedUserAction(
       fullName: parsed.data.fullName,
     },
   });
+
+  if (parsed.data.phone && parsed.data.whatsappOptIn === "yes") {
+    const setupLink = await createRecoveryLinkForEmail(parsed.data.email, parsed.data.fullName);
+
+    await queueRegistrationCompletedDispatch({
+      organizationId: orgContext.organizationId,
+      recipientName: parsed.data.fullName,
+      recipientPhone: parsed.data.phone,
+      recipientEmail: parsed.data.email,
+      setupLink,
+      profileId: userId,
+    }).catch(() => null);
+  }
 
   return {
     error: null,

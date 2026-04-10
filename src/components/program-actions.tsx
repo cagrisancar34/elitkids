@@ -49,12 +49,10 @@ export function ProgramActions({
           <DialogContent className="w-[min(94vw,1280px)] max-h-[92vh] overflow-y-auto rounded-[2rem] px-10 py-10">
             <DialogHeader>
               <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
-                Program karti
+                Program urunu
               </div>
-              <DialogTitle>Programi duzenle</DialogTitle>
-              <DialogDescription>
-                Program, sezon, egitmen ve alan baglantilarini tek ekrandan guncelle.
-              </DialogDescription>
+              <DialogTitle>Program urununu duzenle</DialogTitle>
+              <DialogDescription>Bu ekran urunun tanimini gunceller; grup ve seans planlari ayri akista yonetilir.</DialogDescription>
             </DialogHeader>
             <form action={updateAction} className="grid gap-5">
               <input type="hidden" name="programId" value={program.id} />

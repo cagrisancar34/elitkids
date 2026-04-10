@@ -12,6 +12,12 @@ import {
 } from "@/lib/schemas/app-forms";
 import { buildMonthlyLessonCycle } from "@/lib/program-workspace";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import {
+  createInviteLinkForEmail,
+  createRecoveryLinkForEmail,
+  queueRegistrationCompletedDispatch,
+} from "@/lib/whatsapp-server";
+import { ensureEnrollmentSessionAllocations } from "@/lib/session-allocations";
 
 export type PreRegistrationActionState = {
   error: string | null;
@@ -88,6 +94,58 @@ function refreshPreRegistrationViews() {
   revalidatePath("/manager/pre-registrations");
   revalidatePath("/manager/students");
   revalidatePath("/admin");
+}
+
+async function getValidatedProgramSeries(
+  adminClient: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
+  organizationId: string,
+  programId: string,
+  sessionSeriesId: string,
+) {
+  const [{ data: program, error: programError }, { data: sessionSeries, error: sessionSeriesError }] =
+    await Promise.all([
+      adminClient
+        .from("programs")
+        .select("id, title, monthly_price, monthly_lesson_quota")
+        .eq("organization_id", organizationId)
+        .eq("id", programId)
+        .maybeSingle(),
+      adminClient
+        .from("session_series")
+        .select("id, title, program_id, starts_on, ends_on, status")
+        .eq("id", sessionSeriesId)
+        .maybeSingle(),
+    ]);
+
+  if (programError || !program?.id) {
+    return {
+      error: "Aktivasyon icin secilen program bulunamadi.",
+      program: null,
+      sessionSeries: null,
+    };
+  }
+
+  if (sessionSeriesError || !sessionSeries?.id) {
+    return {
+      error: "Aktivasyon icin secilen grup bulunamadi.",
+      program: null,
+      sessionSeries: null,
+    };
+  }
+
+  if (sessionSeries.program_id !== program.id) {
+    return {
+      error: "Secilen grup, programla eslesmiyor.",
+      program: null,
+      sessionSeries: null,
+    };
+  }
+
+  return {
+    error: null,
+    program,
+    sessionSeries,
+  };
 }
 
 export async function updatePreRegistrationStatusAction(
@@ -253,6 +311,7 @@ export async function activatePreRegistrationAction(
     branchId: formData.get("branchId"),
     seasonId: formData.get("seasonId"),
     programId: formData.get("programId"),
+    sessionSeriesId: formData.get("sessionSeriesId"),
     startsOn: formData.get("startsOn"),
     createInitialCharge: formData.get("createInitialCharge"),
   });
@@ -285,19 +344,21 @@ export async function activatePreRegistrationAction(
     };
   }
 
-  const { data: program, error: programError } = await context.adminClient
-    .from("programs")
-    .select("id, title, monthly_price, monthly_lesson_quota")
-    .eq("id", parsed.data.programId)
-    .eq("organization_id", context.organizationId)
-    .maybeSingle();
+  const validated = await getValidatedProgramSeries(
+    context.adminClient,
+    context.organizationId,
+    parsed.data.programId,
+    parsed.data.sessionSeriesId,
+  );
 
-  if (programError || !program) {
+  if (validated.error || !validated.program || !validated.sessionSeries) {
     return {
-      error: "Aktivasyon icin secilen program bulunamadi.",
+      error: validated.error ?? "Aktivasyon icin program ve grup bilgisi dogrulanamadi.",
       success: null,
     };
   }
+
+  const program = validated.program;
 
   const { data: student, error: studentError } = await context.adminClient
     .from("students")
@@ -323,6 +384,7 @@ export async function activatePreRegistrationAction(
     .insert({
       student_id: student.id,
       program_id: parsed.data.programId,
+      session_series_id: parsed.data.sessionSeriesId,
       status: "active",
       starts_on: parsed.data.startsOn,
     })
@@ -347,19 +409,54 @@ export async function activatePreRegistrationAction(
         quota: Number(program.monthly_lesson_quota ?? 8),
       }),
     );
+
+    await ensureEnrollmentSessionAllocations(context.adminClient, {
+      organizationId: context.organizationId,
+      enrollmentId: enrollment.id,
+      studentId: student.id,
+      studentName: record.student_full_name,
+      programId: parsed.data.programId,
+      sessionSeriesId: parsed.data.sessionSeriesId,
+      startsOn: parsed.data.startsOn,
+      lessonCount: Number(program.monthly_lesson_quota ?? 8),
+    });
   }
 
   let activatedParentProfileId: string | null = null;
+  let setupLink: string | null = null;
   const listedUsers = await context.adminClient.auth.admin.listUsers({
     page: 1,
     perPage: 500,
   });
-  const parentUser = listedUsers.data.users.find(
+  let parentUser = listedUsers.data.users.find(
     (user) => user.email?.toLowerCase() === String(record.parent_email ?? "").toLowerCase(),
   );
 
+  if (!parentUser?.id && record.parent_email) {
+    const invite = await createInviteLinkForEmail(
+      String(record.parent_email),
+      String(record.mother_name || record.father_name || "Veli"),
+    );
+    setupLink = invite.actionLink;
+
+    if (invite.userId) {
+      const refreshedUsers = await context.adminClient.auth.admin.listUsers({
+        page: 1,
+        perPage: 500,
+      });
+      parentUser =
+        refreshedUsers.data.users.find((user) => user.id === invite.userId) ??
+        refreshedUsers.data.users.find(
+          (user) => user.email?.toLowerCase() === String(record.parent_email ?? "").toLowerCase(),
+        );
+    }
+  }
+
   if (parentUser?.id) {
     activatedParentProfileId = parentUser.id;
+    if (!setupLink && record.parent_email) {
+      setupLink = await createRecoveryLinkForEmail(String(record.parent_email), String(record.mother_name || record.father_name || "Veli"));
+    }
 
     const { data: existingParentProfile } = await context.adminClient
       .from("profiles")
@@ -378,9 +475,15 @@ export async function activatePreRegistrationAction(
           id: parentUser.id,
           organization_id: context.organizationId,
           full_name: inferredName,
+          phone: record.parent_whatsapp || null,
         },
         { onConflict: "id" },
       );
+    } else if (record.parent_whatsapp) {
+      await context.adminClient
+        .from("profiles")
+        .update({ phone: record.parent_whatsapp })
+        .eq("id", parentUser.id);
     }
 
     await context.adminClient.from("parent_student_links").upsert(
@@ -454,6 +557,7 @@ export async function activatePreRegistrationAction(
       studentId: student.id,
       enrollmentId: enrollment.id,
       programId: parsed.data.programId,
+      sessionSeriesId: parsed.data.sessionSeriesId,
       createInitialCharge: parsed.data.createInitialCharge === "yes",
     },
   });
@@ -462,6 +566,18 @@ export async function activatePreRegistrationAction(
   revalidatePath("/manager/payments");
   revalidatePath("/manager/finance");
   revalidatePath("/parent");
+
+  if (record.parent_email && record.parent_whatsapp) {
+    await queueRegistrationCompletedDispatch({
+      organizationId: context.organizationId,
+      recipientName: String(record.mother_name || record.father_name || "Veli"),
+      recipientPhone: String(record.parent_whatsapp),
+      recipientEmail: String(record.parent_email),
+      setupLink,
+      profileId: activatedParentProfileId,
+      preRegistrationId: parsed.data.preRegistrationId,
+    }).catch(() => null);
+  }
 
   return {
     error: null,

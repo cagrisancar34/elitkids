@@ -7,14 +7,22 @@ export function Table({ className, ...props }: TableHTMLAttributes<HTMLTableElem
 }
 
 export function TableHeader({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
-  return <thead className={cn("[&_tr]:bg-[#dfe3e6] [&_tr]:text-muted-foreground", className)} {...props} />;
+  return (
+    <thead
+      className={cn(
+        "[&_tr]:border-b [&_tr]:border-slate-200/80 [&_tr]:bg-[linear-gradient(180deg,rgba(230,237,247,0.95),rgba(223,233,245,0.85))] [&_tr]:text-muted-foreground",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
 export function TableBody({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
   return (
     <tbody
       className={cn(
-        "[&_tr:last-child]:border-0 [&_tr:nth-child(even)]:bg-[#eef1f3]/70 [&_tr:nth-child(odd)]:bg-white",
+        "[&_tr:last-child]:border-0 [&_tr]:border-b [&_tr]:border-slate-200/65 [&_tr:nth-child(even)]:bg-[#f8fbff]/95 [&_tr:nth-child(odd)]:bg-white/92",
         className,
       )}
       {...props}
@@ -23,18 +31,18 @@ export function TableBody({ className, ...props }: HTMLAttributes<HTMLTableSecti
 }
 
 export function TableRow({ className, ...props }: HTMLAttributes<HTMLTableRowElement>) {
-  return <tr className={cn("transition-colors hover:bg-primary/6", className)} {...props} />;
+  return <tr className={cn("transition-all duration-200 hover:bg-[rgba(20,86,215,0.05)]", className)} {...props} />;
 }
 
 export function TableHead({ className, ...props }: ThHTMLAttributes<HTMLTableCellElement>) {
   return (
     <th
-      className={cn("h-12 px-5 text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground", className)}
+      className={cn("h-14 px-5 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6d7d94]", className)}
       {...props}
     />
   );
 }
 
 export function TableCell({ className, ...props }: TdHTMLAttributes<HTMLTableCellElement>) {
-  return <td className={cn("px-5 py-4 align-middle", className)} {...props} />;
+  return <td className={cn("px-5 py-4.5 align-middle text-[0.96rem]", className)} {...props} />;
 }

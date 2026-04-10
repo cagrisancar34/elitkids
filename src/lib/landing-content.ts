@@ -22,6 +22,7 @@ export type LandingContent = {
     logoLabel: string;
     logoImage: string;
     contactPhone: string;
+    whatsappPhone: string;
     contactEmail: string;
     location: string;
     copyright: string;
@@ -106,15 +107,29 @@ export type LandingContent = {
       answer: string;
     }>;
   };
+  guide: {
+    eyebrow: string;
+    title: string;
+    description: string;
+    items: Array<{
+      label: string;
+      href: string;
+    }>;
+  };
   cta: {
     title: string;
     description: string;
+    whatsappLabel: string;
+    phoneCtaLabel: string;
     fullNameLabel: string;
     fullNamePlaceholder: string;
     emailLabel: string;
     emailPlaceholder: string;
     phoneLabel: string;
     phonePlaceholder: string;
+    statusLabel: string;
+    statusPlaceholder: string;
+    statusOptions: string[];
     submitLabel: string;
     footnote: string;
   };
@@ -141,6 +156,7 @@ export const defaultLandingContent: LandingContent = {
     logoLabel: "EK",
     logoImage: "",
     contactPhone: "+90 555 000 00 00",
+    whatsappPhone: "+90 555 000 00 00",
     contactEmail: "iletisim@elitkids.com",
     location: "Istanbul, Turkiye",
     copyright: "© 2026 Elit Kids Athletic Academy. Tum haklari saklidir.",
@@ -274,14 +290,14 @@ export const defaultLandingContent: LandingContent = {
     items: [
       {
         name: "Ece Yilmaz",
-        specialty: "Artistik patinaj ve temel motor gelisim",
+        specialty: "Cocuk gelisimi ve temel hareket egitimi",
         bio: "Minik sporcularin denge, ritim ve ozguven gelisimini adim adim takip eder.",
         image:
           "https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=900&q=80",
       },
       {
         name: "Mert Demir",
-        specialty: "Power skating ve atletik hiz calismalari",
+        specialty: "Atletik performans ve koordinasyon calismalari",
         bio: "Temel teknigi guc, hiz ve surekli saha disiplini ile birlestiren performans odakli akisi yonetir.",
         image:
           "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=900&q=80",
@@ -350,18 +366,43 @@ export const defaultLandingContent: LandingContent = {
       },
     ],
   },
+  guide: {
+    eyebrow: "Silivri spor rehberi",
+    title:
+      "Silivri'de yuzme, cimnastik, jimnastik, tenis ve spor okulu arayanlar icin ayri sayfalar.",
+    description:
+      "Her brans ve lokal niyet icin ayri bilgi sayfalari hazirladik. Size en uygun basliga dogrudan gidin.",
+    items: [
+      { label: "Silivri Spor Okulu", href: "/silivri-spor-okulu" },
+      { label: "Silivri Yuzme Kursu", href: "/silivri-yuzme-kursu" },
+      { label: "Silivri Cimnastik Kursu", href: "/silivri-cimnastik-kursu" },
+      { label: "Silivri Jimnastik Kursu", href: "/silivri-jimnastik-kursu" },
+      { label: "Silivri Tenis Kursu", href: "/silivri-tenis-kursu" },
+      { label: "Elit Sanat ve Spor Kulubu", href: "/elit-sanat-ve-spor-kulubu" },
+      { label: "Iletisim", href: "/iletisim" },
+    ],
+  },
   cta: {
     title: "Sampiyonlarin Arasina Katilin",
     description:
       "Ucretsiz tanisma dersi ve gelisim analizi icin formu doldurun, biz sizi arayalim.",
+    whatsappLabel: "WhatsApp ile Ulas",
+    phoneCtaLabel: "Telefon ile Ara",
     fullNameLabel: "Ad Soyad",
     fullNamePlaceholder: "Adiniz Soyadiniz",
     emailLabel: "Email Adresi",
     emailPlaceholder: "eposta@adresiniz.com",
     phoneLabel: "Telefon Numarasi",
     phonePlaceholder: "05XX XXX XX XX",
-    submitLabel: "Beni Arayin",
-    footnote: "Form currently stores editable content only; lead akisi daha sonra Supabase basvuru tablosuna baglanabilir.",
+    statusLabel: "Durum",
+    statusPlaceholder: "Talep tipini secin",
+    statusOptions: [
+      "Bilgi almak istiyorum",
+      "On kayit yaptirmak istiyorum",
+      "Deneme dersi talep ediyorum",
+    ],
+    submitLabel: "Basvuruyu Gonder",
+    footnote: "Bu form bilgi alma ve ilk iletisim icindir; gonderilen basvurular admin ve manager panelinde gorunur.",
   },
   footer: {
     description:

@@ -9,10 +9,47 @@ export type RoleNavItem = {
   description: string;
 };
 
+export type NavSectionId = "admin" | "manager" | "coach" | "parent";
+
+export type RoleNavSection = {
+  id: NavSectionId;
+  label: string;
+  description: string;
+  items: RoleNavItem[];
+};
+
 export type Metric = {
   label: string;
   value: string;
   delta: string;
+};
+
+export type StudentListFilterState = {
+  search: string;
+  ageBand: "all" | "child" | "teen" | "adult";
+  program: string;
+  payment: "all" | "clear" | "due" | "risk";
+};
+
+export type CollectionTrendPoint = {
+  label: string;
+  value: number;
+  status: string;
+};
+
+export type FinanceCockpitSummary = {
+  outstandingTotal: number;
+  paidTotal: number;
+  followCount: number;
+  collectionRate: number;
+  trend: CollectionTrendPoint[];
+};
+
+export type ParentDashboardSummary = {
+  upcomingCount: number;
+  outstandingTotal: string;
+  unreadAnnouncements: number;
+  reportCardCount: number;
 };
 
 export type DetailQuestionInputType = "text" | "textarea" | "number" | "select";
@@ -49,6 +86,7 @@ export type StudentReportCard = {
 
 export type StudentRecord = {
   id: string;
+  enrollmentId?: string;
   initials: string;
   name: string;
   club: string;
@@ -61,6 +99,14 @@ export type StudentRecord = {
   balance: string;
   status: string;
   programId?: string;
+  sessionSeriesId?: string | null;
+  sessionSeriesLabel?: string | null;
+  enrollmentStartsOn?: string | null;
+  allocatedLessons?: number;
+  consumedLessons?: number;
+  remainingLessons?: number;
+  nextAllocatedSessionAt?: string | null;
+  lastAllocatedSessionAt?: string | null;
   chargeOptions?: ChargeOption[];
   detailSaved?: boolean;
   reportCard?: StudentReportCard | null;
@@ -132,6 +178,10 @@ export type SessionCalendarCell = {
 export type AttendanceStatus = "present" | "absent" | "excused";
 
 export type ChargeRecord = {
+  id?: string;
+  enrollmentId?: string;
+  studentId?: string;
+  programId?: string;
   item: string;
   dueDate: string;
   amount: string;
@@ -149,6 +199,121 @@ export type NotificationRecord = {
   title: string;
   channel: string;
   status: string;
+};
+
+export type AppNotificationItem = {
+  id: string;
+  title: string;
+  body: string;
+  href: string;
+  createdAt: string;
+  read: boolean;
+};
+
+export type PageDocumentationItem = {
+  title: string;
+  body: string;
+};
+
+export type PageDocumentation = {
+  pageKey: string;
+  title: string;
+  purpose: string;
+  actions: PageDocumentationItem[];
+  areas: PageDocumentationItem[];
+  workflow: PageDocumentationItem[];
+  notes: string[];
+};
+
+export type WhatsAppTemplateEventKey =
+  | "registration_completed"
+  | "attendance_absent_manual"
+  | "payment_reminder_manual"
+  | "report_card_updated"
+  | "bulk_broadcast";
+
+export type WhatsAppOptInStatus = "opted_in" | "opted_out" | "unknown";
+
+export type MessageDeliveryStatus =
+  | "blocked"
+  | "queued"
+  | "processing"
+  | "sent"
+  | "delivered"
+  | "read"
+  | "failed";
+
+export type RecipientSegment =
+  | "all_parents"
+  | "all_users"
+  | "debt_parents"
+  | "program_parents"
+  | "branch_parents"
+  | "all_staff"
+  | "coaches"
+  | "managers";
+
+export type WhatsAppTemplateDefinition = {
+  id: string;
+  eventKey: WhatsAppTemplateEventKey;
+  locale: string;
+  metaTemplateName: string;
+  enabled: boolean;
+  variableSchema: string[];
+};
+
+export type WhatsAppContact = {
+  id: string;
+  fullName: string;
+  phone: string;
+  normalizedPhone: string;
+  recipientType: "profile" | "lead" | "pre_registration";
+  optInStatus: WhatsAppOptInStatus;
+  optInSource: string;
+  lastOptInAt: string | null;
+};
+
+export type MessageDispatch = {
+  id: string;
+  eventKey: WhatsAppTemplateEventKey;
+  recipientName: string;
+  recipientPhone: string;
+  status: MessageDeliveryStatus;
+  scheduledFor: string;
+  sentAt: string | null;
+  deliveredAt: string | null;
+  readAt: string | null;
+  lastError: string | null;
+};
+
+export type MessageCampaign = {
+  id: string;
+  title: string;
+  audienceType: RecipientSegment;
+  status: "draft" | "queued" | "processing" | "completed" | "failed";
+  createdAt: string;
+  sentAt: string | null;
+};
+
+export type WhatsAppSettingsStatus = {
+  configured: boolean;
+  missingKeys: string[];
+  phoneNumberId: string | null;
+  businessAccountId: string | null;
+};
+
+export type WhatsAppSettingsOverview = {
+  status: WhatsAppSettingsStatus;
+  templates: WhatsAppTemplateDefinition[];
+  dispatches: MessageDispatch[];
+  queueCount: number;
+  blockedCount: number;
+};
+
+export type WhatsAppCampaignOverview = {
+  templates: WhatsAppTemplateDefinition[];
+  campaigns: MessageCampaign[];
+  dispatches: MessageDispatch[];
 };
 
 export type OrganizationSettings = {
@@ -220,6 +385,10 @@ export type PreRegistrationOption = {
   label: string;
 };
 
+export type PreRegistrationSessionSeriesOption = PreRegistrationOption & {
+  programId: string;
+};
+
 export type PreRegistrationAsset = {
   id: string;
   fileType: string;
@@ -284,6 +453,7 @@ export type AuditLogRow = {
 };
 
 export type LeadSubmissionRow = {
+  id: string;
   fullName: string;
   email: string;
   phone: string;
@@ -321,6 +491,17 @@ export type ProgramOption = {
   areaName?: string;
 };
 
+export type SessionSeriesOption = {
+  id: string;
+  programId: string;
+  programTitle: string;
+  title: string;
+  label: string;
+  startsOn: string;
+  endsOn: string;
+  status: "active" | "paused" | "cancelled";
+};
+
 export type ProgramRecord = {
   id: string;
   title: string;
@@ -344,6 +525,7 @@ export type ProgramRecord = {
   areaName?: string;
   notes?: string;
   enrolledCount?: number;
+  sessionSeriesCount?: number;
   monthlyLessonQuota?: number;
   status?: "active" | "archived";
 };
@@ -402,6 +584,36 @@ export type AttendanceStudent = {
   name: string;
   status: string;
   note?: string;
+  allocationStatus?: "planned" | "consumed" | "cancelled";
+};
+
+export type EnrollmentSessionAllocation = {
+  id: string;
+  enrollmentId: string;
+  studentId: string;
+  sessionId: string;
+  sessionSeriesId: string | null;
+  sequenceNo: number;
+  source: "initial" | "bonus" | "renewal";
+  status: "planned" | "consumed" | "cancelled";
+  consumedAt: string | null;
+};
+
+export type StudentLessonStatus = {
+  allocatedLessons: number;
+  consumedLessons: number;
+  remainingLessons: number;
+  nextAllocatedSessionAt: string | null;
+  lastAllocatedSessionAt: string | null;
+};
+
+export type ExpiringStudentNotice = {
+  studentId: string;
+  studentName: string;
+  programTitle: string;
+  sessionSeriesLabel: string | null;
+  remainingLessons: number;
+  nextAllocatedSessionAt: string | null;
 };
 
 export type StudentPackageCycle = {
@@ -423,5 +635,10 @@ export type CoachSessionBoard = {
   slot: string;
   location: string;
   roster: string;
+  dateLabel?: string;
+  dayKey?: string;
+  dayShort?: string;
+  startTime?: string;
+  endTime?: string;
   students: AttendanceStudent[];
 };

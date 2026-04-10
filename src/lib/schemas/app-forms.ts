@@ -4,6 +4,8 @@ export const createStudentSchema = z.object({
   fullName: z.string().min(3, "Ogrenci adi en az 3 karakter olmali."),
   birthDate: z.string().min(1, "Dogum tarihi secilmeli."),
   programId: z.string().uuid("Bir program secilmeli."),
+  sessionSeriesId: z.string().uuid("Bir grup / seans serisi secilmeli."),
+  startsOn: z.string().min(1, "Kayit tarihi secilmeli."),
   parentEmail: z
     .string()
     .email("Veli e-postasi gecerli olmali.")
@@ -16,11 +18,22 @@ export const updateStudentSchema = z.object({
   fullName: z.string().min(3, "Ogrenci adi en az 3 karakter olmali."),
   birthDate: z.string().min(1, "Dogum tarihi secilmeli."),
   programId: z.string().uuid("Bir program secilmeli."),
+  sessionSeriesId: z.string().uuid("Bir grup / seans serisi secilmeli."),
   gender: z.enum(["female", "male", "other"]),
 });
 
 export const deactivateStudentSchema = z.object({
   studentId: z.string().uuid("Ogrenci secilmeli."),
+});
+
+export const grantStudentLessonsSchema = z.object({
+  studentId: z.string().uuid("Ogrenci secilmeli."),
+  lessonCount: z.coerce.number().int().min(1, "En az 1 hak verilmeli.").max(16, "Tek seferde en fazla 16 hak verilebilir."),
+});
+
+export const rebuildStudentLessonsSchema = z.object({
+  studentId: z.string().uuid("Ogrenci secilmeli."),
+  startsOn: z.string().min(1, "Yeni paket baslangic tarihi secilmeli."),
 });
 
 export const saveStudentDetailSchema = z.object({
@@ -141,6 +154,7 @@ export const activatePreRegistrationSchema = z.object({
   branchId: z.string().uuid("Bir sube secilmeli."),
   seasonId: z.string().uuid("Bir sezon secilmeli."),
   programId: z.string().uuid("Bir program secilmeli."),
+  sessionSeriesId: z.string().uuid("Bir grup / seans serisi secilmeli."),
   startsOn: z.string().min(1, "Baslangic tarihi secilmeli."),
   createInitialCharge: z.enum(["yes", "no"]),
 });
@@ -272,6 +286,8 @@ export const createManagedUserSchema = z.object({
   fullName: z.string().min(3, "Ad soyad en az 3 karakter olmali."),
   email: z.string().email("Gecerli bir e-posta girilmeli."),
   password: z.string().min(8, "Gecici sifre en az 8 karakter olmali."),
+  phone: z.string().trim().optional().default(""),
+  whatsappOptIn: z.enum(["yes", "no"]).default("no"),
   role: z.enum(["admin", "manager", "coach", "parent"]),
 });
 
@@ -367,4 +383,60 @@ export const toggleSeasonDefaultSchema = z.object({
 
 export const updateLandingContentSchema = z.object({
   content: z.string().min(2, "Landing content verisi eksik."),
+});
+
+export const updateSeoPageContentSchema = z.object({
+  slug: z
+    .string()
+    .min(2, "Sayfa slug bilgisi eksik.")
+    .regex(/^[a-z0-9-]+$/, "Slug yalnizca kucuk harf, rakam ve tire icermeli."),
+  content: z.string().min(2, "SEO sayfa verisi eksik."),
+});
+
+export const updateWhatsAppTemplateSchema = z.object({
+  templateId: z.string().uuid("Template secilmeli."),
+  metaTemplateName: z.string().trim().default(""),
+  enabled: z.enum(["yes", "no"]),
+});
+
+export const sendWhatsAppTestSchema = z.object({
+  phone: z.string().min(10, "Test numarasi eksik."),
+  eventKey: z.enum([
+    "registration_completed",
+    "attendance_absent_manual",
+    "payment_reminder_manual",
+    "report_card_updated",
+    "bulk_broadcast",
+  ]),
+  message: z.string().trim().optional().default(""),
+});
+
+export const createWhatsAppCampaignSchema = z.object({
+  title: z.string().min(3, "Kampanya basligi en az 3 karakter olmali."),
+  audienceType: z.enum([
+    "all_parents",
+    "all_users",
+    "debt_parents",
+    "program_parents",
+    "branch_parents",
+    "all_staff",
+    "coaches",
+    "managers",
+  ]),
+  programId: z.string().trim().optional().default(""),
+  branchId: z.string().trim().optional().default(""),
+  message: z.string().min(6, "Mesaj en az 6 karakter olmali."),
+});
+
+export const sendPaymentReminderSchema = z.object({
+  chargeId: z.string().uuid("Tahakkuk secilmeli."),
+});
+
+export const sendBulkPaymentReminderSchema = z.object({
+  scope: z.enum(["overdue"]),
+});
+
+export const sendAttendanceWhatsAppSchema = z.object({
+  sessionId: z.string().uuid("Seans secilmeli."),
+  studentId: z.string().uuid("Ogrenci secilmeli."),
 });

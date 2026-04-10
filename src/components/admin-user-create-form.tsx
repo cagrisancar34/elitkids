@@ -39,6 +39,21 @@ export function AdminUserCreateForm({ adminEnabled }: { adminEnabled: boolean })
         <Input id="password" name="password" type="password" placeholder="ElitKids123" />
       </div>
       <div className="grid gap-2">
+        <label className="text-sm font-medium text-foreground" htmlFor="phone">
+          Telefon / WhatsApp
+        </label>
+        <Input id="phone" name="phone" type="tel" placeholder="+90 5xx xxx xx xx" />
+      </div>
+      <div className="grid gap-2">
+        <label className="text-sm font-medium text-foreground" htmlFor="whatsappOptIn">
+          WhatsApp izni
+        </label>
+        <Select id="whatsappOptIn" name="whatsappOptIn" defaultValue="no">
+          <option value="no">Izin yok</option>
+          <option value="yes">Izin var</option>
+        </Select>
+      </div>
+      <div className="grid gap-2">
         <label className="text-sm font-medium text-foreground" htmlFor="role">
           Rol
         </label>

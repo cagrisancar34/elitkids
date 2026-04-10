@@ -8,6 +8,7 @@ import { getOrCreateOrganizationContext } from "@/lib/organization-context";
 import {
   createBranchSchema,
   createSeasonSchema,
+  sendWhatsAppTestSchema,
   toggleBranchArchiveSchema,
   toggleBranchStatusSchema,
   toggleSeasonDefaultSchema,
@@ -15,8 +16,15 @@ import {
   updateBranchSchema,
   updateOrganizationSettingsSchema,
   updateSeasonSchema,
+  updateWhatsAppTemplateSchema,
 } from "@/lib/schemas/app-forms";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import {
+  ensureWhatsAppTemplates,
+  processDueWhatsAppDispatches,
+  queueWhatsAppDispatch,
+} from "@/lib/whatsapp-server";
+import type { WhatsAppTemplateEventKey } from "@/lib/types";
 
 export type SettingsActionState = {
   error: string | null;
@@ -679,5 +687,167 @@ export async function toggleSeasonDefaultAction(
       parsed.data.nextState === "default"
         ? "Varsayilan sezon etiketi guncellendi."
         : "Varsayilan sezon etiketi kaldirildi.",
+  };
+}
+
+export async function updateWhatsAppTemplateAction(
+  _previousState: SettingsActionState,
+  formData: FormData,
+): Promise<SettingsActionState> {
+  const context = await requireAdminSettingsContext();
+
+  if (!context.supabase || !context.organizationId) {
+    return { error: context.error, success: null };
+  }
+
+  await ensureWhatsAppTemplates(context.organizationId);
+
+  const parsed = updateWhatsAppTemplateSchema.safeParse({
+    templateId: formData.get("templateId"),
+    metaTemplateName: formData.get("metaTemplateName"),
+    enabled: formData.get("enabled"),
+  });
+
+  if (!parsed.success) {
+    return {
+      error: parsed.error.issues[0]?.message ?? "WhatsApp template formu gecersiz.",
+      success: null,
+    };
+  }
+
+  const { error } = await context.supabase
+    .from("whatsapp_templates")
+    .update({
+      meta_template_name: parsed.data.metaTemplateName.trim() || null,
+      enabled: parsed.data.enabled === "yes",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", parsed.data.templateId)
+    .eq("organization_id", context.organizationId);
+
+  if (error) {
+    return {
+      error: error.message,
+      success: null,
+    };
+  }
+
+  revalidatePath("/admin/settings");
+
+  await logAuditEvent({
+    organizationId: context.organizationId,
+    actorProfileId: context.auth?.userId,
+    actorRole: context.auth?.role,
+    eventType: "WhatsApp template guncellendi",
+    scope: "WhatsApp",
+    entityType: "whatsapp_templates",
+    entityId: parsed.data.templateId,
+    payload: {
+      enabled: parsed.data.enabled === "yes",
+      metaTemplateName: parsed.data.metaTemplateName.trim() || null,
+    },
+  });
+
+  return {
+    error: null,
+    success: "WhatsApp template ayari guncellendi.",
+  };
+}
+
+export async function sendWhatsAppTestAction(
+  _previousState: SettingsActionState,
+  formData: FormData,
+): Promise<SettingsActionState> {
+  const context = await requireAdminSettingsContext();
+
+  if (!context.supabase || !context.organizationId) {
+    return { error: context.error, success: null };
+  }
+
+  const parsed = sendWhatsAppTestSchema.safeParse({
+    phone: formData.get("phone"),
+    eventKey: formData.get("eventKey"),
+    message: formData.get("message"),
+  });
+
+  if (!parsed.success) {
+    return {
+      error: parsed.error.issues[0]?.message ?? "Test gonderim formu gecersiz.",
+      success: null,
+    };
+  }
+
+  const fallbackVariablesByEvent: Record<WhatsAppTemplateEventKey, string[]> = {
+    registration_completed: [
+      "https://elitsanatvesporkulubu.com/login",
+      "demo@elitkids.com",
+      "https://elitsanatvesporkulubu.com/login?setup=1",
+    ],
+    attendance_absent_manual: ["Demo Sporcu", "Mini Akademi Seansi", "09 Nisan 2026 18:00"],
+    payment_reminder_manual: [
+      "Demo Sporcu",
+      "3250 TL",
+      "12.04.2026",
+      "https://elitsanatvesporkulubu.com/login",
+    ],
+    report_card_updated: ["Demo Sporcu", "https://elitsanatvesporkulubu.com/login"],
+    bulk_broadcast: [parsed.data.message || "Bu bir test WhatsApp gonderimidir."],
+  };
+
+  try {
+    await queueWhatsAppDispatch({
+      organizationId: context.organizationId,
+      eventKey: parsed.data.eventKey,
+      recipientType: "lead",
+      recipientName: "Test Alicisi",
+      phone: parsed.data.phone,
+      optInStatus: "opted_in",
+      optInSource: "admin_test_send",
+      payload: {
+        variables: fallbackVariablesByEvent[parsed.data.eventKey],
+      },
+    });
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Test gonderimi basarisiz oldu.",
+      success: null,
+    };
+  }
+
+  revalidatePath("/admin/settings");
+
+  return {
+    error: null,
+    success: "Test dispatch olusturuldu. Meta baglantisi hazirsa hemen gonderildi.",
+  };
+}
+
+export async function processWhatsAppQueueAction(): Promise<SettingsActionState> {
+  const context = await requireAdminSettingsContext();
+
+  if (!context.supabase || !context.organizationId) {
+    return { error: context.error, success: null };
+  }
+
+  const processed = await processDueWhatsAppDispatches(25);
+  revalidatePath("/admin/settings");
+
+  await logAuditEvent({
+    organizationId: context.organizationId,
+    actorProfileId: context.auth?.userId,
+    actorRole: context.auth?.role,
+    eventType: "WhatsApp kuyrugu islendi",
+    scope: "WhatsApp",
+    entityType: "message_dispatches",
+    payload: {
+      processed,
+    },
+  });
+
+  return {
+    error: null,
+    success: processed
+      ? `${processed} WhatsApp dispatch isleme alindi.`
+      : "Islenecek uygun kuyruk kaydi bulunmadi.",
   };
 }

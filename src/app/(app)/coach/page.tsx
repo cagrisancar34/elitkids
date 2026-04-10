@@ -9,14 +9,12 @@ export default async function CoachPage() {
   return (
     <DashboardPage
       role="coach"
-      eyebrow="Saha operasyonu"
-      title="Koc gunluk paneli"
-      description="Koc yuzeyi, dikkat dagitan yonetim detaylarini ayiklayip roster, yoklama ve seans hazirligina odaklanir."
+      eyebrow="Koc"
+      title="Koc paneli"
       primaryAction={{ href: "/coach/sessions", label: "Yoklamaya git" }}
       contextCard={{
-        eyebrow: "Saha ritmi",
-        title: `${sessions.length} seans bugun akista`,
-        description: "Kocta odak, roster, hazirlik ve hizli yoklama kararlarinin ayni yuzeyde kalmasi.",
+        eyebrow: "Bugun",
+        title: `${sessions.length} seans`,
         badge: "Koc modu",
       }}
     >
@@ -31,13 +29,13 @@ export default async function CoachPage() {
           <WorkspacePanel
             key={session.title}
             title={session.title}
-            description={session.slot}
             contentClassName="space-y-2 text-sm leading-6 text-muted-foreground"
           >
             <>
+              <p>Saat: {session.slot}</p>
               <p>Alan: {session.location}</p>
               <p>Roster: {session.roster}</p>
-              <p>Hazirlik: Buz saati ve ekipman onayi bekliyor.</p>
+              <p>Hazirlik: Yoklama ve alan duzeni kontrol edilmeli.</p>
             </>
           </WorkspacePanel>
         ))}

@@ -1,8 +1,7 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Inter, Lexend } from "next/font/google";
-import { GoogleAnalytics } from "@/components/google-analytics";
 import "./globals.css";
+import { buildRootMetadata } from "@/lib/seo-metadata";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -14,11 +13,7 @@ const lexend = Lexend({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "Elit Kids Akademi",
-  description:
-    "Elit Kids Akademi icin Next.js, Supabase ve shadcn/ui tabanli yonetim ve veli platformu.",
-};
+export const metadata: Metadata = buildRootMetadata();
 
 export default function RootLayout({
   children,
@@ -31,9 +26,6 @@ export default function RootLayout({
       className={`${inter.variable} ${lexend.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <Suspense fallback={null}>
-          <GoogleAnalytics />
-        </Suspense>
         {children}
       </body>
     </html>

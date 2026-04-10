@@ -1,15 +1,12 @@
 import { format } from "date-fns";
 
 import { calculateOutstandingBalance, formatTry } from "@/lib/finance";
+import { metricsByRole } from "@/lib/mock-data";
 import {
-  announcementRecords,
-  chargeRecords,
-  metricsByRole,
-  notificationRecords,
-  sessionRecords,
-  studentRecords,
-  supportThreads,
-} from "@/lib/mock-data";
+  backfillMissingAllocationsForOrganization,
+  getAllocationSummaryMap,
+  syncPastAllocationsForOrganization,
+} from "@/lib/session-allocations";
 import {
   defaultStudentDetailQuestions,
   getFallbackEntriesFromLegacy,
@@ -21,6 +18,7 @@ import type {
   AnnouncementRecord,
   AdminUserRow,
   Area,
+  AttendanceStudent,
   AuditLogRow,
   BranchSetting,
   Category,
@@ -42,6 +40,7 @@ import type {
   ProgramOption,
   ProgramType,
   SeasonSetting,
+  SessionSeriesOption,
   SessionRecord,
   SportsBranch,
   StudentRecord,
@@ -51,11 +50,43 @@ import type {
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseConfig } from "@/lib/supabase/config";
 
+const DASHBOARD_CACHE_TTL_MS = 8_000;
+const dashboardCache = new Map<string, { expiresAt: number; value: unknown }>();
+
+async function withDashboardCache<T>(key: string, loader: () => Promise<T>) {
+  const now = Date.now();
+  const cached = dashboardCache.get(key);
+
+  if (cached && cached.expiresAt > now) {
+    return cached.value as T;
+  }
+
+  const value = await loader();
+  dashboardCache.set(key, { value, expiresAt: now + DASHBOARD_CACHE_TTL_MS });
+  return value;
+}
+
 function formatDateTimeRange(startsAt: string, endsAt: string) {
   return `${format(new Date(startsAt), "dd MMM / HH:mm")} - ${format(
     new Date(endsAt),
     "HH:mm",
   )}`;
+}
+
+function formatTimeValue(value: string) {
+  return format(new Date(value), "HH:mm");
+}
+
+function formatDayKey(value: string) {
+  return format(new Date(value), "yyyy-MM-dd");
+}
+
+function formatDayLabel(value: string) {
+  return format(new Date(value), "dd MMM");
+}
+
+function formatDayShort(value: string) {
+  return format(new Date(value), "EEE");
 }
 
 function formatDateLabel(value: string | null) {
@@ -64,6 +95,35 @@ function formatDateLabel(value: string | null) {
   }
 
   return format(new Date(value), "dd MMM yyyy");
+}
+
+const SESSION_WEEKDAY_LABELS: Record<number, string> = {
+  1: "Pzt",
+  2: "Sal",
+  3: "Car",
+  4: "Per",
+  5: "Cum",
+  6: "Cts",
+  7: "Paz",
+};
+
+function formatSessionSeriesLabel({
+  title,
+  weekdays,
+  startTime,
+}: {
+  title: string;
+  weekdays: number[] | null | undefined;
+  startTime: string | null | undefined;
+}) {
+  const dayLabel = Array.isArray(weekdays)
+    ? weekdays
+        .map((day) => SESSION_WEEKDAY_LABELS[day])
+        .filter(Boolean)
+        .join(" / ")
+    : "";
+
+  return [title, dayLabel, startTime ?? ""].filter(Boolean).join(" · ");
 }
 
 function getRelatedTitle(value: unknown) {
@@ -100,6 +160,30 @@ function getRelatedAgeBand(value: unknown) {
   }
 
   return null;
+}
+
+function getRelatedStartTime(value: unknown) {
+  if (Array.isArray(value)) {
+    return typeof value[0]?.start_time === "string" ? value[0].start_time : null;
+  }
+
+  if (value && typeof value === "object" && "start_time" in value) {
+    return typeof value.start_time === "string" ? value.start_time : null;
+  }
+
+  return null;
+}
+
+function getRelatedWeekdays(value: unknown) {
+  if (Array.isArray(value)) {
+    return Array.isArray(value[0]?.weekdays) ? (value[0].weekdays as number[]) : [];
+  }
+
+  if (value && typeof value === "object" && "weekdays" in value) {
+    return Array.isArray(value.weekdays) ? (value.weekdays as number[]) : [];
+  }
+
+  return [];
 }
 
 function getRelatedName(value: unknown) {
@@ -296,101 +380,76 @@ export async function getAdminMetrics() {
     return metricsByRole.admin;
   }
 
-  const supabase = await createSupabaseServerClient();
+  const auth = await getCurrentAuthContext();
 
-  if (!supabase) {
-    return metricsByRole.admin;
-  }
+  return withDashboardCache(`admin-metrics:${auth?.userId ?? "anonymous"}`, async () => {
+    const supabase = await createSupabaseServerClient();
 
-  const [{ count: profileCount }, { count: roleCount }, { count: unreadCount }] = await Promise.all([
-    supabase.from("profiles").select("*", { head: true, count: "exact" }),
-    supabase.from("user_roles").select("*", { head: true, count: "exact" }),
-    supabase.from("notifications").select("*", { head: true, count: "exact" }).is("read_at", null),
-  ]);
+    if (!supabase) {
+      return metricsByRole.admin;
+    }
 
-  return [
-    {
-      label: "Aktif kullanici",
-      value: String(profileCount ?? 0),
-      delta: "Canli Supabase verisi",
-    },
-    {
-      label: "Rol kaydi",
-      value: String(roleCount ?? 0),
-      delta: "Kurum ici dagilim",
-    },
-    {
-      label: "Okunmamis bildirim",
-      value: String(unreadCount ?? 0),
-      delta: "Guvenlik ve operasyon akisi",
-    },
-  ] satisfies Metric[];
+    const [{ count: profileCount }, { count: roleCount }, { count: unreadCount }] = await Promise.all([
+      supabase.from("profiles").select("*", { head: true, count: "exact" }),
+      supabase.from("user_roles").select("*", { head: true, count: "exact" }),
+      supabase.from("notifications").select("*", { head: true, count: "exact" }).is("read_at", null),
+    ]);
+
+    return [
+      {
+        label: "Aktif kullanici",
+        value: String(profileCount ?? 0),
+        delta: "Canli Supabase verisi",
+      },
+      {
+        label: "Rol kaydi",
+        value: String(roleCount ?? 0),
+        delta: "Kurum ici dagilim",
+      },
+      {
+        label: "Okunmamis bildirim",
+        value: String(unreadCount ?? 0),
+        delta: "Guvenlik ve operasyon akisi",
+      },
+    ] satisfies Metric[];
+  });
 }
 
 export async function getAdminNotifications() {
   if (!isLiveEnabled()) {
-    return notificationRecords;
-  }
-
-  const supabase = await createSupabaseServerClient();
-
-  if (!supabase) {
-    return notificationRecords;
-  }
-
-  const { data } = await supabase
-    .from("notifications")
-    .select("title, channel, read_at")
-    .order("read_at", { ascending: true, nullsFirst: true })
-    .limit(4);
-
-  if (!data?.length) {
     return [] as NotificationRecord[];
   }
 
-  return data.map((item) => ({
-    title: item.title,
-    channel: item.channel === "in_app" ? "In-app" : item.channel,
-    status: item.read_at ? "Okundu" : "Yayin icin hazir",
-  })) satisfies NotificationRecord[];
+  const auth = await getCurrentAuthContext();
+
+  return withDashboardCache(`admin-notifications:${auth?.userId ?? "anonymous"}`, async () => {
+    const supabase = await createSupabaseServerClient();
+
+    if (!supabase) {
+      return [] as NotificationRecord[];
+    }
+
+    const { data } = await supabase
+      .from("notifications")
+      .select("title, channel, read_at")
+      .order("read_at", { ascending: true, nullsFirst: true })
+      .limit(4);
+
+    if (!data?.length) {
+      return [] as NotificationRecord[];
+    }
+
+    return data.map((item) => ({
+      title: item.title,
+      channel: item.channel === "in_app" ? "In-app" : item.channel,
+      status: item.read_at ? "Okundu" : "Yayin icin hazir",
+    })) satisfies NotificationRecord[];
+  });
 }
 
 export async function getAdminUsers() {
   if (!isLiveEnabled()) {
-    return [
-      {
-        id: "00000000-0000-0000-0000-000000000001",
-        name: "Zeynep Sari",
-        email: "zeynep@elitkids.com",
-        role: "Admin",
-        scope: "Tum kurum",
-        status: "Aktif",
-      },
-      {
-        id: "00000000-0000-0000-0000-000000000002",
-        name: "Can Guler",
-        email: "can@elitkids.com",
-        role: "Yonetici",
-        scope: "Tum kurum",
-        status: "Aktif",
-      },
-      {
-        id: "00000000-0000-0000-0000-000000000003",
-        name: "Ece Yilmaz",
-        email: "ece@elitkids.com",
-        role: "Koc",
-        scope: "Mini Ice",
-        status: "Aktif",
-      },
-      {
-        id: "00000000-0000-0000-0000-000000000004",
-        name: "Ayse Kaya",
-        email: "ayse@elitkids.com",
-        role: "Veli",
-        scope: "Mina Kaya",
-        status: "Aktif",
-      },
-    ] satisfies AdminUserRow[];
+    return [] as AdminUserRow[];
   }
 
   const adminClient = createSupabaseAdminClient();
@@ -439,7 +498,7 @@ export async function getOrganizationSettingsData() {
   if (!isLiveEnabled()) {
     return {
       id: "00000000-0000-0000-0000-000000000001",
-      name: "Elit Kids Akademi",
+      name: "Elit Sanat ve Spor Kulubu",
       slug: "elitkids",
       locale: "tr-TR",
       timezone: "Europe/Istanbul",
@@ -471,18 +530,18 @@ export async function getBranchSettingsData() {
     return [
       {
         id: "00000000-0000-0000-0000-000000000301",
-        name: "Ana Pist",
-        slug: "ana-pist",
-        location: "Zeytinburnu Buz Pisti",
+        name: "Merkez Kampus",
+        slug: "merkez-kampus",
+        location: "Silivri Merkez Yerleskesi",
         status: "Aktif",
         active: true,
         archived: false,
       },
       {
         id: "00000000-0000-0000-0000-000000000302",
-        name: "Mini Akademi",
-        slug: "mini-akademi",
-        location: "Atletik Gelisim Salonu",
+        name: "Cok Amacli Salon",
+        slug: "cok-amacli-salon",
+        location: "Kapali Spor Alani",
         status: "Aktif",
         active: true,
         archived: false,
@@ -590,44 +649,48 @@ export async function getManagerMetrics() {
     return metricsByRole.manager;
   }
 
-  const supabase = await createSupabaseServerClient();
+  const auth = await getCurrentAuthContext();
 
-  if (!supabase) {
-    return metricsByRole.manager;
-  }
+  return withDashboardCache(`manager-metrics:${auth?.userId ?? "anonymous"}`, async () => {
+    const supabase = await createSupabaseServerClient();
 
-  const [studentsCount, sessionsCount, chargesData] = await Promise.all([
-    supabase.from("students").select("*", { head: true, count: "exact" }),
-    supabase.from("sessions").select("*", { head: true, count: "exact" }).is("cancelled_at", null),
-    supabase.from("charges").select("amount, payments(amount)"),
-  ]);
+    if (!supabase) {
+      return metricsByRole.manager;
+    }
 
-  const outstanding = calculateOutstandingBalance(
-    (chargesData.data ?? []).map((row) => ({
-      amount: Number(row.amount ?? 0),
-      paid: Array.isArray(row.payments)
-        ? row.payments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0)
-        : 0,
-    })),
-  );
+    const [studentsCount, sessionsCount, chargesData] = await Promise.all([
+      supabase.from("students").select("*", { head: true, count: "exact" }),
+      supabase.from("sessions").select("*", { head: true, count: "exact" }).is("cancelled_at", null),
+      supabase.from("charges").select("amount, payments(amount)"),
+    ]);
 
-  return [
-    {
-      label: "Toplam ogrenci",
-      value: String(studentsCount.count ?? 0),
-      delta: "Canli kayit havuzu",
-    },
-    {
-      label: "Planli seans",
-      value: String(sessionsCount.count ?? 0),
-      delta: "Takvim verisi",
-    },
-    {
-      label: "Acik borc",
-      value: formatTry(outstanding),
-      delta: "Tahakkuk ve odeme farki",
-    },
-  ] satisfies Metric[];
+    const outstanding = calculateOutstandingBalance(
+      (chargesData.data ?? []).map((row) => ({
+        amount: Number(row.amount ?? 0),
+        paid: Array.isArray(row.payments)
+          ? row.payments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0)
+          : 0,
+      })),
+    );
+
+    return [
+      {
+        label: "Toplam ogrenci",
+        value: String(studentsCount.count ?? 0),
+        delta: "Canli kayit havuzu",
+      },
+      {
+        label: "Planli seans",
+        value: String(sessionsCount.count ?? 0),
+        delta: "Takvim verisi",
+      },
+      {
+        label: "Acik borc",
+        value: formatTry(outstanding),
+        delta: "Tahakkuk ve odeme farki",
+      },
+    ] satisfies Metric[];
+  });
 }
 
 async function getStudentBalanceMap(studentIds: string[]) {
@@ -710,7 +773,7 @@ async function getAttendanceMap(studentIds: string[]) {
 
 export async function getManagerStudents() {
   if (!isLiveEnabled()) {
-    return studentRecords;
+    return [] as StudentRecord[];
   }
 
   const auth = await getCurrentAuthContext();
@@ -726,6 +789,9 @@ export async function getManagerStudents() {
     return [] as StudentRecord[];
   }
 
+  await backfillMissingAllocationsForOrganization(adminClient, organizationContext.organizationId);
+  await syncPastAllocationsForOrganization(adminClient, organizationContext.organizationId);
+
   const { data: students } = await adminClient
     .from("students")
     .select("id, full_name, birth_date, gender, active")
@@ -739,10 +805,13 @@ export async function getManagerStudents() {
   const studentIds = students.map((student) => student.id);
   const { data: enrollments } = await adminClient
     .from("enrollments")
-    .select("id, student_id, status, program_id, programs(title, age_band)")
+    .select(
+      "id, student_id, status, program_id, session_series_id, starts_on, ends_on, programs(title, age_band), session_series(title, start_time, weekdays)",
+    )
     .in("student_id", studentIds);
 
   const enrollmentIds = (enrollments ?? []).map((enrollment) => enrollment.id);
+  const allocationSummaryMap = await getAllocationSummaryMap(adminClient, enrollmentIds);
   const { data: charges } = await adminClient
     .from("charges")
     .select("id, enrollment_id, amount, status")
@@ -766,12 +835,31 @@ export async function getManagerStudents() {
   ]);
 
   return students.map((student) => {
-    const enrollment = (enrollments ?? []).find((item) => item.student_id === student.id);
+    const enrollment = (enrollments ?? [])
+      .filter((item) => item.student_id === student.id)
+      .sort((left, right) => {
+        if (left.status === "active" && right.status !== "active") {
+          return -1;
+        }
+
+        if (left.status !== "active" && right.status === "active") {
+          return 1;
+        }
+
+        return (right.starts_on ?? "").localeCompare(left.starts_on ?? "");
+      })[0];
     const balance = balances.get(student.id) ?? 0;
     const detail = (detailProfiles ?? []).find((item) => item.student_id === student.id);
     const reportCard = (reportCards ?? []).find((item) => item.student_id === student.id);
     const studentCharges = (charges ?? []).filter((charge) => charge.enrollment_id === enrollment?.id);
     const programName = getRelatedTitle(enrollment?.programs) ?? "Program baglanmadi";
+    const sessionSeriesLabel = enrollment?.session_series_id
+      ? formatSessionSeriesLabel({
+          title: getRelatedTitle(enrollment.session_series) ?? "Grup",
+          weekdays: getRelatedWeekdays(enrollment.session_series),
+          startTime: getRelatedStartTime(enrollment.session_series),
+        })
+      : null;
     const programAgeBand = getRelatedAgeBand(enrollment?.programs);
     const category = detail?.category || programAgeBand || programName;
     const legacyDetail = detail
@@ -798,6 +886,7 @@ export async function getManagerStudents() {
 
     return {
       id: student.id,
+      enrollmentId: enrollment?.id,
       initials: getStudentInitials(student.full_name),
       name: student.full_name,
       club: detail?.club_name || organizationContext.organization?.name || "Kulup baglanmadi",
@@ -811,6 +900,14 @@ export async function getManagerStudents() {
       balance: formatTry(balance),
       status: getStudentLifecycleStatus(balance, student.active ?? true),
       programId: enrollment?.program_id,
+      sessionSeriesId: enrollment?.session_series_id ?? null,
+      sessionSeriesLabel,
+      enrollmentStartsOn: enrollment?.starts_on ?? null,
+      allocatedLessons: enrollment?.id ? allocationSummaryMap.get(enrollment.id)?.allocatedLessons ?? 0 : 0,
+      consumedLessons: enrollment?.id ? allocationSummaryMap.get(enrollment.id)?.consumedLessons ?? 0 : 0,
+      remainingLessons: enrollment?.id ? allocationSummaryMap.get(enrollment.id)?.remainingLessons ?? 0 : 0,
+      nextAllocatedSessionAt: enrollment?.id ? allocationSummaryMap.get(enrollment.id)?.nextAllocatedSessionAt ?? null : null,
+      lastAllocatedSessionAt: enrollment?.id ? allocationSummaryMap.get(enrollment.id)?.lastAllocatedSessionAt ?? null : null,
       chargeOptions: studentCharges
         .filter((charge) => charge.status !== "paid")
         .map((charge) => ({
@@ -828,62 +925,7 @@ export async function getManagerStudents() {
 
 export async function getProgramsData() {
   if (!isLiveEnabled()) {
-    return [
-      {
-        id: "mock-program-1",
-        title: "Mini Ice / 6-8 Yas",
-        ageBand: "6-8 Yas",
-        capacity: 16,
-        monthlyPrice: 4800,
-        detail: "Grup Dersi · 2026 Bahar · Mini Akademi · Kontenjan 16",
-        programTypeName: "Grup Dersi",
-        seasonTitle: "2026 Bahar",
-        categoryName: "Baslangic",
-        branchName: "Mini Akademi",
-        sportsBranchName: "Buz Pateni",
-        coachName: "Ece Yilmaz",
-        areaName: "Ana Pist",
-        enrolledCount: 12,
-        monthlyLessonQuota: 8,
-        status: "active",
-      },
-      {
-        id: "mock-program-2",
-        title: "Power Skating / 9-12 Yas",
-        ageBand: "9-12 Yas",
-        capacity: 20,
-        monthlyPrice: 6250,
-        detail: "Grup Dersi · 2026 Bahar · Ana Pist · Kontenjan 20",
-        programTypeName: "Grup Dersi",
-        seasonTitle: "2026 Bahar",
-        categoryName: "Yildiz B",
-        branchName: "Ana Pist",
-        sportsBranchName: "Yuzme",
-        coachName: "Hamza Sancar",
-        areaName: "Ana Pist",
-        enrolledCount: 18,
-        monthlyLessonQuota: 8,
-        status: "active",
-      },
-      {
-        id: "mock-program-3",
-        title: "Artistik Baslangic",
-        ageBand: "Baslangic",
-        capacity: 14,
-        monthlyPrice: 5400,
-        detail: "Grup Dersi · 2026 Yaz Kampi · Mini Akademi · Kontenjan 14",
-        programTypeName: "Grup Dersi",
-        seasonTitle: "2026 Yaz Kampi",
-        categoryName: "Hokey A",
-        branchName: "Mini Akademi",
-        sportsBranchName: "Jimnastik",
-        coachName: "Ece Yilmaz",
-        areaName: "Mini Salon",
-        enrolledCount: 6,
-        monthlyLessonQuota: 8,
-        status: "active",
-      },
-    ] satisfies ProgramRecord[];
+    return [] as ProgramRecord[];
   }
 
   const auth = await getCurrentAuthContext();
@@ -909,14 +951,26 @@ export async function getProgramsData() {
     .order("title");
 
   const programIds = (data ?? []).map((program) => program.id);
-  const { data: enrollments } = await adminClient
-    .from("enrollments")
-    .select("program_id")
-    .in("program_id", programIds.length ? programIds : ["00000000-0000-0000-0000-000000000000"]);
+  const [{ data: enrollments }, { data: sessionSeries }] = await Promise.all([
+    adminClient
+      .from("enrollments")
+      .select("program_id")
+      .eq("status", "active")
+      .in("program_id", programIds.length ? programIds : ["00000000-0000-0000-0000-000000000000"]),
+    adminClient
+      .from("session_series")
+      .select("program_id")
+      .in("program_id", programIds.length ? programIds : ["00000000-0000-0000-0000-000000000000"])
+      .in("status", ["active", "paused"]),
+  ]);
 
   const enrollmentCounts = new Map<string, number>();
   (enrollments ?? []).forEach((enrollment) => {
     enrollmentCounts.set(enrollment.program_id, (enrollmentCounts.get(enrollment.program_id) ?? 0) + 1);
+  });
+  const sessionSeriesCounts = new Map<string, number>();
+  (sessionSeries ?? []).forEach((series) => {
+    sessionSeriesCounts.set(series.program_id, (sessionSeriesCounts.get(series.program_id) ?? 0) + 1);
   });
 
   return (data ?? []).map((program) => {
@@ -952,6 +1006,7 @@ export async function getProgramsData() {
       areaName: getRelatedName(program.areas) ?? "Alan belirtilmedi",
       notes: program.notes ?? "",
       enrolledCount,
+      sessionSeriesCount: sessionSeriesCounts.get(program.id) ?? 0,
       monthlyLessonQuota: Number(program.monthly_lesson_quota ?? 8),
       status: "active",
     };
@@ -960,29 +1015,7 @@ export async function getProgramsData() {
 
 export async function getProgramOptions() {
   if (!isLiveEnabled()) {
-    return [
-      {
-        id: "00000000-0000-0000-0000-000000000001",
-        title: "Mini Ice / 6-8 Yas",
-        branchName: "Mini Akademi",
-        categoryName: "Baslangic",
-        areaName: "Ana Pist",
-      },
-      {
-        id: "00000000-0000-0000-0000-000000000002",
-        title: "Power Skating / 9-12 Yas",
-        branchName: "Ana Pist",
-        categoryName: "Yildiz B",
-        areaName: "Ana Pist",
-      },
-      {
-        id: "00000000-0000-0000-0000-000000000003",
-        title: "Artistik Baslangic",
-        branchName: "Mini Akademi",
-        categoryName: "Hokey A",
-        areaName: "Mini Salon",
-      },
-    ] satisfies ProgramOption[];
+    return [] as ProgramOption[];
   }
 
   const auth = await getCurrentAuthContext();
@@ -1013,9 +1046,54 @@ export async function getProgramOptions() {
   })) satisfies ProgramOption[];
 }
 
+export async function getSessionSeriesOptions() {
+  if (!isLiveEnabled()) {
+    return [] as SessionSeriesOption[];
+  }
+
+  const auth = await getCurrentAuthContext();
+  const adminClient = createSupabaseAdminClient();
+
+  if (!auth?.userId || !adminClient) {
+    return [] as SessionSeriesOption[];
+  }
+
+  const context = await getOrCreateOrganizationContext(auth.userId);
+  if (!context.organizationId) {
+    return [] as SessionSeriesOption[];
+  }
+
+  const { data } = await adminClient
+    .from("session_series")
+    .select(
+      "id, title, program_id, starts_on, ends_on, start_time, weekdays, status, programs!inner(title, organization_id)",
+    )
+    .eq("programs.organization_id", context.organizationId)
+    .in("status", ["active", "paused"])
+    .order("starts_on", { ascending: true });
+
+  return (data ?? [])
+    .filter((series) => series.program_id)
+    .map((series) => ({
+      id: series.id,
+      programId: series.program_id,
+      programTitle: getRelatedTitle(series.programs) ?? "Program",
+      title: series.title,
+      label: formatSessionSeriesLabel({
+        title: series.title,
+        weekdays: Array.isArray(series.weekdays) ? (series.weekdays as number[]) : [],
+        startTime: series.start_time,
+      }),
+      startsOn: series.starts_on,
+      endsOn: series.ends_on,
+      status:
+        series.status === "paused" || series.status === "cancelled" ? series.status : "active",
+    })) satisfies SessionSeriesOption[];
+}
+
 export async function getCoachOptions() {
   if (!isLiveEnabled()) {
-    return [{ id: "00000000-0000-0000-0000-000000000101", name: "Ece Yilmaz" }] satisfies CoachOption[];
+    return [] as CoachOption[];
   }
 
   const auth = await getCurrentAuthContext();
@@ -1175,17 +1253,7 @@ export async function getProgramResourceAdminData(): Promise<ProgramResourceAdmi
 
 export async function getSessionsData() {
   if (!isLiveEnabled()) {
-    return sessionRecords.map((session, index) => ({
-      ...session,
-      programTitle: session.title,
-      branchName: index % 2 === 0 ? "Ana Pist" : "Mini Akademi",
-      sportsBranchName: index % 2 === 0 ? "Yuzme" : "Jimnastik",
-      areaName: session.location,
-      studentCount: Number(session.roster.replace(/[^\d]/g, "") || 0),
-      capacity: 8,
-      sessionSeriesId: `mock-series-${index}`,
-      notes: "",
-    }));
+    return [] as SessionRecord[];
   }
 
   const auth = await getCurrentAuthContext();
@@ -1202,7 +1270,31 @@ export async function getSessionsData() {
     return [] as SessionRecord[];
   }
 
-  let allowedProgramIds: string[] = [];
+  await backfillMissingAllocationsForOrganization(adminClient, context.organizationId);
+  await backfillMissingAllocationsForOrganization(adminClient, context.organizationId);
+  await syncPastAllocationsForOrganization(adminClient, context.organizationId);
+
+  let sessions:
+    | Array<{
+        id: string;
+        title: string;
+        starts_at: string;
+        ends_at: string;
+        location: string | null;
+        notes: string | null;
+        program_id: string;
+        coach_profile_id: string | null;
+        area_id: string | null;
+        session_series_id: string | null;
+      }>
+    | null = null;
+  let allocationRows:
+    | Array<{
+        session_id: string;
+        student_id: string;
+        status: string;
+      }>
+    | null = null;
 
   if (role === "parent" && userId) {
     const { data: links } = await adminClient
@@ -1210,32 +1302,52 @@ export async function getSessionsData() {
       .select("student_id")
       .eq("parent_profile_id", userId);
     const studentIds = (links ?? []).map((link) => link.student_id);
-    const { data: enrollments } = await adminClient
-      .from("enrollments")
-      .select("program_id")
-      .in("student_id", studentIds.length ? studentIds : ["00000000-0000-0000-0000-000000000000"]);
-    allowedProgramIds = Array.from(new Set((enrollments ?? []).map((enrollment) => enrollment.program_id)));
+    const { data: parentAllocations } = await adminClient
+      .from("enrollment_session_allocations")
+      .select("session_id, student_id, status")
+      .in("student_id", studentIds.length ? studentIds : ["00000000-0000-0000-0000-000000000000"])
+      .neq("status", "cancelled");
+    const sessionIds = Array.from(new Set((parentAllocations ?? []).map((allocation) => allocation.session_id)));
+
+    const { data: sessionRows } = await adminClient
+      .from("sessions")
+      .select("id, title, starts_at, ends_at, location, notes, program_id, coach_profile_id, area_id, session_series_id")
+      .is("cancelled_at", null)
+      .in("id", sessionIds.length ? sessionIds : ["00000000-0000-0000-0000-000000000000"])
+      .gte("starts_at", new Date().toISOString())
+      .order("starts_at")
+      .limit(200);
+
+    sessions = sessionRows;
+    allocationRows = parentAllocations;
   } else {
     const { data: programs } = await adminClient
       .from("programs")
       .select("id")
       .eq("organization_id", context.organizationId)
       .is("archived_at", null);
-    allowedProgramIds = (programs ?? []).map((program) => program.id);
+    const allowedProgramIds = (programs ?? []).map((program) => program.id);
+
+    let query = adminClient
+      .from("sessions")
+      .select("id, title, starts_at, ends_at, location, notes, program_id, coach_profile_id, area_id, session_series_id")
+      .is("cancelled_at", null)
+      .in("program_id", allowedProgramIds.length ? allowedProgramIds : ["00000000-0000-0000-0000-000000000000"])
+      .order("starts_at");
+
+    if (role === "coach" && userId) {
+      query = query.eq("coach_profile_id", userId);
+    }
+
+    sessions = await query.limit(200).then((result) => result.data);
+    const sessionIds = Array.from(new Set((sessions ?? []).map((session) => session.id)));
+    const { data: rows } = await adminClient
+      .from("enrollment_session_allocations")
+      .select("session_id, student_id, status")
+      .in("session_id", sessionIds.length ? sessionIds : ["00000000-0000-0000-0000-000000000000"])
+      .neq("status", "cancelled");
+    allocationRows = rows;
   }
-
-  let query = adminClient
-    .from("sessions")
-    .select("id, title, starts_at, ends_at, location, notes, program_id, coach_profile_id, cancelled_at, area_id, session_series_id")
-    .is("cancelled_at", null)
-    .in("program_id", allowedProgramIds.length ? allowedProgramIds : ["00000000-0000-0000-0000-000000000000"])
-    .order("starts_at");
-
-  if (role === "coach" && userId) {
-    query = query.eq("coach_profile_id", userId);
-  }
-
-  const { data: sessions } = await query.limit(200);
 
   if (!sessions?.length) {
     return [];
@@ -1245,8 +1357,7 @@ export async function getSessionsData() {
   const coachIds = Array.from(new Set(sessions.map((session) => session.coach_profile_id).filter(Boolean)));
   const areaIds = Array.from(new Set(sessions.map((session) => session.area_id).filter(Boolean)));
 
-  const [{ data: enrollments }, { data: programs }, { data: coaches }, { data: areas }] = await Promise.all([
-    adminClient.from("enrollments").select("program_id").in("program_id", programIds),
+  const [{ data: programs }, { data: coaches }, { data: areas }] = await Promise.all([
     adminClient
       .from("programs")
       .select("id, title, capacity, branches(name), sports_branches(name), areas(name)")
@@ -1259,18 +1370,23 @@ export async function getSessionsData() {
       : Promise.resolve({ data: [] as Array<{ id: string; name: string }> }),
   ]);
 
-  const rosterCounts = new Map<string, number>();
-  (enrollments ?? []).forEach((enrollment) => {
-    rosterCounts.set(enrollment.program_id, (rosterCounts.get(enrollment.program_id) ?? 0) + 1);
-  });
-
   const programMap = new Map((programs ?? []).map((program) => [program.id, program]));
   const coachMap = new Map((coaches ?? []).map((coach) => [coach.id, coach.full_name]));
   const areaMap = new Map((areas ?? []).map((area) => [area.id, area.name]));
+  const allocationsBySession = new Map<string, Array<{ student_id: string; status: string }>>();
+
+  (allocationRows ?? []).forEach((allocation) => {
+    const current = allocationsBySession.get(allocation.session_id) ?? [];
+    current.push({
+      student_id: allocation.student_id,
+      status: allocation.status,
+    });
+    allocationsBySession.set(allocation.session_id, current);
+  });
 
   return sessions.map((session) => {
     const program = programMap.get(session.program_id);
-    const studentCount = rosterCounts.get(session.program_id) ?? 0;
+    const studentCount = allocationsBySession.get(session.id)?.length ?? 0;
     const capacity = Number(program?.capacity ?? 0);
 
     return {
@@ -1300,31 +1416,23 @@ export async function getSessionsData() {
 
 export async function getCoachSessionBoards() {
   if (!isLiveEnabled()) {
-    return sessionRecords.map((session, index) => ({
-      sessionId: `mock-session-${index}`,
-      title: session.title,
-      slot: session.slot,
-      location: session.location,
-      roster: session.roster,
-      students: studentRecords.slice(0, 3).map((student) => ({
-        studentId: `${index}-${student.name}`,
-        name: student.name,
-        status: student.status === "Aktif" ? "present" : "absent",
-        note: "",
-      })),
-    })) satisfies CoachSessionBoard[];
-  }
-
-  const supabase = await createSupabaseServerClient();
-  const auth = await getCurrentAuthContext();
-
-  if (!supabase || !auth?.userId) {
     return [] as CoachSessionBoard[];
   }
 
-  let sessionQuery = supabase
+  const auth = await getCurrentAuthContext();
+  const adminClient = createSupabaseAdminClient();
+  const context = auth?.userId ? await getOrCreateOrganizationContext(auth.userId) : null;
+
+  if (!adminClient || !auth?.userId || !context?.organizationId) {
+    return [] as CoachSessionBoard[];
+  }
+
+  await backfillMissingAllocationsForOrganization(adminClient, context.organizationId);
+  await syncPastAllocationsForOrganization(adminClient, context.organizationId);
+
+  let sessionQuery = adminClient
     .from("sessions")
-    .select("id, title, starts_at, ends_at, location, program_id")
+    .select("id, title, starts_at, ends_at, location, program_id, session_series_id")
     .is("cancelled_at", null)
     .order("starts_at");
 
@@ -1338,22 +1446,27 @@ export async function getCoachSessionBoards() {
     return [] as CoachSessionBoard[];
   }
 
-  const programIds = Array.from(new Set(sessions.map((session) => session.program_id)));
-  const { data: enrollments } = await supabase
-    .from("enrollments")
-    .select("program_id, student_id, students(full_name)")
-    .in("program_id", programIds);
-
   const sessionIds = sessions.map((session) => session.id);
-  const { data: attendanceRows } = await supabase
-    .from("attendance_records")
-    .select("session_id, student_id, status, note")
-    .in("session_id", sessionIds);
+  const [{ data: allocations }, { data: attendanceRows }] = await Promise.all([
+    adminClient
+      .from("enrollment_session_allocations")
+      .select("session_id, student_id, status")
+      .in("session_id", sessionIds)
+      .neq("status", "cancelled"),
+    adminClient
+      .from("attendance_records")
+      .select("session_id, student_id, status, note")
+      .in("session_id", sessionIds),
+  ]);
+  const studentIds = Array.from(new Set((allocations ?? []).map((item) => item.student_id)));
+  const { data: students } = await adminClient
+    .from("students")
+    .select("id, full_name")
+    .in("id", studentIds.length ? studentIds : ["00000000-0000-0000-0000-000000000000"]);
+  const studentMap = new Map((students ?? []).map((student) => [student.id, student.full_name]));
 
   return sessions.map((session) => {
-    const sessionStudents = (enrollments ?? []).filter(
-      (enrollment) => enrollment.program_id === session.program_id,
-    );
+    const sessionStudents = (allocations ?? []).filter((allocation) => allocation.session_id === session.id);
 
     return {
       sessionId: session.id,
@@ -1361,16 +1474,22 @@ export async function getCoachSessionBoards() {
       slot: formatDateTimeRange(session.starts_at, session.ends_at),
       location: session.location ?? "Alan belirtilmedi",
       roster: `${sessionStudents.length} sporcu`,
-      students: sessionStudents.map((enrollment) => {
+      dateLabel: formatDayLabel(session.starts_at),
+      dayKey: formatDayKey(session.starts_at),
+      dayShort: formatDayShort(session.starts_at),
+      startTime: formatTimeValue(session.starts_at),
+      endTime: formatTimeValue(session.ends_at),
+      students: sessionStudents.map((allocation): AttendanceStudent => {
         const attendance = (attendanceRows ?? []).find(
-          (row) => row.session_id === session.id && row.student_id === enrollment.student_id,
+          (row) => row.session_id === session.id && row.student_id === allocation.student_id,
         );
 
         return {
-          studentId: enrollment.student_id,
-          name: getRelatedFullName(enrollment.students) ?? "Ogrenci",
+          studentId: allocation.student_id,
+          name: studentMap.get(allocation.student_id) ?? "Ogrenci",
           status: attendance?.status ?? "present",
           note: attendance?.note ?? "",
+          allocationStatus: allocation.status === "consumed" ? "consumed" : "planned",
         };
       }),
     };
@@ -1379,7 +1498,7 @@ export async function getCoachSessionBoards() {
 
 export async function getChargeData() {
   if (!isLiveEnabled()) {
-    return chargeRecords;
+    return [] as ChargeRecord[];
   }
 
   const supabase = await createSupabaseServerClient();
@@ -1438,12 +1557,7 @@ export async function getChargeData() {
 
 export async function getChargeOptions() {
   if (!isLiveEnabled()) {
-    return chargeRecords.map((charge, index) => ({
-      id: `mock-${index}`,
-      label: charge.item,
-      amount: charge.amount,
-      status: charge.status,
-    })) satisfies ChargeOption[];
+    return [] as ChargeOption[];
   }
 
   const supabase = await createSupabaseServerClient();
@@ -1510,7 +1624,7 @@ export async function getChargeOptions() {
 
 export async function getAnnouncementsData() {
   if (!isLiveEnabled()) {
-    return announcementRecords;
+    return [] as AnnouncementRecord[];
   }
 
   const supabase = await createSupabaseServerClient();
@@ -1535,7 +1649,7 @@ export async function getAnnouncementsData() {
 
 export async function getNotificationData() {
   if (!isLiveEnabled()) {
-    return notificationRecords;
+    return [] as NotificationRecord[];
   }
 
   return getAdminNotifications();
@@ -1546,63 +1660,67 @@ export async function getCoachMetrics() {
     return metricsByRole.coach;
   }
 
-  const supabase = await createSupabaseServerClient();
   const auth = await getCurrentAuthContext();
 
-  if (!supabase || !auth?.userId) {
+  if (!auth?.userId) {
     return metricsByRole.coach;
   }
 
-  const sessionProgramQuery = supabase.from("sessions").select("program_id").is("cancelled_at", null);
-  const sessionCountQuery = supabase
-    .from("sessions")
-    .select("*", { head: true, count: "exact" })
-    .is("cancelled_at", null);
+  return withDashboardCache(`coach-metrics:${auth.userId}:${auth.role}`, async () => {
+    const supabase = await createSupabaseServerClient();
 
-  if (auth.role !== "admin") {
-    sessionProgramQuery.eq("coach_profile_id", auth.userId);
-    sessionCountQuery.eq("coach_profile_id", auth.userId);
-  }
+    if (!supabase) {
+      return metricsByRole.coach;
+    }
 
-  const sessionProgramsResult = await sessionProgramQuery;
-  const programIds = sessionProgramsResult.data?.map((row) => row.program_id) ?? [
-    "00000000-0000-0000-0000-000000000000",
-  ];
+    const sessionProgramQuery = supabase
+      .from("sessions")
+      .select("program_id, session_series_id")
+      .is("cancelled_at", null);
+    const sessionCountQuery = supabase
+      .from("sessions")
+      .select("*", { head: true, count: "exact" })
+      .is("cancelled_at", null);
 
-  const [{ count: sessionCount }, { count: rosterCount }, { count: pendingAttendance }] = await Promise.all([
-    sessionCountQuery,
-    supabase
-      .from("enrollments")
-      .select("id", { head: true, count: "exact" })
-      .in("program_id", programIds),
-    supabase.from("attendance_records").select("*", { head: true, count: "exact" }).eq("status", "absent"),
-  ]);
+    if (auth.role !== "admin") {
+      sessionProgramQuery.eq("coach_profile_id", auth.userId);
+      sessionCountQuery.eq("coach_profile_id", auth.userId);
+    }
 
-  return [
-    { label: "Toplam seans", value: String(sessionCount ?? 0), delta: "Koc bagli takvim" },
-    { label: "Bagli roster", value: String(rosterCount ?? 0), delta: "Canli kayit listesi" },
-    { label: "Aksiyon sinyali", value: String(pendingAttendance ?? 0), delta: "Takip gereken kayit" },
-  ] satisfies Metric[];
+    const sessionProgramsResult = await sessionProgramQuery;
+    const sessionSeriesIds = sessionProgramsResult.data
+      ?.map((row) => row.session_series_id)
+      .filter((value): value is string => Boolean(value)) ?? ["00000000-0000-0000-0000-000000000000"];
+
+    const [{ count: sessionCount }, { count: rosterCount }, { count: pendingAttendance }] =
+      await Promise.all([
+        sessionCountQuery,
+        supabase
+          .from("enrollment_session_allocations")
+          .select("id", { head: true, count: "exact" })
+          .in("session_series_id", sessionSeriesIds)
+          .neq("status", "cancelled"),
+        supabase
+          .from("attendance_records")
+          .select("*", { head: true, count: "exact" })
+          .eq("status", "absent"),
+      ]);
+
+    return [
+      { label: "Toplam seans", value: String(sessionCount ?? 0), delta: "Koc bagli takvim" },
+      { label: "Bagli roster", value: String(rosterCount ?? 0), delta: "Canli kayit listesi" },
+      {
+        label: "Aksiyon sinyali",
+        value: String(pendingAttendance ?? 0),
+        delta: "Takip gereken kayit",
+      },
+    ] satisfies Metric[];
+  });
 }
 
 export async function getCoachStudents() {
   if (!isLiveEnabled()) {
-    return studentRecords.map((student) => ({
-      id: student.id,
-      initials: student.initials,
-      name: student.name,
-      club: student.club,
-      category: student.category,
-      gender: student.gender,
-      birthDate: student.birthDate,
-      program: student.program,
-      coach: student.coach,
-      attendance: student.attendance,
-      status: student.status,
-      detailSaved: student.detailSaved,
-      reportCard: student.reportCard ?? null,
-      detailEntries: student.detailEntries ?? [],
-    })) satisfies CoachStudentRecord[];
+    return [] as CoachStudentRecord[];
   }
 
   const auth = await getCurrentAuthContext();
@@ -1612,7 +1730,10 @@ export async function getCoachStudents() {
     return [] as CoachStudentRecord[];
   }
 
-  let coachSessionsQuery = adminClient.from("sessions").select("program_id").is("cancelled_at", null);
+  let coachSessionsQuery = adminClient
+    .from("sessions")
+    .select("program_id, session_series_id")
+    .is("cancelled_at", null);
 
   if (auth.role !== "admin") {
     coachSessionsQuery = coachSessionsQuery.eq("coach_profile_id", auth.userId);
@@ -1621,10 +1742,21 @@ export async function getCoachStudents() {
   const { data: coachSessions } = await coachSessionsQuery;
 
   const programIds = Array.from(new Set((coachSessions ?? []).map((session) => session.program_id)));
+  const sessionSeriesIds = Array.from(
+    new Set(
+      (coachSessions ?? [])
+        .map((session) => session.session_series_id)
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
   const { data: enrollments } = await adminClient
     .from("enrollments")
-    .select("student_id, programs(title)")
-    .in("program_id", programIds.length ? programIds : ["00000000-0000-0000-0000-000000000000"]);
+    .select("student_id, session_series_id, programs(title)")
+    .in("program_id", programIds.length ? programIds : ["00000000-0000-0000-0000-000000000000"])
+    .in(
+      "session_series_id",
+      sessionSeriesIds.length ? sessionSeriesIds : ["00000000-0000-0000-0000-000000000000"],
+    );
 
   const studentIds = Array.from(new Set((enrollments ?? []).map((enrollment) => enrollment.student_id)));
   const { data: students } = await adminClient
@@ -1699,77 +1831,69 @@ export async function getParentMetrics() {
   }
 
   const auth = await getCurrentAuthContext();
-  const supabase = await createSupabaseServerClient();
 
-  if (!supabase || !auth?.userId) {
+  if (!auth?.userId) {
     return metricsByRole.parent;
   }
 
-  let studentIds: string[] = [];
+  return withDashboardCache(`parent-metrics:${auth.userId}:${auth.role}`, async () => {
+    const supabase = await createSupabaseServerClient();
 
-  if (auth.role === "admin") {
-    const { data: students } = await supabase.from("students").select("id");
-    studentIds = (students ?? []).map((student) => student.id);
-  } else {
-    const { data: links } = await supabase
-      .from("parent_student_links")
-      .select("student_id")
-      .eq("parent_profile_id", auth.userId);
-    studentIds = (links ?? []).map((link) => link.student_id);
-  }
+    if (!supabase) {
+      return metricsByRole.parent;
+    }
 
-  const sessions = await getSessionsData();
-  const charges = await getChargeData();
-  const attendance = await getAttendanceMap(studentIds);
-  const attendanceValues = Array.from(attendance.values())
-    .map((value) => Number(value.replace("%", "")))
-    .filter((value) => !Number.isNaN(value));
-  const averageAttendance = attendanceValues.length
-    ? Math.round(attendanceValues.reduce((sum, value) => sum + value, 0) / attendanceValues.length)
-    : 0;
+    let studentIds: string[] = [];
 
-  const totalOutstanding = charges.reduce((sum, charge) => {
-    const digits = charge.amount.replace(/[^\d]/g, "");
-    return sum + Number(digits || 0);
-  }, 0);
+    if (auth.role === "admin") {
+      const { data: students } = await supabase.from("students").select("id");
+      studentIds = (students ?? []).map((student) => student.id);
+    } else {
+      const { data: links } = await supabase
+        .from("parent_student_links")
+        .select("student_id")
+        .eq("parent_profile_id", auth.userId);
+      studentIds = (links ?? []).map((link) => link.student_id);
+    }
 
-  return [
-    {
-      label: "Bu hafta seans",
-      value: String(sessions.length),
-      delta: "Bagli ogrenci takvimi",
-    },
-    {
-      label: "Devam orani",
-      value: `%${averageAttendance}`,
-      delta: "Canli attendance verisi",
-    },
-    {
-      label: "Acik bakiye",
-      value: formatTry(totalOutstanding),
-      delta: "Tahakkuk farki",
-    },
-  ] satisfies Metric[];
+    const sessions = await getSessionsData();
+    const charges = await getChargeData();
+    const attendance = await getAttendanceMap(studentIds);
+    const attendanceValues = Array.from(attendance.values())
+      .map((value) => Number(value.replace("%", "")))
+      .filter((value) => !Number.isNaN(value));
+    const averageAttendance = attendanceValues.length
+      ? Math.round(attendanceValues.reduce((sum, value) => sum + value, 0) / attendanceValues.length)
+      : 0;
+
+    const totalOutstanding = charges.reduce((sum, charge) => {
+      const digits = charge.amount.replace(/[^\d]/g, "");
+      return sum + Number(digits || 0);
+    }, 0);
+
+    return [
+      {
+        label: "Bu hafta seans",
+        value: String(sessions.length),
+        delta: "Bagli ogrenci takvimi",
+      },
+      {
+        label: "Devam orani",
+        value: `%${averageAttendance}`,
+        delta: "Canli attendance verisi",
+      },
+      {
+        label: "Acik bakiye",
+        value: formatTry(totalOutstanding),
+        delta: "Tahakkuk farki",
+      },
+    ] satisfies Metric[];
+  });
 }
 
 export async function getParentNotificationsData() {
   if (!isLiveEnabled()) {
-    return [
-      {
-        id: "00000000-0000-0000-0000-000000000201",
-        title: "Yeni odeme kaydi eklendi",
-        body: "Tahakkuk odemesi guncellendi. Kalan bakiye ozete yansitildi.",
-        channel: "In-app",
-        status: "Okunmadi",
-      },
-      {
-        id: "00000000-0000-0000-0000-000000000202",
-        title: "Hafta sonu seansi hatirlatmasi",
-        body: "Cumartesi gunu Ana Pist seansi saat 10:00'da baslayacak.",
-        channel: "In-app",
-        status: "Okundu",
-      },
-    ] satisfies ParentNotification[];
+    return [] as ParentNotification[];
   }
 
   const auth = await getCurrentAuthContext();
@@ -1813,13 +1937,12 @@ export async function getParentReportCards() {
   }
 
   if (!isLiveEnabled()) {
-    return studentRecords
-      .filter((student) => student.reportCard)
-      .map((student) => ({
-        studentId: student.id,
-        studentName: student.name,
-        ...(student.reportCard as StudentReportCard),
-      }));
+    return [] as Array<
+      StudentReportCard & {
+        studentId: string;
+        studentName: string;
+      }
+    >;
   }
 
   const adminClient = createSupabaseAdminClient();
@@ -1904,7 +2027,7 @@ export async function getParentReportCards() {
 
 export async function getSupportThreadsData() {
   if (!isLiveEnabled()) {
-    return supportThreads;
+    return [] as SupportThread[];
   }
 
   const auth = await getCurrentAuthContext();
@@ -1934,20 +2057,7 @@ export async function getSupportThreadsData() {
 
 export async function getAuditLogRows() {
   if (!isLiveEnabled()) {
-    return [
-      {
-        event: "Landing page guncellendi",
-        actor: "Cagri Sancar",
-        scope: "Landing editoru",
-        createdAt: "05 Nis 2026",
-      },
-      {
-        event: "Yeni yonetici kullanicisi acildi",
-        actor: "Cagri Sancar",
-        scope: "Kullanici ve roller",
-        createdAt: "04 Nis 2026",
-      },
-    ] satisfies AuditLogRow[];
+    return [] as AuditLogRow[];
   }
 
   const supabase = await createSupabaseServerClient();
@@ -1982,15 +2092,7 @@ export async function getAuditLogRows() {
 
 export async function getLeadSubmissionRows() {
   if (!isLiveEnabled()) {
-    return [
-      {
-        fullName: "Doga Yilmaz",
-        email: "doga.veli@example.com",
-        phone: "0533 204 11 90",
-        status: "Yeni",
-        createdAt: "05 Nis 2026",
-      },
-    ] satisfies LeadSubmissionRow[];
+    return [] as LeadSubmissionRow[];
   }
 
   const supabase = await createSupabaseServerClient();
@@ -2002,53 +2104,47 @@ export async function getLeadSubmissionRows() {
 
   const { data } = await supabase
     .from("lead_submissions")
-    .select("full_name, email, phone, status, created_at")
+    .select("id, full_name, email, phone, branch_interest, status, created_at")
     .eq("organization_id", organizationId)
     .order("created_at", { ascending: false })
     .limit(20);
 
   return (data ?? []).map((row) => ({
+    id: row.id,
     fullName: row.full_name,
     email: row.email,
     phone: row.phone,
     status:
-      row.status === "new"
+      row.branch_interest?.trim() ||
+      (row.status === "new"
         ? "Yeni"
         : row.status === "contacted"
           ? "Arandi"
           : row.status === "qualified"
             ? "Uygun"
-            : "Kapandi",
+            : "Kapandi"),
     createdAt: formatDateLabel(row.created_at),
   })) satisfies LeadSubmissionRow[];
 }
 
 export async function getManagerAttendanceBoards() {
   if (!isLiveEnabled()) {
-    return sessionRecords.slice(0, 3).map((session, index) => ({
-      sessionId: `manager-attendance-${index}`,
-      title: session.title,
-      slot: session.slot,
-      location: session.location,
-      roster: session.roster,
-      students: studentRecords.slice(0, 3).map((student) => ({
-        studentId: `${index}-${student.name}`,
-        name: student.name,
-        status: student.status === "Aktif" ? "present" : "absent",
-        note: "",
-      })),
-    })) satisfies CoachSessionBoard[];
-  }
-
-  const supabase = await createSupabaseServerClient();
-
-  if (!supabase) {
     return [] as CoachSessionBoard[];
   }
 
-  const { data: sessions } = await supabase
+  const adminClient = createSupabaseAdminClient();
+  const auth = await getCurrentAuthContext();
+  const context = auth?.userId ? await getOrCreateOrganizationContext(auth.userId) : null;
+
+  if (!adminClient || !context?.organizationId) {
+    return [] as CoachSessionBoard[];
+  }
+
+  await syncPastAllocationsForOrganization(adminClient, context.organizationId);
+
+  const { data: sessions } = await adminClient
     .from("sessions")
-    .select("id, title, starts_at, ends_at, location, program_id")
+    .select("id, title, starts_at, ends_at, location, program_id, session_series_id")
     .is("cancelled_at", null)
     .order("starts_at")
     .limit(12);
@@ -2057,31 +2153,39 @@ export async function getManagerAttendanceBoards() {
     return [] as CoachSessionBoard[];
   }
 
-  const programIds = Array.from(new Set(sessions.map((session) => session.program_id)));
-  const { data: enrollments } = await supabase
-    .from("enrollments")
-    .select("program_id, student_id, students(full_name)")
-    .in("program_id", programIds);
-
   const sessionIds = sessions.map((session) => session.id);
-  const { data: attendanceRows } = await supabase
-    .from("attendance_records")
-    .select("session_id, student_id, status, note")
-    .in("session_id", sessionIds);
+  const [{ data: allocations }, { data: attendanceRows }] = await Promise.all([
+    adminClient
+      .from("enrollment_session_allocations")
+      .select("session_id, student_id, status")
+      .in("session_id", sessionIds)
+      .neq("status", "cancelled"),
+    adminClient
+      .from("attendance_records")
+      .select("session_id, student_id, status, note")
+      .in("session_id", sessionIds),
+  ]);
+  const studentIds = Array.from(new Set((allocations ?? []).map((item) => item.student_id)));
+  const { data: studentsData } = await adminClient
+    .from("students")
+    .select("id, full_name")
+    .in("id", studentIds.length ? studentIds : ["00000000-0000-0000-0000-000000000000"]);
+  const studentMap = new Map((studentsData ?? []).map((student) => [student.id, student.full_name]));
 
   return sessions.map((session) => {
-    const students = (enrollments ?? [])
-      .filter((enrollment) => enrollment.program_id === session.program_id)
-      .map((enrollment) => {
+    const students = (allocations ?? [])
+      .filter((allocation) => allocation.session_id === session.id)
+      .map((allocation): AttendanceStudent => {
         const attendance = (attendanceRows ?? []).find(
-          (row) => row.session_id === session.id && row.student_id === enrollment.student_id,
+          (row) => row.session_id === session.id && row.student_id === allocation.student_id,
         );
 
         return {
-          studentId: enrollment.student_id,
-          name: getRelatedFullName(enrollment.students) ?? "Ogrenci",
+          studentId: allocation.student_id,
+          name: studentMap.get(allocation.student_id) ?? "Ogrenci",
           status: attendance?.status ?? "present",
           note: attendance?.note ?? "",
+          allocationStatus: allocation.status === "consumed" ? "consumed" : "planned",
         };
       });
 

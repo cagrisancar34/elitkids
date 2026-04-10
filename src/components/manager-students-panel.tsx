@@ -1,29 +1,21 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, Funnel, Search } from "lucide-react";
+import { Download, Funnel, Search, Sparkles } from "lucide-react";
 
 import { StudentActions } from "@/components/student-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import type { DetailQuestionRecord, ProgramRecord, StudentRecord } from "@/lib/types";
+import type {
+  DetailQuestionRecord,
+  ProgramRecord,
+  SessionSeriesOption,
+  StudentRecord,
+} from "@/lib/types";
 
-type GenderFilter = "all" | "female" | "male";
-
-function genderKey(value: string) {
-  const lower = value.toLocaleLowerCase("tr-TR");
-
-  if (lower.includes("kadin")) {
-    return "female";
-  }
-
-  if (lower.includes("erkek")) {
-    return "male";
-  }
-
-  return "all";
-}
+type AgeFilter = "all" | "child" | "teen" | "adult";
+type PaymentFilter = "all" | "clear" | "due" | "risk";
 
 function statusTone(status: string) {
   const lower = status.toLocaleLowerCase("tr-TR");
@@ -43,26 +35,124 @@ function statusTone(status: string) {
   return "bg-slate-400";
 }
 
+function resolveAge(birthDate: string) {
+  const [day, month, year] = birthDate.split(".").map(Number);
+  if (!day || !month || !year) {
+    return null;
+  }
+
+  const today = new Date();
+  let age = today.getFullYear() - year;
+  const monthOffset = today.getMonth() + 1 - month;
+  const dayOffset = today.getDate() - day;
+
+  if (monthOffset < 0 || (monthOffset === 0 && dayOffset < 0)) {
+    age -= 1;
+  }
+
+  return age;
+}
+
+function getAgeBand(age: number | null) {
+  if (age === null) {
+    return { key: "all" as AgeFilter, label: "Yas belirtilmedi" };
+  }
+
+  if (age <= 9) {
+    return { key: "child" as AgeFilter, label: "6-9 yas" };
+  }
+
+  if (age <= 15) {
+    return { key: "teen" as AgeFilter, label: "10-15 yas" };
+  }
+
+  return { key: "adult" as AgeFilter, label: "16+ yas" };
+}
+
+function getPaymentState(student: StudentRecord): PaymentFilter {
+  const lowerBalance = student.balance.toLocaleLowerCase("tr-TR");
+  const lowerStatus = student.status.toLocaleLowerCase("tr-TR");
+
+  if (lowerStatus.includes("risk")) {
+    return "risk";
+  }
+
+  if (lowerBalance === "₺0" || lowerBalance === "₺0,00" || lowerBalance === "odendi") {
+    return "clear";
+  }
+
+  if (lowerStatus.includes("takip") || lowerBalance.includes("₺")) {
+    return "due";
+  }
+
+  return "all";
+}
+
+function getPaymentLabel(state: PaymentFilter) {
+  if (state === "clear") {
+    return "Temiz bakiye";
+  }
+
+  if (state === "risk") {
+    return "Riskte";
+  }
+
+  if (state === "due") {
+    return "Odeme bekliyor";
+  }
+
+  return "Belirsiz";
+}
+
+function paymentBadgeTone(state: PaymentFilter) {
+  if (state === "clear") {
+    return "bg-emerald-500/12 text-emerald-700";
+  }
+
+  if (state === "risk") {
+    return "bg-rose-500/12 text-rose-700";
+  }
+
+  if (state === "due") {
+    return "bg-amber-500/12 text-amber-700";
+  }
+
+  return "bg-slate-500/12 text-slate-600";
+}
+
+function formatAllocationDate(value?: string | null) {
+  if (!value) {
+    return "Seans atanmadi";
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "Seans atanmadi"
+    : date.toLocaleDateString("tr-TR", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      });
+}
+
 export function ManagerStudentsPanel({
   students,
   programs,
+  sessionSeriesOptions,
   questions,
 }: {
   students: StudentRecord[];
   programs: ProgramRecord[];
+  sessionSeriesOptions: SessionSeriesOption[];
   questions: DetailQuestionRecord[];
 }) {
   const [search, setSearch] = useState("");
-  const [gender, setGender] = useState<GenderFilter>("all");
-  const [club, setClub] = useState("all");
-  const [category, setCategory] = useState("all");
+  const [ageBand, setAgeBand] = useState<AgeFilter>("all");
+  const [program, setProgram] = useState("all");
+  const [payment, setPayment] = useState<PaymentFilter>("all");
 
-  const clubs = useMemo(
-    () => ["all", ...Array.from(new Set(students.map((student) => student.club).filter(Boolean)))],
-    [students],
-  );
-  const categories = useMemo(
-    () => ["all", ...Array.from(new Set(students.map((student) => student.category).filter(Boolean)))],
+  const programsSet = useMemo(
+    () => ["all", ...Array.from(new Set(students.map((student) => student.program).filter(Boolean)))],
     [students],
   );
 
@@ -70,15 +160,18 @@ export function ManagerStudentsPanel({
 
   const filteredStudents = useMemo(() => {
     return students.filter((student) => {
-      if (gender !== "all" && genderKey(student.gender) !== gender) {
+      const studentAgeBand = getAgeBand(resolveAge(student.birthDate)).key;
+      const paymentState = getPaymentState(student);
+
+      if (ageBand !== "all" && studentAgeBand !== ageBand) {
         return false;
       }
 
-      if (club !== "all" && student.club !== club) {
+      if (program !== "all" && student.program !== program) {
         return false;
       }
 
-      if (category !== "all" && student.category !== category) {
+      if (payment !== "all" && paymentState !== payment) {
         return false;
       }
 
@@ -87,73 +180,71 @@ export function ManagerStudentsPanel({
       }
 
       const haystack =
-        `${student.name} ${student.club} ${student.category} ${student.gender} ${student.birthDate} ${student.status}`.toLocaleLowerCase(
+        `${student.name} ${student.club} ${student.category} ${student.gender} ${student.birthDate} ${student.status} ${student.program}`.toLocaleLowerCase(
           "tr-TR",
         );
 
       return haystack.includes(normalizedSearch);
     });
-  }, [category, club, gender, normalizedSearch, students]);
+  }, [ageBand, normalizedSearch, payment, program, students]);
 
   return (
-    <div className="grid gap-6">
-      <section className="rounded-[2rem] border border-white/70 bg-[#edf3ff] p-5 shadow-[0_22px_50px_rgba(18,43,84,0.08)]">
-        <div className="grid gap-3 xl:grid-cols-[1fr_340px]">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+    <div className="grid gap-8">
+      {/* FILTER SECTION BENTO BLOCK */}
+      <section className="overflow-hidden rounded-[2.5rem] p-6 lg:p-8 bg-white border border-slate-100 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.03)]">
+        <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
+          <div className="relative group">
+            <Search className="pointer-events-none absolute left-6 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400 group-focus-within:text-sky-500 transition-colors" />
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Sporcu, kulup veya kategori ara..."
-              aria-label="Ogrenci ara"
-              className="h-16 rounded-[1.4rem] bg-white pl-14 text-base"
+              placeholder="Sporcu, kulüp veya kategori ara..."
+              aria-label="Öğrenci ara"
+              className="h-16 rounded-[2rem] bg-slate-50 border-slate-100 pl-14 text-base placeholder:text-slate-400 focus-visible:ring-sky-500 focus-visible:ring-offset-0 focus-visible:bg-white transition-all hover:bg-slate-50/80"
             />
           </div>
-          <div className="grid gap-3">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
             <Select
-              value={club}
-              onChange={(event) => setClub(event.target.value)}
-              aria-label="Kulup filtresi"
-              className="h-16 rounded-[1.4rem] bg-white text-base"
+              value={program}
+              onChange={(event) => setProgram(event.target.value)}
+              aria-label="Program filtresi"
             >
-              <option value="all">Tum Kulupler</option>
-              {clubs.slice(1).map((item) => (
+              <option value="all">Tüm Programlar</option>
+              {programsSet.slice(1).map((item) => (
                 <option key={item} value={item}>
                   {item}
                 </option>
               ))}
             </Select>
             <Select
-              value={category}
-              onChange={(event) => setCategory(event.target.value)}
-              aria-label="Kategori filtresi"
-              className="h-16 rounded-[1.4rem] bg-white text-base"
+              value={payment}
+              onChange={(event) => setPayment(event.target.value as PaymentFilter)}
+              aria-label="Ödeme filtresi"
             >
-              <option value="all">Tum Kategoriler</option>
-              {categories.slice(1).map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
+              <option value="all">Tüm Ödeme Durumları</option>
+              <option value="clear">Temiz Bakiye</option>
+              <option value="due">Ödeme Bekleyen</option>
+              <option value="risk">Riskte</option>
             </Select>
           </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap gap-3">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-6">
+          <div className="flex flex-wrap gap-2">
             {[
-              ["all", "Tumu"],
-              ["female", "Kadin Sporcular"],
-              ["male", "Erkek Sporcular"],
+              ["all", "Tüm Yaş Grupları"],
+              ["child", "Çocuk (6-9)"],
+              ["teen", "Genç (10-15)"],
+              ["adult", "Yetişkin (16+)"],
             ].map(([key, label]) => (
               <button
                 key={key}
                 type="button"
-                onClick={() => setGender(key as GenderFilter)}
+                onClick={() => setAgeBand(key as AgeFilter)}
                 className={
-                  gender === key
-                    ? "rounded-full bg-white px-7 py-4 text-sm font-semibold text-primary shadow-[0_10px_24px_rgba(18,43,84,0.1)]"
-                    : "rounded-full px-7 py-4 text-sm font-semibold text-slate-600 transition-colors hover:bg-white/70"
+                  ageBand === key
+                    ? "rounded-full bg-slate-900 px-6 py-2.5 text-sm font-bold text-white shadow-md transition-transform active:scale-95"
+                    : "rounded-full bg-slate-50 border border-slate-200 px-6 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-100 transition-colors active:scale-95"
                 }
               >
                 {label}
@@ -164,29 +255,30 @@ export function ManagerStudentsPanel({
           <div className="flex items-center gap-3">
             <button
               type="button"
-              className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-muted-foreground shadow-[0_10px_22px_rgba(18,43,84,0.08)]"
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-50 border border-slate-200 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
             >
-              <Funnel className="h-5 w-5" />
+              <Funnel className="h-4 w-4" />
             </button>
             <button
               type="button"
-              className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-muted-foreground shadow-[0_10px_22px_rgba(18,43,84,0.08)]"
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-50 border border-slate-200 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
             >
-              <Download className="h-5 w-5" />
+              <Download className="h-4 w-4" />
             </button>
           </div>
         </div>
       </section>
 
-      <div className="overflow-hidden rounded-[2rem] border border-white/70 bg-white/95 shadow-[0_22px_50px_rgba(18,43,84,0.08)]">
+      {/* DESKTOP TABLE */}
+      <div className="hidden overflow-hidden rounded-[2.5rem] bg-white border border-slate-100 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)] lg:block">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1180px] border-collapse">
+          <table className="w-full min-w-[1180px] border-collapse text-left">
             <thead>
-              <tr className="border-b border-slate-200 text-left">
-                {["Ad soyad", "Kulup", "Kategori", "Cinsiyet", "Dogum tarihi", "Durum", ""].map((label) => (
+              <tr className="border-b border-slate-100 bg-slate-50/50">
+                {["Öğrenci Profili", "Kayıt Organizasyonu", "Demografi", "Finansal Sinyal", "Operasyonel Durum", ""].map((label) => (
                   <th
                     key={label}
-                    className="px-6 py-5 text-sm font-semibold uppercase tracking-[0.16em] text-[#71809a]"
+                    className="px-6 py-5 text-[11px] font-black uppercase tracking-widest text-slate-400"
                   >
                     {label}
                   </th>
@@ -196,41 +288,70 @@ export function ManagerStudentsPanel({
             <tbody>
               {filteredStudents.length ? (
                 filteredStudents.map((student) => (
-                  <tr key={student.id} className="border-b border-slate-100 align-top last:border-b-0">
-                    <td className="px-6 py-6">
+                  <tr key={student.id} className="border-b border-slate-50 align-middle hover:bg-slate-50/80 transition-colors last:border-b-0 group">
+                    <td className="px-6 py-5">
                       <div className="flex items-center gap-4">
-                        <div className="flex h-14 w-14 items-center justify-center rounded-[1.2rem] bg-[linear-gradient(135deg,#dcecff,#d7d8ff)] text-xl font-bold text-slate-700">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-[1rem] bg-sky-100 text-lg font-black text-sky-700 shadow-inner">
                           {student.initials}
                         </div>
                         <div>
-                          <div className="text-[1.1rem] font-semibold text-slate-800">{student.name}</div>
-                          <div className="mt-1 text-sm font-medium text-[#7e8aa2]">ID: #{student.id.slice(0, 6)}</div>
+                          <div className="text-[15px] font-bold text-slate-800">{student.name}</div>
+                          <div className="mt-0.5 text-[12px] font-medium text-slate-400">ID: #{student.id.slice(0, 6)}</div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-6 text-[1.05rem] font-semibold text-slate-700">{student.club}</td>
-                    <td className="px-6 py-6">
-                      <span className="inline-flex rounded-full bg-[rgba(133,94,255,0.12)] px-4 py-2 text-sm font-semibold text-[#7b49ff]">
-                        {student.category}
-                      </span>
+                    <td className="px-6 py-5">
+                      <div className="space-y-1">
+                        <div className="text-[14px] font-bold text-slate-700">{student.program}</div>
+                        <div className="text-[13px] font-medium text-slate-500">
+                          {student.sessionSeriesLabel ?? student.club}
+                        </div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                          <span className="text-sky-600">{student.remainingLessons ?? 0} HAK</span> · {formatAllocationDate(student.lastAllocatedSessionAt)}
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-6 py-6 text-[1.05rem] font-semibold text-slate-700">{student.gender}</td>
-                    <td className="px-6 py-6 text-[1.05rem] font-semibold text-slate-700">{student.birthDate}</td>
-                    <td className="px-6 py-6">
-                      <div className="inline-flex items-center gap-2 text-[1.05rem] font-semibold text-slate-700">
-                        <span className={`h-3 w-3 rounded-full ${statusTone(student.status)}`} />
+                    <td className="px-6 py-5">
+                      <div className="space-y-2">
+                        <div className="inline-flex rounded-lg bg-indigo-50 border border-indigo-100 px-3 py-1 text-[11px] font-black uppercase tracking-widest text-indigo-600">
+                          {student.category}
+                        </div>
+                        <div className="text-[13px] font-medium text-slate-500">
+                          {getAgeBand(resolveAge(student.birthDate)).label}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <div className="space-y-2">
+                        <div className={`inline-flex rounded-lg px-3 py-1 text-[11px] font-black uppercase tracking-widest ${paymentBadgeTone(getPaymentState(student))}`}>
+                          {getPaymentLabel(getPaymentState(student))}
+                        </div>
+                        <div className="text-[13px] font-bold text-slate-600">{student.balance}</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-bold text-slate-700 shadow-sm">
+                        <span className={`h-2.5 w-2.5 rounded-full ${statusTone(student.status)}`} />
                         {student.status}
                       </div>
                     </td>
-                    <td className="px-6 py-6">
-                      <StudentActions student={student} programs={programs} questions={questions} />
+                    <td className="px-6 py-5 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+                      <StudentActions
+                        student={student}
+                        programs={programs}
+                        sessionSeriesOptions={sessionSeriesOptions}
+                        questions={questions}
+                      />
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-sm text-muted-foreground">
-                    Bu filtreye uygun ogrenci bulunamadi.
+                  <td colSpan={6} className="px-6 py-16 text-center text-sm font-medium text-slate-400">
+                    <div className="flex flex-col items-center justify-center">
+                      <Search className="w-10 h-10 text-slate-200 mb-4" />
+                      Bu filtreye uygun öğrenci bulunamadı.
+                    </div>
                   </td>
                 </tr>
               )}
@@ -238,15 +359,90 @@ export function ManagerStudentsPanel({
           </table>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-5 text-sm text-muted-foreground">
+        <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-6 py-4 text-xs font-bold uppercase tracking-widest text-slate-400">
           <p>
-            Toplam {students.length} sporcu arasindan {filteredStudents.length === 0 ? 0 : 1}-
-            {filteredStudents.length} arasi gosteriliyor
+            {students.length} SPORCU ARASINDAN {filteredStudents.length === 0 ? 0 : 1}-
+            {filteredStudents.length} LİSTELENİYOR
           </p>
-          <Button type="button" size="sm" className="h-12 w-12 rounded-full p-0">
-            1
-          </Button>
         </div>
+      </div>
+
+      {/* MOBILE LIST */}
+      <div className="grid gap-4 lg:hidden">
+        {filteredStudents.length ? (
+          filteredStudents.map((student) => {
+            const derivedAge = resolveAge(student.birthDate);
+            const derivedBand = getAgeBand(derivedAge);
+            const paymentState = getPaymentState(student);
+
+            return (
+              <article key={student.id} className="rounded-[2rem] bg-white border border-slate-100 p-5 shadow-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex min-w-0 items-center gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-lg font-black text-sky-700">
+                      {student.initials}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate text-[15px] font-bold text-slate-800">{student.name}</div>
+                      <div className="mt-0.5 truncate text-[12px] font-medium text-slate-500">
+                        {student.program}
+                      </div>
+                    </div>
+                  </div>
+                  {student.detailSaved ? (
+                    <div className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-violet-100 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-violet-700">
+                      <Sparkles className="h-3 w-3" />
+                      KARNE
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl bg-slate-50 p-4 border border-slate-100">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Program / Grup</div>
+                    <div className="mt-2 text-[13px] font-bold text-slate-800">{student.program}</div>
+                    <div className="mt-1 text-[12px] font-medium text-slate-500">{student.sessionSeriesLabel ?? student.club}</div>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4 border border-slate-100">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Yaş Grubu</div>
+                    <div className="mt-2 text-[13px] font-bold text-slate-800">{derivedBand.label}</div>
+                    <div className="mt-1 text-[12px] font-medium text-slate-500">{student.birthDate}</div>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4 border border-slate-100">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Finans</div>
+                    <div className={`mt-2 inline-flex rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-widest ${paymentBadgeTone(paymentState)}`}>
+                      {getPaymentLabel(paymentState)}
+                    </div>
+                    <div className="mt-2 text-[13px] font-bold text-slate-800">{student.balance}</div>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4 border border-slate-100">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Durum</div>
+                    <div className="mt-2 inline-flex items-center gap-2 text-[13px] font-bold text-slate-800">
+                      <span className={`h-2.5 w-2.5 rounded-full ${statusTone(student.status)}`} />
+                      {student.status}
+                    </div>
+                    <div className="mt-2 text-[11px] font-medium text-slate-500">
+                      {student.remainingLessons ?? 0} hak · {formatAllocationDate(student.lastAllocatedSessionAt)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-5 border-t border-slate-100 pt-5">
+                  <StudentActions
+                    student={student}
+                    programs={programs}
+                    sessionSeriesOptions={sessionSeriesOptions}
+                    questions={questions}
+                  />
+                </div>
+              </article>
+            );
+          })
+        ) : (
+          <div className="rounded-[2rem] bg-white border border-slate-100 p-8 text-center text-sm font-medium text-slate-500">
+            Filtrelere uygun sporcu bulunamadı.
+          </div>
+        )}
       </div>
     </div>
   );

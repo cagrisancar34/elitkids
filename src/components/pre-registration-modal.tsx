@@ -269,8 +269,8 @@ export function PreRegistrationModal({ open, onOpenChange }: PreRegistrationModa
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="h-[100svh] w-screen max-w-none overflow-hidden rounded-none border-0 bg-[#091224] p-0 text-white shadow-none sm:h-auto sm:max-h-[92vh] sm:w-[min(96vw,860px)] sm:max-w-[860px] sm:rounded-[2rem] sm:border sm:border-white/10 sm:shadow-[0_32px_90px_rgba(0,0,0,0.45)]">
-        <div className="max-h-[100svh] overflow-y-auto px-4 py-6 sm:max-h-[92vh] sm:px-6 sm:py-7 lg:px-8 lg:py-8">
+      <DialogContent className="h-[100svh] w-screen max-w-none overflow-hidden rounded-none !border-0 !bg-[#091224] !text-white p-0 shadow-none sm:h-auto sm:max-h-[92vh] sm:w-[min(96vw,860px)] sm:max-w-[860px] sm:rounded-[2rem] sm:!border sm:!border-white/10 sm:shadow-[0_32px_90px_rgba(0,0,0,0.45)]">
+        <div className="max-h-[100svh] overflow-y-auto bg-[radial-gradient(circle_at_top_left,rgba(40,120,255,0.18),transparent_38%),linear-gradient(180deg,#091224_0%,#0b1529_100%)] px-4 py-6 sm:max-h-[92vh] sm:px-6 sm:py-7 lg:px-8 lg:py-8">
           <DialogHeader className="border-b border-white/8 pb-5 text-left sm:pb-6">
             <div className="inline-flex w-fit rounded-full border border-sky-300/20 bg-sky-300/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-sky-200">
               Hemen kayit
@@ -547,7 +547,7 @@ export function PreRegistrationModal({ open, onOpenChange }: PreRegistrationModa
       </DialogContent>
 
         <Dialog open={openLegalPanel !== null} onOpenChange={(next) => !next && setOpenLegalPanel(null)}>
-        <DialogContent className="w-[min(92vw,720px)] rounded-[1.6rem] border border-white/10 bg-[#091224] text-white">
+        <DialogContent className="w-[min(92vw,720px)] rounded-[1.6rem] !border !border-white/10 !bg-[#091224] !text-white [background:linear-gradient(180deg,#0a1324_0%,#101a30_100%)]">
           <DialogHeader>
             <DialogTitle>
               {openLegalPanel === "kvkk"

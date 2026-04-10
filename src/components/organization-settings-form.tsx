@@ -36,7 +36,7 @@ export function OrganizationSettingsForm({
         <label className="text-sm font-medium text-foreground" htmlFor="name">
           Kurum adi
         </label>
-        <Input id="name" name="name" defaultValue={defaults.name} placeholder="Elit Kids Akademi" />
+        <Input id="name" name="name" defaultValue={defaults.name} placeholder="Elit Sanat ve Spor Kulubu" />
       </div>
       <div className="grid gap-2">
         <label className="text-sm font-medium text-foreground" htmlFor="slug">

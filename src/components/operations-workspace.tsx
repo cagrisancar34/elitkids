@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 type WorkspaceStatGridProps = {
@@ -11,7 +11,7 @@ type WorkspaceStatGridProps = {
 type WorkspaceKpiCardProps = {
   label: string;
   value: string | number;
-  description: string;
+  description?: string;
   accent?: "blue" | "green" | "amber" | "red" | "violet";
   badge?: string;
 };
@@ -27,7 +27,7 @@ type WorkspacePanelProps = {
 type WorkspaceHighlightProps = {
   eyebrow: string;
   title: string;
-  description: string;
+  description?: string;
   badge?: string;
   children?: ReactNode;
   className?: string;
@@ -45,7 +45,7 @@ export function WorkspaceKpiCard({
   badge,
 }: WorkspaceKpiCardProps) {
   return (
-    <div className="surface-panel rounded-[1.65rem] border border-white/45 p-6 shadow-[0_22px_50px_rgba(18,43,84,0.08)]">
+    <div className="panel-float workspace-hover-lift rounded-[1.75rem] p-5 md:p-6">
       <div className="flex items-start justify-between gap-3">
         <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
         {badge ? (
@@ -54,10 +54,10 @@ export function WorkspaceKpiCard({
           </div>
         ) : null}
       </div>
-      <div className="mt-5 font-display text-[3rem] font-semibold leading-none tracking-[-0.06em] text-foreground">
+      <div className="mt-4 font-display text-[2.7rem] font-semibold leading-none tracking-[-0.06em] text-foreground">
         {value}
       </div>
-      <p className="mt-3 text-sm leading-6 text-muted-foreground">{description}</p>
+      {description ? <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p> : null}
     </div>
   );
 }
@@ -94,16 +94,16 @@ export function WorkspaceSideColumn({
 
 export function WorkspacePanel({
   title,
-  description,
   children,
   className,
   contentClassName,
 }: WorkspacePanelProps) {
   return (
-    <Card className={cn("rounded-[1.9rem] border-white/50 shadow-[0_22px_50px_rgba(18,43,84,0.08)]", className)}>
+    <Card className={cn("overflow-hidden rounded-[2rem] border border-white/60 bg-gradient-to-b from-white/90 to-white/50 shadow-[0_8px_30px_rgba(0,0,0,0.03)] backdrop-blur-2xl transition-all duration-300 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)]", className)}>
+      {/* Decorative top glint */}
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent" />
       <CardHeader className="pb-4">
-        <CardTitle>{title}</CardTitle>
-        {description ? <CardDescription>{description}</CardDescription> : null}
+        <CardTitle className="text-[1.35rem] font-semibold tracking-tight text-slate-800">{title}</CardTitle>
       </CardHeader>
       <CardContent className={contentClassName}>{children}</CardContent>
     </Card>
@@ -113,7 +113,6 @@ export function WorkspacePanel({
 export function WorkspaceHighlight({
   eyebrow,
   title,
-  description,
   badge,
   children,
   className,
@@ -121,21 +120,27 @@ export function WorkspaceHighlight({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-[1.9rem] bg-[linear-gradient(180deg,#0b0f10_0%,#12181a_100%)] p-6 text-white shadow-[0_24px_50px_rgba(11,15,16,0.22)]",
+        "group relative overflow-hidden rounded-[2.25rem] border border-white/10 bg-[#0a0f1a] p-6 text-white shadow-[0_20px_50px_rgba(0,0,0,0.4)] md:p-8",
         className,
       )}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/46">{eyebrow}</div>
+      {/* Absolute dark glow meshes */}
+      <div className="absolute -left-1/4 -top-1/4 h-[150%] w-[150%] animate-pulse bg-[radial-gradient(circle_at_40%_20%,rgba(40,110,255,0.18),transparent_40%)] duration-10000" />
+      <div className="absolute -bottom-1/4 -right-1/4 h-full w-full bg-[radial-gradient(circle_at_60%_80%,rgba(20,200,255,0.1),transparent_50%)]" />
+      
+      {/* Top inner white glow ring */}
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+
+      <div className="relative z-10 flex items-start justify-between gap-4">
+        <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-cyan-200/60 drop-shadow-sm">{eyebrow}</div>
         {badge ? (
-          <div className="rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/70">
+          <div className="rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-[11px] font-black uppercase tracking-[0.2em] text-white/90 shadow-sm backdrop-blur-md">
             {badge}
           </div>
         ) : null}
       </div>
-      <div className="mt-4 font-display text-[2.25rem] font-semibold leading-[0.96] tracking-[-0.05em]">{title}</div>
-      <p className="mt-4 text-sm leading-6 text-white/64">{description}</p>
-      {children ? <div className="mt-6">{children}</div> : null}
+      <div className="relative z-10 mt-6 font-display text-[2.5rem] font-semibold leading-[0.92] tracking-[-0.04em] text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-white/60 drop-shadow-[0_2px_2px_rgba(0,0,0,0.5)]">{title}</div>
+      {children ? <div className="relative z-10 mt-8">{children}</div> : null}
     </div>
   );
 }

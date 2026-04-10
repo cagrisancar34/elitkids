@@ -1,4 +1,4 @@
-import { addMonths, format, isWithinInterval, parseISO, startOfMonth, subDays } from "date-fns";
+import { addMonths, format, isWithinInterval, parseISO, subDays } from "date-fns";
 
 import type { AttendanceStatus } from "@/lib/types";
 
@@ -49,7 +49,7 @@ export function buildSessionOccurrences(input: SessionSeriesInput) {
 }
 
 export function buildMonthlyLessonCycle(input: LessonCycleInput) {
-  const cycleStart = startOfMonth(parseISO(input.startsOn));
+  const cycleStart = parseISO(input.startsOn);
   const cycleEnd = subDays(addMonths(cycleStart, 1), 1);
 
   return {

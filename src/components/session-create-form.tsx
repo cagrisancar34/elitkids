@@ -79,16 +79,16 @@ export function SessionCreateForm({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button className="w-full">Yeni Seans</Button>
+        <Button className="w-full">Yeni Grup</Button>
       </DialogTrigger>
       <DialogContent className="w-[min(94vw,1320px)] max-h-[92vh] overflow-y-auto rounded-[2rem] px-10 py-10">
         <DialogHeader>
           <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
-            Seans planlama
+            Grup planlama
           </div>
-          <DialogTitle>Yeni Seans Serisi</DialogTitle>
+          <DialogTitle>Yeni Grup / Seans Serisi</DialogTitle>
           <DialogDescription>
-            Baslangic ve bitis tarihi arasinda haftalik duzen kurarak otomatik seans uretin.
+            Bir program urunu altinda haftalik duzen kurarak ayni gruba ait seans akislarini otomatik olusturun.
           </DialogDescription>
         </DialogHeader>
 
@@ -96,7 +96,7 @@ export function SessionCreateForm({
           <div className="grid gap-5 md:grid-cols-3">
             <div className="grid gap-2">
               <label className="text-sm font-semibold text-foreground" htmlFor="session-program">
-                Program
+                Program urunu
               </label>
               <Select id="session-program" name="programId" defaultValue={programs[0]?.id ?? ""}>
                 {programs.map((program) => (
@@ -133,9 +133,9 @@ export function SessionCreateForm({
 
             <div className="grid gap-2">
               <label className="text-sm font-semibold text-foreground" htmlFor="session-title">
-                Baslik
+                Grup basligi
               </label>
-              <Input id="session-title" name="title" placeholder="Elit Grup" />
+              <Input id="session-title" name="title" placeholder="Pzt-Cars 18:00 grubu" />
             </div>
             <div className="grid gap-2">
               <label className="text-sm font-semibold text-foreground" htmlFor="session-start-time">
@@ -223,7 +223,7 @@ export function SessionCreateForm({
             <label className="text-sm font-semibold text-foreground" htmlFor="session-notes">
               Notlar
             </label>
-            <Textarea id="session-notes" name="notes" className="min-h-28" placeholder="Seans serisiyle ilgili operasyon notu" />
+            <Textarea id="session-notes" name="notes" className="min-h-28" placeholder="Grup veya seriyle ilgili operasyon notu" />
           </div>
 
           <div className="surface-muted grid gap-4 rounded-[1.6rem] border border-white/40 p-5 md:grid-cols-[1fr_1fr_1.4fr]">
@@ -236,7 +236,7 @@ export function SessionCreateForm({
               <div className="mt-2 font-display text-[2rem] font-semibold tracking-[-0.05em] text-foreground">{preview.sessionCount} seans</div>
             </div>
             <div className="flex items-center justify-center rounded-[1.2rem] bg-[rgba(2,83,205,0.88)] px-5 py-5 text-center text-lg font-medium text-white">
-              {preview.rangeLabel} arasinda {preview.sessionCount} seans planlanacak.
+              {preview.rangeLabel} arasinda ayni gruba bagli {preview.sessionCount} seans planlanacak.
             </div>
           </div>
 
@@ -244,8 +244,8 @@ export function SessionCreateForm({
           {state.success ? <p className="text-sm text-success">{state.success}</p> : null}
 
           <div className="flex justify-end">
-            <FormSubmitButton className="min-w-52" pendingLabel="Seans serisi olusturuluyor...">
-              {preview.sessionCount} Seans Olustur
+            <FormSubmitButton className="min-w-52" pendingLabel="Grup serisi olusturuluyor...">
+              {preview.sessionCount} Seanslik Grup Olustur
             </FormSubmitButton>
           </div>
         </form>

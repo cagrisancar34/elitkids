@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useMemo, useState } from "react";
 
 import {
   saveAttendanceAction,
   type AttendanceActionState,
 } from "@/app/(app)/coach/sessions/actions";
+import { AttendanceWhatsAppButton } from "@/components/attendance-whatsapp-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,6 +46,17 @@ export function AttendanceModal({
   triggerVariant?: "default" | "outline" | "ghost" | "secondary";
 }) {
   const [state, formAction] = useActionState(saveAttendanceAction, initialState);
+  const [statusMap, setStatusMap] = useState<Record<string, string>>(() =>
+    Object.fromEntries(students.map((student) => [student.studentId, student.status])),
+  );
+  const effectiveStatusMap = useMemo(
+    () =>
+      students.reduce<Record<string, string>>((accumulator, student) => {
+        accumulator[student.studentId] = statusMap[student.studentId] ?? student.status;
+        return accumulator;
+      }, {}),
+    [statusMap, students],
+  );
 
   return (
     <Dialog>
@@ -75,11 +87,24 @@ export function AttendanceModal({
                 <div>
                   <div className="text-xl font-semibold tracking-[-0.03em] text-foreground">{student.name}</div>
                   <div className="mt-1 text-sm text-muted-foreground">Aktif ogrenci</div>
+                  <div className="mt-4">
+                    <AttendanceWhatsAppButton
+                      sessionId={sessionId}
+                      studentId={student.studentId}
+                      disabled={effectiveStatusMap[student.studentId] !== "absent"}
+                    />
+                  </div>
                 </div>
                 <Select
                   id={`status-${student.studentId}`}
                   name={`status:${student.studentId}`}
-                  defaultValue={student.status}
+                  value={effectiveStatusMap[student.studentId]}
+                  onChange={(event) =>
+                    setStatusMap((current) => ({
+                      ...current,
+                      [student.studentId]: event.target.value,
+                    }))
+                  }
                 >
                   {statusOptions.map((option) => (
                     <option key={option.value} value={option.value}>

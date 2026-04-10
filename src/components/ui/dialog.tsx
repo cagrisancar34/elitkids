@@ -35,11 +35,11 @@ function DialogOverlay({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
   return (
-    <DialogPrimitive.Overlay
-      data-slot="dialog-overlay"
-      className={cn(
-        "fixed inset-0 z-50 bg-[rgba(9,16,32,0.48)] backdrop-blur-[2px] transition-opacity",
-        className,
+      <DialogPrimitive.Overlay
+        data-slot="dialog-overlay"
+        className={cn(
+          "fixed inset-0 z-50 bg-[rgba(8,14,28,0.42)] backdrop-blur-[6px] transition-all duration-200 data-[state=closed]:opacity-0 data-[state=open]:opacity-100",
+          className,
       )}
       {...props}
     />
@@ -57,13 +57,13 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "fixed top-[50%] left-[50%] z-50 grid w-[min(92vw,640px)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-[1.6rem] border border-white/60 bg-card p-6 shadow-[0_24px_80px_rgba(18,30,54,0.28)]",
+          "panel-float fixed top-[50%] left-[50%] z-50 grid w-[min(92vw,640px)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-[1.9rem] p-6 shadow-[0_30px_90px_rgba(18,30,54,0.24)] duration-200 data-[state=closed]:scale-[0.985] data-[state=closed]:opacity-0 data-[state=closed]:translate-y-[-48%] data-[state=open]:scale-100 data-[state=open]:opacity-100 data-[state=open]:translate-y-[-50%] md:p-7",
           className,
         )}
         {...props}
       >
         {children}
-        <DialogPrimitive.Close className="absolute top-4 right-4 rounded-full border border-border bg-white p-2 text-muted-foreground hover:text-foreground">
+        <DialogPrimitive.Close className="absolute top-4 right-4 rounded-full border border-white/70 bg-white/80 p-2 text-muted-foreground shadow-[0_8px_20px_rgba(18,43,84,0.06)] hover:text-foreground">
           <X className="size-4" />
           <span className="sr-only">Kapat</span>
         </DialogPrimitive.Close>

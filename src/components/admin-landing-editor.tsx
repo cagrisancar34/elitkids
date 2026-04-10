@@ -19,6 +19,7 @@ import {
   type IconKey,
   type LandingContent,
 } from "@/lib/landing-content";
+import { cn } from "@/lib/utils";
 
 const initialState: LandingEditorActionState = {
   error: null,
@@ -243,6 +244,22 @@ export function AdminLandingEditor({
     });
   }
 
+  function updateGuide(field: keyof LandingContent["guide"], value: string) {
+    updateRoot("guide", {
+      ...content.guide,
+      [field]: value,
+    });
+  }
+
+  function updateGuideItem(index: number, field: "label" | "href", value: string) {
+    updateRoot("guide", {
+      ...content.guide,
+      items: content.guide.items.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item,
+      ),
+    });
+  }
+
   function updateWhyUsPoint(
     index: number,
     field: "title" | "description",
@@ -260,6 +277,16 @@ export function AdminLandingEditor({
     updateRoot("cta", {
       ...content.cta,
       [field]: value,
+    });
+  }
+
+  function updateCtaStatusOptions(value: string) {
+    updateRoot("cta", {
+      ...content.cta,
+      statusOptions: value
+        .split("\n")
+        .map((item) => item.trim())
+        .filter(Boolean),
     });
   }
 
@@ -356,7 +383,7 @@ export function AdminLandingEditor({
         <Panel className="bg-[#0b162b]">
           <div className="grid gap-4 md:grid-cols-2">
             <StatTile label="Son kayit" value={formatUpdatedAt(updatedAt)} />
-            <StatTile label="Kontrol edilen alan" value="8 ana section" />
+            <StatTile label="Kontrol edilen alan" value="11 ana section" />
           </div>
           <div className="mt-5 rounded-[1.4rem] border border-sky-400/18 bg-sky-400/8 px-4 py-4">
             <div className="text-sm font-semibold text-sky-200">Yazma yetkisi sadece admin</div>
@@ -388,6 +415,7 @@ export function AdminLandingEditor({
           <TabsTrigger value="coaches">Egitmenler</TabsTrigger>
           <TabsTrigger value="why-us">Why Us</TabsTrigger>
           <TabsTrigger value="faq">SSS</TabsTrigger>
+          <TabsTrigger value="guide">Rehber</TabsTrigger>
           <TabsTrigger value="cta">CTA</TabsTrigger>
           <TabsTrigger value="footer">Footer</TabsTrigger>
         </TabsList>
@@ -397,9 +425,9 @@ export function AdminLandingEditor({
             <Panel>
               <SectionHeading
                 title="Marka ve navbar"
-                description="Logo, marka metinleri, menu akisi ve sag ust CTA bu section icinde."
+                description="Logo, marka metinleri, header akis ve sag ust iletisim/CTA alanlari bu section icinde."
               />
-              <FieldGrid>
+              <FieldGrid className="md:grid-cols-1 lg:grid-cols-2">
                 <TextField
                   label="Marka adi"
                   value={content.siteSettings.brandName}
@@ -420,11 +448,17 @@ export function AdminLandingEditor({
                   value={content.siteSettings.logoImage}
                   onChange={(value) => updateSiteSettings("logoImage", value)}
                   uploadKey="brand-logo"
+                  className="lg:col-span-2"
                 />
                 <TextField
                   label="Telefon"
                   value={content.siteSettings.contactPhone}
                   onChange={(value) => updateSiteSettings("contactPhone", value)}
+                />
+                <TextField
+                  label="WhatsApp numarasi"
+                  value={content.siteSettings.whatsappPhone}
+                  onChange={(value) => updateSiteSettings("whatsappPhone", value)}
                 />
                 <TextField
                   label="E-posta"
@@ -435,7 +469,7 @@ export function AdminLandingEditor({
                   label="Lokasyon"
                   value={content.siteSettings.location}
                   onChange={(value) => updateSiteSettings("location", value)}
-                  className="md:col-span-2"
+                  className="lg:col-span-2"
                 />
                 <TextField
                   label="Navbar CTA"
@@ -451,6 +485,7 @@ export function AdminLandingEditor({
                   label="Navbar CTA href"
                   value={content.navbar.ctaHref}
                   onChange={(value) => updateNavbar("ctaHref", value)}
+                  className="lg:col-span-2"
                 />
               </FieldGrid>
             </Panel>
@@ -874,7 +909,7 @@ export function AdminLandingEditor({
           <Panel>
             <SectionHeading
               title="Final CTA ve form"
-              description="Contact section basligi, aciklamasi ve form etiketleri."
+              description="Contact section basligi, iletisim butonlari ve form etiketleri."
             />
             <FieldGrid>
               <TextField
@@ -920,9 +955,45 @@ export function AdminLandingEditor({
                 onChange={(value) => updateCta("phonePlaceholder", value)}
               />
               <TextField
+                label="Durum etiketi"
+                value={content.cta.statusLabel}
+                onChange={(value) => updateCta("statusLabel", value)}
+              />
+              <TextField
+                label="Durum placeholder"
+                value={content.cta.statusPlaceholder}
+                onChange={(value) => updateCta("statusPlaceholder", value)}
+              />
+              <TextAreaField
+                label="Durum secenekleri"
+                value={content.cta.statusOptions.join("\n")}
+                onChange={updateCtaStatusOptions}
+                className="md:col-span-2"
+              />
+              <TextField
                 label="Buton etiketi"
                 value={content.cta.submitLabel}
                 onChange={(value) => updateCta("submitLabel", value)}
+              />
+              <TextField
+                label="WhatsApp buton etiketi"
+                value={content.cta.whatsappLabel}
+                onChange={(value) => updateCta("whatsappLabel", value)}
+              />
+              <TextField
+                label="Telefon buton etiketi"
+                value={content.cta.phoneCtaLabel}
+                onChange={(value) => updateCta("phoneCtaLabel", value)}
+              />
+              <TextField
+                label="CTA telefon numarasi"
+                value={content.siteSettings.contactPhone}
+                onChange={(value) => updateSiteSettings("contactPhone", value)}
+              />
+              <TextField
+                label="CTA WhatsApp numarasi"
+                value={content.siteSettings.whatsappPhone}
+                onChange={(value) => updateSiteSettings("whatsappPhone", value)}
               />
               <TextAreaField
                 label="Alt not"
@@ -978,6 +1049,57 @@ export function AdminLandingEditor({
                       value={item.answer}
                       onChange={(value) => updateFaqItem(index, "answer", value)}
                       className="md:col-span-2"
+                    />
+                  </FieldGrid>
+                </SubPanel>
+              ))}
+            </div>
+          </Panel>
+        </TabsContent>
+
+        <TabsContent value="guide">
+          <Panel>
+            <SectionHeading
+              title="Silivri Spor Rehberi"
+              description="Landing altindaki lokal SEO rehber blogunun baslik, aciklama ve buton linklerini yonet."
+            />
+            <FieldGrid>
+              <TextField
+                label="Eyebrow"
+                value={content.guide.eyebrow}
+                onChange={(value) => updateGuide("eyebrow", value)}
+              />
+              <TextAreaField
+                label="Baslik"
+                value={content.guide.title}
+                onChange={(value) => updateGuide("title", value)}
+                className="md:col-span-2"
+              />
+              <TextAreaField
+                label="Aciklama"
+                value={content.guide.description}
+                onChange={(value) => updateGuide("description", value)}
+                className="md:col-span-2"
+              />
+            </FieldGrid>
+
+            <div className="mt-5 grid gap-4">
+              {content.guide.items.map((item, index) => (
+                <SubPanel
+                  key={`${item.label}-${index}`}
+                  title={`Rehber linki ${index + 1}`}
+                  description="Silivri Spor Rehberi icindeki tiklanabilir buton."
+                >
+                  <FieldGrid>
+                    <TextField
+                      label="Etiket"
+                      value={item.label}
+                      onChange={(value) => updateGuideItem(index, "label", value)}
+                    />
+                    <TextField
+                      label="Href"
+                      value={item.href}
+                      onChange={(value) => updateGuideItem(index, "href", value)}
                     />
                   </FieldGrid>
                 </SubPanel>
@@ -1205,7 +1327,7 @@ function TextField({
   className?: string;
 }) {
   return (
-    <div className={className}>
+    <div className={cn("min-w-0", className)}>
       <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
         {label}
       </label>
@@ -1230,7 +1352,7 @@ function TextAreaField({
   className?: string;
 }) {
   return (
-    <div className={className}>
+    <div className={cn("min-w-0", className)}>
       <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
         {label}
       </label>
@@ -1257,7 +1379,7 @@ function SelectField({
   className?: string;
 }) {
   return (
-    <div className={className}>
+    <div className={cn("min-w-0", className)}>
       <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
         {label}
       </label>
@@ -1329,7 +1451,7 @@ function AssetField({
   }
 
   return (
-    <div className={className}>
+    <div className={cn("min-w-0", className)}>
       <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
         {label}
       </label>
@@ -1348,7 +1470,7 @@ function AssetField({
           <span className="text-xs text-slate-500">PNG, JPG, WebP veya SVG kullan.</span>
         </div>
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-[120px_1fr]">
+        <div className="mt-4 grid gap-4 xl:grid-cols-[120px_1fr]">
           <div className="overflow-hidden rounded-[1rem] border border-white/8 bg-white/[0.03]">
             {value ? (
               <img src={value} alt={label} className="h-28 w-full object-cover" />

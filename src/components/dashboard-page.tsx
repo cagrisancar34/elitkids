@@ -7,7 +7,7 @@ import type { AppRole } from "@/lib/types";
 export type DashboardContextCard = {
   eyebrow: string;
   title: string;
-  description: string;
+  description?: string;
   badge?: string;
 };
 
@@ -19,7 +19,7 @@ export type DashboardPrimaryAction = {
 type DashboardPageProps = {
   role: AppRole;
   title: string;
-  description: string;
+  description?: string;
   eyebrow?: string;
   contextCard?: DashboardContextCard;
   primaryAction?: DashboardPrimaryAction;

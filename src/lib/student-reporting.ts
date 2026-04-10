@@ -20,7 +20,7 @@ export const defaultStudentDetailQuestions: DetailQuestionRecord[] = [
     label: "Kulup",
     inputType: "text",
     helperText: "Kulup veya kurum adini gir.",
-    placeholder: "Zeytinburnu Buz Spor Kulubu",
+    placeholder: "Elit Sanat ve Spor Kulubu",
     options: [],
     required: true,
     active: true,

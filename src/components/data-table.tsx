@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -16,6 +17,8 @@ type Column<T> = {
 type DataTableProps<T extends Record<string, string>> = {
   columns: Column<T>[];
   rows: T[];
+  rowKey?: (row: T, index: number) => string;
+  rowClassName?: (row: T, index: number) => string;
 };
 
 function statusToVariant(status: string): "neutral" | "success" | "warning" | "danger" {
@@ -37,21 +40,29 @@ function statusToVariant(status: string): "neutral" | "success" | "warning" | "d
 export function DataTable<T extends Record<string, string>>({
   columns,
   rows,
+  rowKey,
+  rowClassName,
 }: DataTableProps<T>) {
   return (
-    <div className="overflow-hidden rounded-[1.4rem] border border-white/70 bg-white/90 shadow-[0_18px_40px_rgba(18,43,84,0.08)]">
+    <div className="overflow-hidden rounded-[1.7rem] border border-slate-200/60 bg-white/40 shadow-sm backdrop-blur-xl">
       <div className="overflow-x-auto">
         <Table>
-          <TableHeader>
-            <TableRow>
+          <TableHeader className="bg-slate-50/50">
+            <TableRow className="border-b-slate-200/60 hover:bg-transparent">
               {columns.map((column) => (
-                <TableHead key={String(column.key)}>{column.label}</TableHead>
+                <TableHead key={String(column.key)} className="py-4 text-xs font-bold uppercase tracking-wider text-slate-500">{column.label}</TableHead>
               ))}
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((row, index) => (
-              <TableRow key={index}>
+              <TableRow
+                key={rowKey?.(row, index) ?? index}
+                className={cn(
+                  "border-b-slate-100 transition-colors duration-200 hover:bg-white/60",
+                  rowClassName?.(row, index)
+                )}
+              >
                 {columns.map((column) => {
                   const value = row[column.key];
                   const isStatusColumn =

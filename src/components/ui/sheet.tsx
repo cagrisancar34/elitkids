@@ -15,14 +15,14 @@ import {
 import { cn } from "@/lib/utils";
 
 const sheetVariants = cva(
-  "fixed z-50 grid gap-4 bg-card p-6 shadow-[0_24px_80px_rgba(18,30,54,0.22)]",
+  "panel-float fixed z-50 grid gap-4 p-6 shadow-[0_24px_80px_rgba(18,30,54,0.22)] duration-200",
   {
     variants: {
       side: {
-        top: "inset-x-0 top-0 border-b border-white/60",
-        bottom: "inset-x-0 bottom-0 border-t border-white/60",
-        left: "inset-y-0 left-0 h-full w-[min(92vw,480px)] border-r border-white/60",
-        right: "inset-y-0 right-0 h-full w-[min(92vw,480px)] border-l border-white/60",
+        top: "inset-x-0 top-0 rounded-b-[1.8rem] border-b border-white/60 data-[state=closed]:translate-y-[-4%] data-[state=open]:translate-y-0",
+        bottom: "inset-x-0 bottom-0 rounded-t-[1.8rem] border-t border-white/60 data-[state=closed]:translate-y-[4%] data-[state=open]:translate-y-0",
+        left: "inset-y-0 left-0 h-full w-[min(92vw,480px)] rounded-r-[1.9rem] border-r border-white/60 data-[state=closed]:translate-x-[-4%] data-[state=open]:translate-x-0",
+        right: "inset-y-0 right-0 h-full w-[min(92vw,480px)] rounded-l-[1.9rem] border-l border-white/60 data-[state=closed]:translate-x-[4%] data-[state=open]:translate-x-0",
       },
     },
     defaultVariants: {

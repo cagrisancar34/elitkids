@@ -23,19 +23,19 @@ export function BranchCreateForm() {
         <label className="text-sm font-medium text-foreground" htmlFor="name">
           Sube adi
         </label>
-        <Input id="name" name="name" placeholder="Ana Pist" />
+        <Input id="name" name="name" placeholder="Merkez Kampus" />
       </div>
       <div className="grid gap-2">
         <label className="text-sm font-medium text-foreground" htmlFor="slug">
           Sube slug
         </label>
-        <Input id="slug" name="slug" placeholder="ana-pist" />
+        <Input id="slug" name="slug" placeholder="merkez-kampus" />
       </div>
       <div className="grid gap-2">
         <label className="text-sm font-medium text-foreground" htmlFor="location">
           Lokasyon
         </label>
-        <Input id="location" name="location" placeholder="Zeytinburnu Buz Pisti" />
+        <Input id="location" name="location" placeholder="Silivri Merkez Yerleskesi" />
       </div>
       {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
       {state.success ? <p className="text-sm text-success">{state.success}</p> : null}

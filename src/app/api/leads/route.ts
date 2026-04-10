@@ -56,18 +56,52 @@ export async function POST(request: Request) {
     .limit(1)
     .maybeSingle();
 
-  const { error } = await adminClient.from("lead_submissions").insert({
-    organization_id: organization?.id ?? null,
-    full_name: parsed.data.fullName,
-    email: parsed.data.email,
-    phone: parsed.data.phone,
-    branch_interest: parsed.data.branchInterest || null,
-    message: parsed.data.message || null,
-    status: "new",
-  });
+  const { data: leadRow, error } = await adminClient
+    .from("lead_submissions")
+    .insert({
+      organization_id: organization?.id ?? null,
+      full_name: parsed.data.fullName,
+      email: parsed.data.email,
+      phone: parsed.data.phone,
+      branch_interest: parsed.data.branchInterest || null,
+      message: parsed.data.message || null,
+      status: "new",
+    })
+    .select("id, organization_id")
+    .single();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500, headers: buildRateLimitHeaders(rateLimit) });
+  }
+
+  if (leadRow?.organization_id) {
+    const { data: profiles } = await adminClient
+      .from("profiles")
+      .select("id")
+      .eq("organization_id", leadRow.organization_id);
+
+    const profileIds = (profiles ?? []).map((profile) => profile.id);
+
+    if (profileIds.length) {
+      const { data: roles } = await adminClient
+        .from("user_roles")
+        .select("profile_id")
+        .in("profile_id", profileIds)
+        .in("role", ["admin", "manager"]);
+
+      const recipientIds = Array.from(new Set((roles ?? []).map((row) => row.profile_id)));
+
+      if (recipientIds.length) {
+        await adminClient.from("notifications").insert(
+          recipientIds.map((profileId) => ({
+            profile_id: profileId,
+            title: parsed.data.fullName,
+            body: `${parsed.data.branchInterest || "Yeni landing basvurusu"} · ${parsed.data.phone} · ${parsed.data.email}`,
+            channel: `landing_lead:${leadRow.id}`,
+          })),
+        );
+      }
+    }
   }
 
   return NextResponse.json({ ok: true }, { headers: buildRateLimitHeaders(rateLimit) });

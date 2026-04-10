@@ -8,6 +8,8 @@ import { getOrCreateOrganizationContext } from "@/lib/organization-context";
 import {
   createStudentSchema,
   deactivateStudentSchema,
+  grantStudentLessonsSchema,
+  rebuildStudentLessonsSchema,
   saveStudentDetailSchema,
   updateStudentSchema,
 } from "@/lib/schemas/app-forms";
@@ -19,8 +21,15 @@ import {
   getQuestionValueName,
 } from "@/lib/student-reporting";
 import { buildMonthlyLessonCycle } from "@/lib/program-workspace";
+import {
+  ensureEnrollmentSessionAllocations,
+  grantBonusLessonAllocations,
+  rebuildUpcomingEnrollmentAllocations,
+  renewEnrollmentLessonPackage,
+} from "@/lib/session-allocations";
 import type { DetailAnswerRecord, DetailQuestionRecord } from "@/lib/types";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { queueReportCardUpdatedDispatch } from "@/lib/whatsapp-server";
 
 export type ActionState = {
   error: string | null;
@@ -70,25 +79,90 @@ async function canCoachWriteStudentDetail(
 ) {
   const { data: sessions } = await adminClient
     .from("sessions")
-    .select("program_id")
+    .select("program_id, session_series_id")
     .eq("coach_profile_id", coachProfileId)
     .is("cancelled_at", null);
 
   const programIds = Array.from(new Set((sessions ?? []).map((session) => session.program_id)));
+  const sessionSeriesIds = Array.from(
+    new Set(
+      (sessions ?? [])
+        .map((session) => session.session_series_id)
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
 
-  if (!programIds.length) {
+  if (!programIds.length && !sessionSeriesIds.length) {
     return false;
   }
 
-  const { data: enrollment } = await adminClient
+  let enrollmentQuery = adminClient
     .from("enrollments")
     .select("id")
     .eq("student_id", studentId)
-    .in("program_id", programIds)
-    .limit(1)
-    .maybeSingle();
+    .limit(20);
 
-  return Boolean(enrollment?.id);
+  if (sessionSeriesIds.length) {
+    enrollmentQuery = enrollmentQuery.in("session_series_id", sessionSeriesIds);
+  } else {
+    enrollmentQuery = enrollmentQuery.in("program_id", programIds);
+  }
+
+  const { data: enrollments } = await enrollmentQuery;
+
+  return Boolean(enrollments?.length);
+}
+
+async function getValidatedProgramSeries(
+  adminClient: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
+  organizationId: string,
+  programId: string,
+  sessionSeriesId: string,
+) {
+  const [{ data: program, error: programError }, { data: sessionSeries, error: sessionSeriesError }] =
+    await Promise.all([
+      adminClient
+        .from("programs")
+        .select("id, title, monthly_price, monthly_lesson_quota")
+        .eq("organization_id", organizationId)
+        .eq("id", programId)
+        .maybeSingle(),
+      adminClient
+        .from("session_series")
+        .select("id, title, program_id, starts_on, ends_on, status")
+        .eq("id", sessionSeriesId)
+        .maybeSingle(),
+    ]);
+
+  if (programError || !program?.id) {
+    return {
+      error: "Secilen program bulunamadi.",
+      program: null,
+      sessionSeries: null,
+    };
+  }
+
+  if (sessionSeriesError || !sessionSeries?.id) {
+    return {
+      error: "Secilen grup / seans serisi bulunamadi.",
+      program: null,
+      sessionSeries: null,
+    };
+  }
+
+  if (sessionSeries.program_id !== program.id) {
+    return {
+      error: "Secilen grup, programla eslesmiyor.",
+      program: null,
+      sessionSeries: null,
+    };
+  }
+
+  return {
+    error: null,
+    program,
+    sessionSeries,
+  };
 }
 
 function extractDetailEntries(
@@ -150,6 +224,8 @@ export async function createStudentAction(
     fullName: formData.get("fullName"),
     birthDate: formData.get("birthDate"),
     programId: formData.get("programId"),
+    sessionSeriesId: formData.get("sessionSeriesId"),
+    startsOn: formData.get("startsOn"),
     parentEmail: formData.get("parentEmail"),
   });
 
@@ -178,19 +254,21 @@ export async function createStudentAction(
     };
   }
 
-  const { data: program, error: programError } = await adminClient
-    .from("programs")
-    .select("id, title, monthly_price, monthly_lesson_quota")
-    .eq("organization_id", organizationContext.organizationId)
-    .eq("id", parsed.data.programId)
-    .maybeSingle();
+  const validated = await getValidatedProgramSeries(
+    adminClient,
+    organizationContext.organizationId,
+    parsed.data.programId,
+    parsed.data.sessionSeriesId,
+  );
 
-  if (programError || !program?.id) {
+  if (validated.error || !validated.program?.id || !validated.sessionSeries?.id) {
     return {
-      error: "Secilen program bulunamadi.",
+      error: validated.error ?? "Program ve grup bilgisi dogrulanamadi.",
       success: null,
     };
   }
+
+  const program = validated.program;
 
   const { data: feePlan } = await adminClient
     .from("fee_plans")
@@ -219,13 +297,14 @@ export async function createStudentAction(
     };
   }
 
-  const startsOn = new Date().toISOString().slice(0, 10);
+  const startsOn = parsed.data.startsOn;
 
   const { data: enrollment, error: enrollmentError } = await adminClient
     .from("enrollments")
     .insert({
       student_id: insertedStudent.id,
       program_id: program.id,
+      session_series_id: validated.sessionSeries.id,
       status: "active",
       starts_on: startsOn,
     })
@@ -243,7 +322,7 @@ export async function createStudentAction(
     enrollment_id: enrollment.id,
     fee_plan_id: feePlan?.id ?? null,
     amount: program.monthly_price,
-    due_date: "2026-04-12",
+    due_date: startsOn,
     status: "pending",
   });
 
@@ -265,6 +344,17 @@ export async function createStudentAction(
         quota: Number(program.monthly_lesson_quota ?? 8),
       }),
     );
+
+    await ensureEnrollmentSessionAllocations(adminClient, {
+      organizationId: organizationContext.organizationId,
+      enrollmentId: enrollment.id,
+      studentId: insertedStudent.id,
+      studentName: parsed.data.fullName,
+      programId: program.id,
+      sessionSeriesId: validated.sessionSeries.id,
+      startsOn,
+      lessonCount: Number(program.monthly_lesson_quota ?? 8),
+    });
   }
 
   const parentEmail = parsed.data.parentEmail.trim();
@@ -315,7 +405,7 @@ export async function createStudentAction(
 
   return {
     error: null,
-    success: `${parsed.data.fullName} kaydi olusturuldu.`,
+      success: `${parsed.data.fullName} kaydi olusturuldu.`,
   };
 }
 
@@ -337,6 +427,7 @@ export async function updateStudentAction(
     fullName: formData.get("fullName"),
     birthDate: formData.get("birthDate"),
     programId: formData.get("programId"),
+    sessionSeriesId: formData.get("sessionSeriesId"),
     gender: formData.get("gender"),
   });
 
@@ -377,6 +468,20 @@ export async function updateStudentAction(
     };
   }
 
+  const validated = await getValidatedProgramSeries(
+    adminClient,
+    organizationContext.organizationId,
+    parsed.data.programId,
+    parsed.data.sessionSeriesId,
+  );
+
+  if (validated.error || !validated.program?.id || !validated.sessionSeries?.id) {
+    return {
+      error: validated.error ?? "Program ve grup bilgisi dogrulanamadi.",
+      success: null,
+    };
+  }
+
   const { error: updateError } = await adminClient
     .from("students")
     .update({
@@ -396,16 +501,23 @@ export async function updateStudentAction(
 
   const { data: enrollment } = await adminClient
     .from("enrollments")
-    .select("id")
+    .select("id, program_id, session_series_id, starts_on")
     .eq("student_id", parsed.data.studentId)
     .order("starts_on", { ascending: false })
     .limit(1)
     .maybeSingle();
 
   if (enrollment?.id) {
+    const programOrSeriesChanged =
+      enrollment.program_id !== parsed.data.programId ||
+      enrollment.session_series_id !== parsed.data.sessionSeriesId;
+
     const { error: enrollmentUpdateError } = await adminClient
       .from("enrollments")
-      .update({ program_id: parsed.data.programId })
+      .update({
+        program_id: parsed.data.programId,
+        session_series_id: parsed.data.sessionSeriesId,
+      })
       .eq("id", enrollment.id);
 
     if (enrollmentUpdateError) {
@@ -413,6 +525,27 @@ export async function updateStudentAction(
         error: enrollmentUpdateError.message,
         success: null,
       };
+    }
+
+    await adminClient
+      .from("student_package_cycles")
+      .update({
+        program_id: parsed.data.programId,
+        total_lessons: Number(validated.program.monthly_lesson_quota ?? 8),
+      })
+      .eq("enrollment_id", enrollment.id);
+
+    if (programOrSeriesChanged) {
+      await rebuildUpcomingEnrollmentAllocations(adminClient, {
+        organizationId: organizationContext.organizationId,
+        enrollmentId: enrollment.id,
+        studentId: parsed.data.studentId,
+        studentName: parsed.data.fullName,
+        programId: parsed.data.programId,
+        sessionSeriesId: parsed.data.sessionSeriesId,
+        startsOn: enrollment.starts_on ?? new Date().toISOString().slice(0, 10),
+        targetTotalLessons: Number(validated.program.monthly_lesson_quota ?? 8),
+      });
     }
   }
 
@@ -521,6 +654,229 @@ export async function deactivateStudentAction(
   return {
     error: null,
     success: `${student.full_name} pasife alindi.`,
+  };
+}
+
+export async function grantStudentLessonsAction(
+  _previousState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const auth = await getCurrentAuthContext();
+
+  if (!auth || (auth.role !== "manager" && auth.role !== "admin") || !auth.userId) {
+    return {
+      error: "Bu islem icin yetkin yok.",
+      success: null,
+    };
+  }
+
+  const parsed = grantStudentLessonsSchema.safeParse({
+    studentId: formData.get("studentId"),
+    lessonCount: formData.get("lessonCount"),
+  });
+
+  if (!parsed.success) {
+    return {
+      error: parsed.error.issues[0]?.message ?? "Ek hak formu gecersiz.",
+      success: null,
+    };
+  }
+
+  const adminClient = createSupabaseAdminClient();
+  const organizationContext = await getOrCreateOrganizationContext(auth.userId);
+
+  if (!adminClient || organizationContext.error || !organizationContext.organizationId) {
+    return {
+      error: organizationContext.error ?? "Kurum baglami cozulmedi.",
+      success: null,
+    };
+  }
+
+  const { data: student } = await adminClient
+    .from("students")
+    .select("id, full_name")
+    .eq("id", parsed.data.studentId)
+    .eq("organization_id", organizationContext.organizationId)
+    .maybeSingle();
+
+  if (!student?.id) {
+    return {
+      error: "Ogrenci bulunamadi.",
+      success: null,
+    };
+  }
+
+  const { data: enrollment } = await adminClient
+    .from("enrollments")
+    .select("id, program_id, session_series_id, starts_on")
+    .eq("student_id", parsed.data.studentId)
+    .eq("status", "active")
+    .order("starts_on", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!enrollment?.id || !enrollment.session_series_id || !enrollment.program_id) {
+    return {
+      error: "Ogrenci icin aktif grup kaydi bulunamadi.",
+      success: null,
+    };
+  }
+
+  const insertedCount = await grantBonusLessonAllocations(adminClient, {
+    organizationId: organizationContext.organizationId,
+    enrollmentId: enrollment.id,
+    studentId: parsed.data.studentId,
+    studentName: student.full_name,
+    programId: enrollment.program_id,
+    sessionSeriesId: enrollment.session_series_id,
+    startsOn: enrollment.starts_on ?? new Date().toISOString().slice(0, 10),
+    lessonCount: parsed.data.lessonCount,
+  });
+
+  revalidatePath("/manager");
+  revalidatePath("/manager/students");
+  revalidatePath("/manager/sessions");
+  revalidatePath("/coach/sessions");
+  revalidatePath("/parent/schedule");
+
+  await logAuditEvent({
+    organizationId: organizationContext.organizationId,
+    actorProfileId: auth.userId,
+    actorRole: auth.role,
+    eventType: "Ek seans hakki verildi",
+    scope: "Ogrenciler",
+    entityType: "enrollment_session_allocations",
+    entityId: enrollment.id,
+    payload: {
+      studentId: parsed.data.studentId,
+      lessonCount: parsed.data.lessonCount,
+      insertedCount,
+    },
+  });
+
+  return {
+    error: null,
+    success: `${student.full_name} icin ${insertedCount} yeni seans hakki acildi.`,
+  };
+}
+
+export async function rebuildStudentAllocationsAction(
+  _previousState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const auth = await getCurrentAuthContext();
+
+  if (!auth || (auth.role !== "manager" && auth.role !== "admin") || !auth.userId) {
+    return {
+      error: "Bu islem icin yetkin yok.",
+      success: null,
+    };
+  }
+
+  const parsed = rebuildStudentLessonsSchema.safeParse({
+    studentId: formData.get("studentId"),
+    startsOn: formData.get("startsOn"),
+  });
+
+  if (!parsed.success) {
+    return {
+      error: parsed.error.issues[0]?.message ?? "Seans yenileme formu gecersiz.",
+      success: null,
+    };
+  }
+
+  const adminClient = createSupabaseAdminClient();
+  const organizationContext = await getOrCreateOrganizationContext(auth.userId);
+
+  if (!adminClient || organizationContext.error || !organizationContext.organizationId) {
+    return {
+      error: organizationContext.error ?? "Kurum baglami cozulmedi.",
+      success: null,
+    };
+  }
+
+  const { data: student } = await adminClient
+    .from("students")
+    .select("id, full_name")
+    .eq("id", parsed.data.studentId)
+    .eq("organization_id", organizationContext.organizationId)
+    .maybeSingle();
+
+  if (!student?.id) {
+    return {
+      error: "Ogrenci bulunamadi.",
+      success: null,
+    };
+  }
+
+  const { data: enrollment } = await adminClient
+    .from("enrollments")
+    .select("id, program_id, session_series_id, starts_on")
+    .eq("student_id", parsed.data.studentId)
+    .eq("status", "active")
+    .order("starts_on", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!enrollment?.id || !enrollment.program_id || !enrollment.session_series_id) {
+    return {
+      error: "Ogrenci icin aktif grup kaydi bulunamadi.",
+      success: null,
+    };
+  }
+
+  const { data: program } = await adminClient
+    .from("programs")
+    .select("title, monthly_lesson_quota")
+    .eq("id", enrollment.program_id)
+    .maybeSingle();
+
+  const lessonCount = Number(program?.monthly_lesson_quota ?? 8);
+  const result = await renewEnrollmentLessonPackage(adminClient, {
+    organizationId: organizationContext.organizationId,
+    enrollmentId: enrollment.id,
+    studentId: parsed.data.studentId,
+    studentName: student.full_name,
+    programId: enrollment.program_id,
+    sessionSeriesId: enrollment.session_series_id,
+    startsOn: parsed.data.startsOn,
+    lessonCount,
+  });
+
+  if (!result.ok) {
+    return {
+      error:
+        result.availableCount <= 0
+          ? "Secilen tarihten sonra bu grup icin yeterli seans bulunamadi. Program veya grup bitis tarihini uzatman gerekiyor."
+          : `${program?.title ?? "Program"} icin secilen tarihten sonra yalnizca ${result.availableCount} seans bulunuyor. ${lessonCount} hakli yeni paket acmak icin program veya grup bitis tarihini uzatman gerekiyor.`,
+      success: null,
+    };
+  }
+
+  revalidatePath("/manager");
+  revalidatePath("/manager/students");
+  revalidatePath("/manager/sessions");
+  revalidatePath("/coach/sessions");
+  revalidatePath("/parent/schedule");
+
+  await logAuditEvent({
+    organizationId: organizationContext.organizationId,
+    actorProfileId: auth.userId,
+    actorRole: auth.role,
+    eventType: "Seans atamalari yeniden olusturuldu",
+    scope: "Ogrenciler",
+    entityType: "enrollment_session_allocations",
+    entityId: enrollment.id,
+    payload: {
+      studentId: parsed.data.studentId,
+      startsOn: parsed.data.startsOn,
+      lessonCount,
+    },
+  });
+
+  return {
+    error: null,
+    success: `${student.full_name} icin ${parsed.data.startsOn} tarihinden baslayan yeni ${lessonCount} hakli paket olusturuldu.`,
   };
 }
 
@@ -678,6 +1034,12 @@ export async function saveStudentDetailAction(
       success: null,
     };
   }
+
+  await queueReportCardUpdatedDispatch({
+    organizationId: organizationContext.organizationId,
+    studentId: parsed.data.studentId,
+    studentName: student.full_name,
+  }).catch(() => null);
 
   revalidatePath("/manager");
   revalidatePath("/manager/students");

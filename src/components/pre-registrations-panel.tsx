@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type {
   PreRegistrationOption,
   PreRegistrationRecord,
+  PreRegistrationSessionSeriesOption,
   PreRegistrationStatus,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -48,11 +49,13 @@ export function PreRegistrationsPanel({
   branches,
   seasons,
   programs,
+  sessionSeries,
 }: {
   records: PreRegistrationRecord[];
   branches: PreRegistrationOption[];
   seasons: PreRegistrationOption[];
   programs: PreRegistrationOption[];
+  sessionSeries: PreRegistrationSessionSeriesOption[];
 }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | PreRegistrationStatus>("all");
@@ -174,15 +177,16 @@ export function PreRegistrationsPanel({
       </div>
 
       {selectedRecord ? (
-        <PreRegistrationDetailDialog
-          key={selectedRecord.id}
-          open={detailOpen}
-          onOpenChange={setDetailOpen}
-          record={selectedRecord}
-          branches={branches}
-          seasons={seasons}
-          programs={programs}
-        />
+            <PreRegistrationDetailDialog
+              key={selectedRecord.id}
+              open={detailOpen}
+              onOpenChange={setDetailOpen}
+              record={selectedRecord}
+              branches={branches}
+              seasons={seasons}
+              programs={programs}
+              sessionSeries={sessionSeries}
+            />
       ) : null}
     </div>
   );
@@ -233,6 +237,7 @@ function PreRegistrationDetailDialog({
   branches,
   seasons,
   programs,
+  sessionSeries,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -240,6 +245,7 @@ function PreRegistrationDetailDialog({
   branches: PreRegistrationOption[];
   seasons: PreRegistrationOption[];
   programs: PreRegistrationOption[];
+  sessionSeries: PreRegistrationSessionSeriesOption[];
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -316,6 +322,7 @@ function PreRegistrationDetailDialog({
                 branches={branches}
                 seasons={seasons}
                 programs={programs}
+                sessionSeries={sessionSeries}
               />
             </DetailBlock>
 
@@ -396,13 +403,20 @@ function ActivatePreRegistrationForm({
   branches,
   seasons,
   programs,
+  sessionSeries,
 }: {
   record: PreRegistrationRecord;
   branches: PreRegistrationOption[];
   seasons: PreRegistrationOption[];
   programs: PreRegistrationOption[];
+  sessionSeries: PreRegistrationSessionSeriesOption[];
 }) {
   const [state, formAction] = useActionState(activatePreRegistrationAction, initialState);
+  const [programId, setProgramId] = useState(record.programId ?? programs[0]?.id ?? "");
+  const filteredSeries = useMemo(
+    () => sessionSeries.filter((item) => item.programId === programId),
+    [programId, sessionSeries],
+  );
 
   return (
     <form action={formAction} className="grid gap-3">
@@ -427,9 +441,18 @@ function ActivatePreRegistrationForm({
       </label>
       <label className="grid gap-2">
         <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Program</span>
-        <Select name="programId" defaultValue={record.programId ?? programs[0]?.id ?? ""}>
+        <Select name="programId" value={programId} onChange={(event) => setProgramId(event.target.value)}>
           <option value="" disabled>Program sec</option>
           {programs.map((option) => (
+            <option key={option.id} value={option.id}>{option.label}</option>
+          ))}
+        </Select>
+      </label>
+      <label className="grid gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Grup</span>
+        <Select name="sessionSeriesId" defaultValue="" disabled={!programId}>
+          <option value="" disabled>{programId ? "Grup sec" : "Once program sec"}</option>
+          {filteredSeries.map((option) => (
             <option key={option.id} value={option.id}>{option.label}</option>
           ))}
         </Select>

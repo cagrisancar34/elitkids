@@ -1,6 +1,6 @@
 import type { Route } from "next";
 
-import type { AppRole, RoleNavItem } from "@/lib/types";
+import type { AppRole, NavSectionId, RoleNavItem, RoleNavSection } from "@/lib/types";
 
 export const roleLabels: Record<AppRole, string> = {
   admin: "Admin",
@@ -35,8 +35,13 @@ export const navigationByRole: Record<AppRole, RoleNavItem[]> = {
     },
     {
       href: "/admin/landing",
-      label: "Landing Page",
+      label: "Sayfa Yonetimi / Landing Page",
       description: "Anasayfa icerigi, vitrin akisi ve CTA alanlari",
+    },
+    {
+      href: "/admin/seo-pages",
+      label: "Sayfa Yonetimi / SEO Sayfalari",
+      description: "Silivri lokal landing sayfalarini ve metadata akisini yonet",
     },
     {
       href: "/admin/pre-registration-settings",
@@ -248,6 +253,71 @@ export const navigationByRole: Record<AppRole, RoleNavItem[]> = {
       href: "/parent/report-cards",
       label: "Karne",
       description: "Kaydedilen gelisim karnelerini goruntule",
+    },
+  ],
+};
+
+const navSectionLabels: Record<NavSectionId, { label: string; description: string }> = {
+  admin: {
+    label: "Admin",
+    description: "Sistem, sayfa yonetimi ve guvenlik yuzeyi",
+  },
+  manager: {
+    label: "Yonetici",
+    description: "Kayit, finans ve operasyon akisi",
+  },
+  coach: {
+    label: "Koc",
+    description: "Saha, seans ve yoklama merkezi",
+  },
+  parent: {
+    label: "Veli",
+    description: "Takvim, odeme ve destek takibi",
+  },
+};
+
+export const navigationSectionsByRole: Record<AppRole, RoleNavSection[]> = {
+  admin: [
+    {
+      id: "admin",
+      ...navSectionLabels.admin,
+      items: navigationByRole.admin.filter((item) => item.href.startsWith("/admin")),
+    },
+    {
+      id: "manager",
+      ...navSectionLabels.manager,
+      items: navigationByRole.admin.filter((item) => item.href.startsWith("/manager")),
+    },
+    {
+      id: "coach",
+      ...navSectionLabels.coach,
+      items: navigationByRole.admin.filter((item) => item.href.startsWith("/coach")),
+    },
+    {
+      id: "parent",
+      ...navSectionLabels.parent,
+      items: navigationByRole.admin.filter((item) => item.href.startsWith("/parent")),
+    },
+  ],
+  manager: [
+    {
+      id: "manager",
+      ...navSectionLabels.manager,
+      items: navigationByRole.manager,
+    },
+  ],
+  coach: [
+    {
+      id: "coach",
+      ...navSectionLabels.coach,
+      items: navigationByRole.coach,
+    },
+  ],
+  parent: [
+    {
+      id: "parent",
+      ...navSectionLabels.parent,
+      items: navigationByRole.parent,
     },
   ],
 };

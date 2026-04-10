@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminWhatsAppSettingsPanel } from "@/components/admin-whatsapp-settings-panel";
 import { BranchCreateForm } from "@/components/branch-create-form";
 import { BranchSettingsPanel } from "@/components/branch-settings-panel";
 import { OrganizationSettingsForm } from "@/components/organization-settings-form";
@@ -7,16 +8,23 @@ import { SeasonCreateForm } from "@/components/season-create-form";
 import { SeasonSettingsPanel } from "@/components/season-settings-panel";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { BranchSetting, OrganizationSettings, SeasonSetting } from "@/lib/types";
+import type {
+  BranchSetting,
+  OrganizationSettings,
+  SeasonSetting,
+  WhatsAppSettingsOverview,
+} from "@/lib/types";
 
 export function AdminSettingsTabs({
   organization,
   branches,
   seasons,
+  whatsappOverview,
 }: {
   organization: OrganizationSettings | null;
   branches: BranchSetting[];
   seasons: SeasonSetting[];
+  whatsappOverview: WhatsAppSettingsOverview | null;
 }) {
   return (
     <Tabs defaultValue="organization">
@@ -25,6 +33,7 @@ export function AdminSettingsTabs({
         <TabsTrigger value="branches">Subeler</TabsTrigger>
         <TabsTrigger value="seasons">Sezonlar</TabsTrigger>
         <TabsTrigger value="security">Guvenlik</TabsTrigger>
+        <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
       </TabsList>
 
       <TabsContent value="organization">
@@ -89,6 +98,10 @@ export function AdminSettingsTabs({
             </div>
           </CardContent>
         </Card>
+      </TabsContent>
+
+      <TabsContent value="whatsapp">
+        <AdminWhatsAppSettingsPanel overview={whatsappOverview} />
       </TabsContent>
     </Tabs>
   );

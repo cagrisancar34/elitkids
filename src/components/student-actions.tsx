@@ -1,10 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { FileText, PencilLine, ReceiptText, Trash2 } from "lucide-react";
 
 import {
   deactivateStudentAction,
+  grantStudentLessonsAction,
+  rebuildStudentAllocationsAction,
   saveStudentDetailAction,
   type ActionState,
   updateStudentAction,
@@ -24,7 +26,12 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import type { DetailQuestionRecord, ProgramRecord, StudentRecord } from "@/lib/types";
+import type {
+  DetailQuestionRecord,
+  ProgramRecord,
+  SessionSeriesOption,
+  StudentRecord,
+} from "@/lib/types";
 
 const initialState: ActionState = {
   error: null,
@@ -57,14 +64,23 @@ function toDateInputValue(value: string) {
 export function StudentActions({
   student,
   programs,
+  sessionSeriesOptions,
   questions,
 }: {
   student: StudentRecord;
   programs: ProgramRecord[];
+  sessionSeriesOptions: SessionSeriesOption[];
   questions: DetailQuestionRecord[];
 }) {
   const [updateState, updateAction] = useActionState(updateStudentAction, initialState);
   const [deactivateState, deactivateAction] = useActionState(deactivateStudentAction, initialState);
+  const [grantState, grantAction] = useActionState(grantStudentLessonsAction, initialState);
+  const [rebuildState, rebuildAction] = useActionState(rebuildStudentAllocationsAction, initialState);
+  const [selectedProgramId, setSelectedProgramId] = useState(student.programId ?? "");
+  const filteredSeries = useMemo(
+    () => sessionSeriesOptions.filter((series) => series.programId === selectedProgramId),
+    [selectedProgramId, sessionSeriesOptions],
+  );
 
   return (
     <div className="flex flex-wrap justify-end gap-2">
@@ -135,6 +151,39 @@ export function StudentActions({
       <Dialog>
         <DialogTrigger asChild>
           <Button type="button" variant="outline" size="sm">
+            + Hak
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ek seans hakki ver</DialogTitle>
+            <DialogDescription>
+              Ogrenciye ek hak verildiginde sistem ileri tarihten yeni seans atamalari olusturur.
+            </DialogDescription>
+          </DialogHeader>
+          <form action={grantAction} className="grid gap-4">
+            <input type="hidden" name="studentId" value={student.id} />
+            <div className="rounded-[1.15rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              Kalan hak: <span className="font-semibold text-slate-900">{student.remainingLessons ?? 0}</span>
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium text-foreground" htmlFor={`student-bonus-lessons-${student.id}`}>
+                Eklenecek hak
+              </label>
+              <Input id={`student-bonus-lessons-${student.id}`} name="lessonCount" type="number" min={1} max={16} defaultValue={1} />
+            </div>
+            {grantState.error ? <p className="text-sm text-destructive">{grantState.error}</p> : null}
+            {grantState.success ? <p className="text-sm text-success">{grantState.success}</p> : null}
+            <FormSubmitButton className="w-full" pendingLabel="Hak aciliyor...">
+              Eklenecek hakki kaydet
+            </FormSubmitButton>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button type="button" variant="outline" size="sm">
             <PencilLine className="h-4 w-4" />
             Duzenle
           </Button>
@@ -169,13 +218,38 @@ export function StudentActions({
               <label className="text-sm font-medium text-foreground" htmlFor={`student-program-${student.id}`}>
                 Program
               </label>
-              <Select id={`student-program-${student.id}`} name="programId" defaultValue={student.programId ?? ""}>
+              <Select
+                id={`student-program-${student.id}`}
+                name="programId"
+                value={selectedProgramId}
+                onChange={(event) => setSelectedProgramId(event.target.value)}
+              >
                 <option value="" disabled>
                   Program sec
                 </option>
                 {programs.map((program) => (
                   <option key={program.id} value={program.id}>
                     {program.title}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium text-foreground" htmlFor={`student-session-series-${student.id}`}>
+                Grup / seans serisi
+              </label>
+              <Select
+                id={`student-session-series-${student.id}`}
+                name="sessionSeriesId"
+                defaultValue={student.sessionSeriesId ?? ""}
+                disabled={!selectedProgramId}
+              >
+                <option value="" disabled>
+                  {selectedProgramId ? "Grup sec" : "Once program sec"}
+                </option>
+                {filteredSeries.map((series) => (
+                  <option key={series.id} value={series.id}>
+                    {series.label}
                   </option>
                 ))}
               </Select>
@@ -206,6 +280,36 @@ export function StudentActions({
           Sil
         </FormSubmitButton>
       </form>
+
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button type="button" variant="outline" size="sm">
+            Paketi Yenile
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Paketi Yenile</DialogTitle>
+            <DialogDescription>
+              Uyenin yeni paket (kayit) baslangic tarihini sec. Secilen tarihten itibaren mevcut programa gore yeni paket olusturulacaktir.
+            </DialogDescription>
+          </DialogHeader>
+          <form action={rebuildAction} className="grid gap-4">
+            <input type="hidden" name="studentId" value={student.id} />
+            <div className="grid gap-2">
+              <label className="text-sm font-medium text-foreground" htmlFor={`student-rebuild-${student.id}`}>
+                Kayıt Tarihi
+              </label>
+              <Input id={`student-rebuild-${student.id}`} name="startsOn" type="date" required />
+            </div>
+            {rebuildState.error ? <p className="text-sm text-destructive">{rebuildState.error}</p> : null}
+            {rebuildState.success ? <p className="text-sm text-success">{rebuildState.success}</p> : null}
+            <FormSubmitButton className="w-full" pendingLabel="Yenileniyor...">
+              Kaydet ve Yeni Paket Olustur
+            </FormSubmitButton>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {deactivateState.error ? <p className="w-full text-right text-sm text-destructive">{deactivateState.error}</p> : null}
       {deactivateState.success ? <p className="w-full text-right text-sm text-success">{deactivateState.success}</p> : null}
