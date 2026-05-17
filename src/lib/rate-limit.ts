@@ -16,14 +16,14 @@ type StoreValue = {
   resetAt: number;
 };
 
-const store = globalThis.__elitkidsRateLimitStore ?? new Map<string, StoreValue>();
+const store = globalThis.__elitsanatRateLimitStore ?? new Map<string, StoreValue>();
 
-if (!globalThis.__elitkidsRateLimitStore) {
-  globalThis.__elitkidsRateLimitStore = store;
+if (!globalThis.__elitsanatRateLimitStore) {
+  globalThis.__elitsanatRateLimitStore = store;
 }
 
 declare global {
-  var __elitkidsRateLimitStore: Map<string, StoreValue> | undefined;
+  var __elitsanatRateLimitStore: Map<string, StoreValue> | undefined;
 }
 
 function getStoreKey(bucket: string, key: string) {

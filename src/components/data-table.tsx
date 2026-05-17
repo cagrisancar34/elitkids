@@ -14,7 +14,9 @@ type Column<T> = {
   label: string;
 };
 
-type DataTableProps<T extends Record<string, string>> = {
+type CellValue = string | number | null | undefined;
+
+type DataTableProps<T extends Record<string, CellValue>> = {
   columns: Column<T>[];
   rows: T[];
   rowKey?: (row: T, index: number) => string;
@@ -22,22 +24,32 @@ type DataTableProps<T extends Record<string, string>> = {
 };
 
 function statusToVariant(status: string): "neutral" | "success" | "warning" | "danger" {
-  if (status === "Aktif" || status === "Odendi" || status === "Yayin icin hazir") {
+  if (
+    status === "Aktif" ||
+    status === "Odendi" ||
+    status === "Odeme Tamamlandi" ||
+    status === "Yayin icin hazir"
+  ) {
     return "success";
   }
 
-  if (status === "Takip" || status === "Planlandi" || status === "Yanit bekliyor") {
+  if (
+    status === "Takip" ||
+    status === "Planlandi" ||
+    status === "Yanit bekliyor" ||
+    status === "Odeme Bekleniyor"
+  ) {
     return "warning";
   }
 
-  if (status === "Risk" || status === "Aksiyon gerekli") {
+  if (status === "Risk" || status === "Aksiyon gerekli" || status === "Odeme Yapilmadi") {
     return "danger";
   }
 
   return "neutral";
 }
 
-export function DataTable<T extends Record<string, string>>({
+export function DataTable<T extends Record<string, CellValue>>({
   columns,
   rows,
   rowKey,
@@ -71,9 +83,9 @@ export function DataTable<T extends Record<string, string>>({
                   return (
                     <TableCell key={String(column.key)}>
                       {isStatusColumn ? (
-                        <Badge variant={statusToVariant(value)}>{value}</Badge>
+                        <Badge variant={statusToVariant(String(value ?? ""))}>{String(value ?? "--")}</Badge>
                       ) : (
-                        value
+                        value ?? "--"
                       )}
                     </TableCell>
                   );

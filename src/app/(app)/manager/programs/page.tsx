@@ -1,7 +1,7 @@
 import { AppShell } from "@/components/app-shell";
 import { ProgramCreateDialog } from "@/components/program-create-dialog";
 import { ProgramsPanel } from "@/components/programs-panel";
-import { getProgramFormOptions, getProgramsData, getSessionsData } from "@/lib/dashboard-data";
+import { getProgramFormOptions, getProgramsData, getSessionsData } from "@/lib/dashboard/manager-data";
 import { Layers, Cuboid, DollarSign, UsersRound, Zap, ListPlus, MapPin, Clock } from "lucide-react";
 
 export default async function ManagerProgramsPage() {

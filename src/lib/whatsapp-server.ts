@@ -8,6 +8,7 @@ import type {
   MessageCampaign,
   MessageDeliveryStatus,
   MessageDispatch,
+  MessageTopicKey,
   RecipientSegment,
   WhatsAppCampaignOverview,
   WhatsAppSettingsOverview,
@@ -16,6 +17,7 @@ import type {
   WhatsAppSettingsStatus,
   WhatsAppOptInStatus,
 } from "@/lib/types";
+import { getMessageTopicsForOrganization } from "@/lib/message-topics-server";
 import { getWhatsAppServerConfig } from "@/lib/whatsapp-config";
 import {
   DEFAULT_WHATSAPP_TEMPLATE_DEFINITIONS,
@@ -46,6 +48,9 @@ type QueueDispatchInput = {
 type CampaignFilters = {
   programId?: string | null;
   branchId?: string | null;
+  sessionSeriesId?: string | null;
+  studentIds?: string[] | null;
+  topicKey?: MessageTopicKey | null;
 };
 
 function toStringArray(value: unknown) {
@@ -108,6 +113,74 @@ export function normalizeWhatsAppPhone(phone: string | null | undefined) {
   }
 
   return digits.startsWith("+") ? digits : null;
+}
+
+export function formatLessonLabelForWhatsApp(startsAt: string | null | undefined) {
+  if (!startsAt) {
+    return null;
+  }
+
+  const date = new Date(startsAt);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat("tr-TR", {
+    timeZone: "Europe/Istanbul",
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+export function buildRegistrationCompletedMessage(input: {
+  firstLessonLabel: string | null;
+  loginUrl: string;
+  recipientEmail: string;
+  temporaryPassword?: string | null;
+  setupLink?: string | null;
+  accessNote?: string | null;
+}) {
+  const lines = [
+    "Kaydiniz basari ile gerceklestirilmistir.",
+    input.firstLessonLabel ? `Ilk ders gununuz ve saatiniz: ${input.firstLessonLabel}` : null,
+    `Veli paneli giris linki: ${input.loginUrl}`,
+    `E-posta: ${input.recipientEmail}`,
+    input.temporaryPassword ? `Gecici sifreniz: ${input.temporaryPassword}` : null,
+    input.accessNote && !input.temporaryPassword ? `Panel erisimi: ${input.accessNote}` : null,
+    input.setupLink && !input.temporaryPassword ? `Sifrenizi olusturmak icin: ${input.setupLink}` : null,
+    "Sevgiler,",
+    "Elit Sanat ve Spor Kulubu",
+  ].filter(Boolean);
+
+  return lines.join("\n");
+}
+
+export function generateTemporaryPassword(length = 12) {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+
+  return Array.from(bytes)
+    .map((byte) => alphabet[byte % alphabet.length] ?? "A")
+    .join("");
+}
+
+export function buildWebWhatsAppHref(input: {
+  phone: string | null | undefined;
+  message: string;
+}) {
+  const normalizedPhone = normalizeWhatsAppPhone(input.phone);
+
+  if (!normalizedPhone) {
+    return null;
+  }
+
+  const target = normalizedPhone.replace(/\D/g, "");
+  return `https://web.whatsapp.com/send?phone=${target}&text=${encodeURIComponent(input.message)}`;
 }
 
 function toMetaPhoneNumber(phone: string) {
@@ -707,6 +780,9 @@ export async function queueRegistrationCompletedDispatch(input: {
   recipientPhone: string | null;
   recipientEmail: string;
   setupLink: string | null;
+  temporaryPassword?: string | null;
+  accessNote?: string | null;
+  firstLessonLabel?: string | null;
   profileId?: string | null;
   preRegistrationId?: string | null;
 }) {
@@ -724,9 +800,10 @@ export async function queueRegistrationCompletedDispatch(input: {
     optInSource: "registration_completed",
     payload: {
       variables: [
+        input.firstLessonLabel ?? "Ilk ders takvimi aktivasyon sonrasi paylasilacaktir.",
         `${config.appUrl}/login`,
         input.recipientEmail,
-        input.setupLink ?? `${config.appUrl}/login`,
+        input.temporaryPassword ?? input.accessNote ?? input.setupLink ?? `${config.appUrl}/login`,
       ],
     },
   });
@@ -842,6 +919,19 @@ async function resolveCampaignRecipients(
     studentIds = Array.from(new Set((enrollments ?? []).map((row) => row.student_id)));
   }
 
+  if (audienceType === "session_series_members" && filters.sessionSeriesId) {
+    const { data: enrollments } = await adminClient
+      .from("enrollments")
+      .select("student_id")
+      .eq("session_series_id", filters.sessionSeriesId)
+      .eq("status", "active");
+    studentIds = Array.from(new Set((enrollments ?? []).map((row) => row.student_id)));
+  }
+
+  if (audienceType === "specific_students" && filters.studentIds?.length) {
+    studentIds = Array.from(new Set(filters.studentIds));
+  }
+
   if (!studentIds.length) {
     return [];
   }
@@ -865,6 +955,7 @@ export async function createWhatsAppCampaign(input: {
   createdByProfileId: string;
   title: string;
   audienceType: RecipientSegment;
+  topicKey: MessageTopicKey;
   message: string;
   filters: CampaignFilters;
 }) {
@@ -880,7 +971,10 @@ export async function createWhatsAppCampaign(input: {
       organization_id: input.organizationId,
       title: input.title,
       audience_type: input.audienceType,
-      filters_json: input.filters,
+      filters_json: {
+        ...input.filters,
+        topicKey: input.topicKey,
+      },
       template_or_freeform: input.message,
       created_by_profile_id: input.createdByProfileId,
       status: "queued",
@@ -929,7 +1023,8 @@ export async function createWhatsAppCampaign(input: {
   return campaign.id;
 }
 
-export async function createRecoveryLinkForEmail(email: string, _fullName?: string | null) {
+export async function createRecoveryLinkForEmail(email: string, fullName?: string | null) {
+  void fullName;
   const adminClient = createSupabaseAdminClient();
   const config = getWhatsAppServerConfig();
 
@@ -948,7 +1043,8 @@ export async function createRecoveryLinkForEmail(email: string, _fullName?: stri
   return data.properties?.action_link ?? null;
 }
 
-export async function createInviteLinkForEmail(email: string, _fullName?: string | null) {
+export async function createInviteLinkForEmail(email: string, fullName?: string | null) {
+  void fullName;
   const adminClient = createSupabaseAdminClient();
   const config = getWhatsAppServerConfig();
 
@@ -979,7 +1075,8 @@ export async function getWhatsAppSettingsOverview(): Promise<WhatsAppSettingsOve
 
   await ensureWhatsAppTemplates(context.organizationId);
 
-  const [{ data: templates }, { data: dispatches }] = await Promise.all([
+  const [messageTopics, { data: templates }, { data: dispatches }] = await Promise.all([
+    getMessageTopicsForOrganization(context.organizationId),
     context.adminClient
       .from("whatsapp_templates")
       .select("id, event_key, locale, meta_template_name, enabled, variable_schema")
@@ -1020,6 +1117,7 @@ export async function getWhatsAppSettingsOverview(): Promise<WhatsAppSettingsOve
   return {
     status: getMissingConfigStatus(),
     templates: mappedTemplates,
+    messageTopics,
     dispatches: mappedDispatches,
     queueCount: mappedDispatches.filter((item) => item.status === "queued").length,
     blockedCount: mappedDispatches.filter((item) => item.status === "blocked").length,
@@ -1035,7 +1133,8 @@ export async function getWhatsAppCampaignOverview(): Promise<WhatsAppCampaignOve
 
   await ensureWhatsAppTemplates(context.organizationId);
 
-  const [{ data: templates }, { data: campaigns }, { data: dispatches }] = await Promise.all([
+  const [messageTopics, { data: templates }, { data: campaigns }, { data: dispatches }] = await Promise.all([
+    getMessageTopicsForOrganization(context.organizationId),
     context.adminClient
       .from("whatsapp_templates")
       .select("id, event_key, locale, meta_template_name, enabled, variable_schema")
@@ -1043,7 +1142,7 @@ export async function getWhatsAppCampaignOverview(): Promise<WhatsAppCampaignOve
       .order("event_key"),
     context.adminClient
       .from("message_campaigns")
-      .select("id, title, audience_type, status, created_at, sent_at")
+      .select("id, title, audience_type, filters_json, status, created_at, sent_at")
       .eq("organization_id", context.organizationId)
       .order("created_at", { ascending: false })
       .limit(8),
@@ -1058,6 +1157,7 @@ export async function getWhatsAppCampaignOverview(): Promise<WhatsAppCampaignOve
   ]);
 
   return {
+    messageTopics,
     templates: (templates ?? []).map((template) => ({
       id: template.id,
       eventKey: template.event_key,
@@ -1070,6 +1170,13 @@ export async function getWhatsAppCampaignOverview(): Promise<WhatsAppCampaignOve
       id: campaign.id,
       title: campaign.title,
       audienceType: campaign.audience_type,
+      topicKey:
+        typeof campaign.filters_json === "object" &&
+        campaign.filters_json &&
+        "topicKey" in campaign.filters_json &&
+        typeof (campaign.filters_json as Record<string, unknown>).topicKey === "string"
+          ? ((campaign.filters_json as Record<string, unknown>).topicKey as MessageTopicKey)
+          : null,
       status: campaign.status,
       createdAt: campaign.created_at,
       sentAt: campaign.sent_at ?? null,

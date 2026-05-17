@@ -1,7 +1,7 @@
 import { AttendanceModal } from "@/components/attendance-modal";
 import { AppShell } from "@/components/app-shell";
-import { getManagerAttendanceBoards } from "@/lib/dashboard-data";
-import { Users, ClipboardCheck, UserMinus, ShieldAlert, BadgeInfo, Radar } from "lucide-react";
+import { getManagerAttendanceBoards } from "@/lib/dashboard/manager-data";
+import { Users, ClipboardCheck, UserMinus, BadgeInfo, Radar } from "lucide-react";
 
 export default async function ManagerAttendancePage() {
   const sessions = await getManagerAttendanceBoards();
@@ -79,9 +79,9 @@ export default async function ManagerAttendancePage() {
                <h2 className="text-xl font-black tracking-tight">Operasyon Notu</h2>
              </div>
              
-             <p className="text-base leading-relaxed text-slate-300 font-medium relative z-10">
-               Yoklama artık uzun form listesi değil, seans bazlı <strong>Hızlı Modal</strong> akışına dönüştü. "Yoklama Al" butonları ile sahaya hükmedin.
-             </p>
+	             <p className="text-base leading-relaxed text-slate-300 font-medium relative z-10">
+	               Yoklama artık uzun form listesi değil, seans bazlı <strong>Hızlı Modal</strong> akışına dönüştü. <span className="font-semibold text-white">Yoklama Al</span> butonları ile sahaya hükmedin.
+	             </p>
           </div>
         </div>
 

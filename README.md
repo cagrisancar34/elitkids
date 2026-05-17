@@ -1,17 +1,17 @@
-# Elit Kids Akademi
+# Elit Sanat ve Spor Kulubu
 
 Next.js 16, Supabase ve shadcn/ui temelli cok rollu spor okulu platformu.
 
-## Neler Var
+## Uygulama kapsami
 
-- Kurumsal landing page
-- `admin`, `manager`, `coach`, `parent` rolleri icin ayri paneller
-- Supabase istemci ve middleware omurgasi
-- Baslangic migration dosyasi ve RLS taslagi
-- shadcn/ui tarzinda tema katmani ve ortak UI bilesenleri
-- Vitest ile temel domain testleri
+- Public landing, galeri ve SEO landing sayfalari
+- `admin`, `manager`, `coach` ve `parent` rolleri icin ayri panel deneyimleri
+- On kayit, ogrenci aktivasyonu, 8 hak allocation modeli ve seans operasyonlari
+- Aylik tahakkuk, parcali odeme, borc takibi ve tahsilat ekranlari
+- WhatsApp mesaj merkezi, konu bazli mesaj sablonlari ve panel bildirimleri
+- Admin icerik yonetimi: landing, SEO, on kayit formu, testimonial ve galeri
 
-## Calistirma
+## Gelistirme
 
 ```bash
 npm install
@@ -35,6 +35,6 @@ npm run build
 
 ## Notlar
 
-- Login ekranindaki demo rol butonlari cookie tabanli onizleme oturumu acar.
-- Supabase bilgileri tanimlandiginda auth ve veri akisi gercek servis baglantisina genisleyebilir.
-- Supabase migration taslagi `supabase/migrations/0001_initial_schema.sql` altindadir.
+- Supabase ortam degiskenleri tanimli oldugunda auth ve veri akisinin canli hali kullanilir.
+- Gelistirme ortaminda rol bazli onizleme oturumu acilabilir; production ortaminda kapali kalir.
+- Veritabani degisiklikleri `supabase/migrations` altinda tutulur.

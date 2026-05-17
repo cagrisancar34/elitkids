@@ -6,7 +6,7 @@ import type { AppRole, SecurityRole } from "@/lib/types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseConfig, isDemoAuthEnabled } from "@/lib/supabase/config";
 
-export const DEMO_ROLE_COOKIE = "elitkids-demo-role";
+export const DEMO_ROLE_COOKIE = "elitsanatvesporkulubu-preview-role";
 
 export type AuthContext = {
   appRole: AppRole;
@@ -192,6 +192,31 @@ export function hasSecurityRole(
   return securityRoleOrder[candidate] >= securityRoleOrder[required];
 }
 
+export function canAccessOrganization(
+  auth: Pick<AuthContext, "securityRole">,
+  actorOrganizationId: string | null | undefined,
+  targetOrganizationId: string | null | undefined,
+) {
+  if (!targetOrganizationId || !actorOrganizationId) {
+    return false;
+  }
+
+  return auth.securityRole === "super_admin" || actorOrganizationId === targetOrganizationId;
+}
+
+export function canAccessEntity(input: {
+  auth: Pick<AuthContext, "securityRole">;
+  actorOrganizationId: string | null | undefined;
+  targetOrganizationId: string | null | undefined;
+  minimumSecurityRole?: SecurityRole;
+}) {
+  if (!canAccessOrganization(input.auth, input.actorOrganizationId, input.targetOrganizationId)) {
+    return false;
+  }
+
+  return !input.minimumSecurityRole || hasSecurityRole(input.auth.securityRole, input.minimumSecurityRole);
+}
+
 export async function requireRole(role: AppRole) {
   const auth = await getCurrentAuthContext();
 
@@ -234,11 +259,7 @@ export async function requireOrganizationAccess(
     throw new Error("Kurum baglami cozulmedi.");
   }
 
-  if (auth.securityRole === "super_admin") {
-    return auth;
-  }
-
-  if (actorOrganizationId !== targetOrganizationId) {
+  if (!canAccessOrganization(auth, actorOrganizationId, targetOrganizationId)) {
     throw new Error("Bu kayda erisim iznin yok.");
   }
 
@@ -255,7 +276,14 @@ export async function requireEntityAccess(input: {
     input.targetOrganizationId,
   );
 
-  if (input.minimumSecurityRole && !hasSecurityRole(auth.securityRole, input.minimumSecurityRole)) {
+  if (
+    !canAccessEntity({
+      auth,
+      actorOrganizationId: input.actorOrganizationId,
+      targetOrganizationId: input.targetOrganizationId,
+      minimumSecurityRole: input.minimumSecurityRole,
+    })
+  ) {
     throw new Error("Bu kayda erisim iznin yok.");
   }
 

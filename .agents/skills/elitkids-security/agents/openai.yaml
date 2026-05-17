@@ -1,0 +1,4 @@
+interface:
+  display_name: "ElitKids Security"
+  short_description: "Sustain project security guardrails"
+  default_prompt: "Use $elitkids-security to review this change for auth, authorization, RLS, webhooks, secrets, and security regression tests."

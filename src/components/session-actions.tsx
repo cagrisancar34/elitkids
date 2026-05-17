@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { Area, AttendanceStudent, CoachOption, ProgramOption, SessionRecord } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 const initialState: SessionActionState = {
   error: null,
@@ -42,25 +43,40 @@ export function SessionActions({
   coaches,
   areas,
   students = [],
+  layout = "default",
+  showCancel = true,
 }: {
   session: SessionRecord;
   programs: ProgramOption[];
   coaches: CoachOption[];
   areas: Area[];
   students?: AttendanceStudent[];
+  layout?: "default" | "calendar-overlay";
+  showCancel?: boolean;
 }) {
   const [updateState, updateAction] = useActionState(updateSessionAction, initialState);
   const [cancelState, cancelAction] = useActionState(cancelSessionAction, initialState);
 
   const startsAtValue = useMemo(() => toLocalDateTimeValue(session.startsAt), [session.startsAt]);
   const endsAtValue = useMemo(() => toLocalDateTimeValue(session.endsAt), [session.endsAt]);
+  const compactActionClassName =
+    "h-9 rounded-full border border-white/55 bg-white/88 px-3.5 text-[11px] font-semibold tracking-[-0.01em] text-slate-900 shadow-[0_10px_24px_rgba(15,23,42,0.12)] backdrop-blur";
+  const compactPrimaryActionClassName =
+    "h-9 rounded-full border border-transparent bg-[linear-gradient(135deg,#0f63ea,#004dc2)] px-3.5 text-[11px] font-semibold tracking-[-0.01em] text-white shadow-[0_14px_28px_rgba(12,87,220,0.28)]";
+  const isCalendarOverlay = layout === "calendar-overlay";
+  const rootClassName = isCalendarOverlay ? "flex flex-wrap items-center justify-center gap-2" : "flex flex-wrap gap-2";
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className={rootClassName}>
       <Dialog>
         <DialogTrigger asChild>
-          <Button type="button" size="sm" variant="outline">
-            <Eye className="h-4 w-4" />
+          <Button
+            type="button"
+            size="sm"
+            variant={isCalendarOverlay ? "secondary" : "outline"}
+            className={isCalendarOverlay ? compactActionClassName : undefined}
+          >
+            {!isCalendarOverlay ? <Eye className="h-4 w-4" /> : null}
             Detay
           </Button>
         </DialogTrigger>
@@ -107,8 +123,13 @@ export function SessionActions({
 
       <Dialog>
         <DialogTrigger asChild>
-          <Button type="button" size="sm" variant="outline">
-            <PencilLine className="h-4 w-4" />
+          <Button
+            type="button"
+            size="sm"
+            variant={isCalendarOverlay ? "secondary" : "outline"}
+            className={isCalendarOverlay ? compactActionClassName : undefined}
+          >
+            {!isCalendarOverlay ? <PencilLine className="h-4 w-4" /> : null}
             Duzenle
           </Button>
         </DialogTrigger>
@@ -218,52 +239,65 @@ export function SessionActions({
           sessionTitle={session.title}
           students={students}
           triggerLabel="Yoklama"
-          triggerVariant="default"
+          triggerVariant={isCalendarOverlay ? "default" : "default"}
+          triggerClassName={isCalendarOverlay ? compactPrimaryActionClassName : undefined}
         />
+      ) : isCalendarOverlay ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled
+          className={cn(compactActionClassName, "cursor-not-allowed opacity-70")}
+        >
+          Yoklama
+        </Button>
       ) : null}
 
-      <Dialog>
-        <DialogTrigger asChild>
-          <Button type="button" size="sm" variant="ghost">
-            <Ban className="h-4 w-4" />
-            Iptal et
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="w-[min(92vw,640px)] rounded-[2rem] px-8 py-8">
-          <DialogHeader>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
-              Seans iptali
-            </div>
-            <DialogTitle>Seansi iptal et</DialogTitle>
-            <DialogDescription>
-              Iptali bu seans, bu ve sonraki seanslar veya tum seri icin uygulayabilirsin.
-            </DialogDescription>
-          </DialogHeader>
+      {showCancel ? (
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button type="button" size="sm" variant="ghost">
+              <Ban className="h-4 w-4" />
+              Iptal et
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="w-[min(92vw,640px)] rounded-[2rem] px-8 py-8">
+            <DialogHeader>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
+                Seans iptali
+              </div>
+              <DialogTitle>Seansi iptal et</DialogTitle>
+              <DialogDescription>
+                Iptali bu seans, bu ve sonraki seanslar veya tum seri icin uygulayabilirsin.
+              </DialogDescription>
+            </DialogHeader>
 
-          <form action={cancelAction} className="grid gap-5">
-            <input type="hidden" name="sessionId" value={session.id} />
-            <div className="grid gap-2">
-              <label className="text-sm font-semibold text-foreground" htmlFor={`cancel-scope-${session.id}`}>
-                Iptal kapsami
-              </label>
-              <Select id={`cancel-scope-${session.id}`} name="scope" defaultValue="single">
-                <option value="single">Bu seans</option>
-                <option value="following">Bu ve sonraki seanslar</option>
-                <option value="series">Tum seri</option>
-              </Select>
-            </div>
+            <form action={cancelAction} className="grid gap-5">
+              <input type="hidden" name="sessionId" value={session.id} />
+              <div className="grid gap-2">
+                <label className="text-sm font-semibold text-foreground" htmlFor={`cancel-scope-${session.id}`}>
+                  Iptal kapsami
+                </label>
+                <Select id={`cancel-scope-${session.id}`} name="scope" defaultValue="single">
+                  <option value="single">Bu seans</option>
+                  <option value="following">Bu ve sonraki seanslar</option>
+                  <option value="series">Tum seri</option>
+                </Select>
+              </div>
 
-            {cancelState.error ? <p className="text-sm text-destructive">{cancelState.error}</p> : null}
-            {cancelState.success ? <p className="text-sm text-success">{cancelState.success}</p> : null}
+              {cancelState.error ? <p className="text-sm text-destructive">{cancelState.error}</p> : null}
+              {cancelState.success ? <p className="text-sm text-success">{cancelState.success}</p> : null}
 
-            <div className="flex justify-end">
-              <FormSubmitButton variant="ghost" className="min-w-40" pendingLabel="Iptal ediliyor...">
-                Iptal et
-              </FormSubmitButton>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+              <div className="flex justify-end">
+                <FormSubmitButton variant="ghost" className="min-w-40" pendingLabel="Iptal ediliyor...">
+                  Iptal et
+                </FormSubmitButton>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </div>
   );
 }

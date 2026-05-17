@@ -47,6 +47,9 @@ export async function saveAttendanceAction(
   }
 
   const statusEntries = Array.from(formData.entries()).filter(([key]) => key.startsWith("status:"));
+  const sessionClosingNoteValue = formData.get("sessionClosingNote");
+  const sessionClosingNote =
+    typeof sessionClosingNoteValue === "string" ? sessionClosingNoteValue.trim() : "";
 
   const { data: session } = await supabase
     .from("sessions")
@@ -148,10 +151,18 @@ export async function saveAttendanceAction(
     actorRole: auth.role,
     eventType: "Yoklama guncellendi",
     scope: "Yoklama",
-    entityType: "attendance_records",
+    entityType: "sessions",
+    entityId: sessionId,
     payload: {
       sessionId,
       updatedStudents: statusEntries.length,
+      sessionClosingNote: sessionClosingNote || null,
+      exceptionCount: Array.from(formData.entries()).filter(([key, value]) => {
+        if (!key.startsWith("status:") || typeof value !== "string") {
+          return false;
+        }
+        return value === "absent" || value === "excused";
+      }).length,
     },
   });
 

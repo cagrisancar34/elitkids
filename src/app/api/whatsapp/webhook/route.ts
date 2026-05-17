@@ -1,7 +1,21 @@
 import { NextResponse } from "next/server";
 
 import { getWhatsAppServerConfig } from "@/lib/whatsapp-config";
+import { verifyMetaWebhookSignature } from "@/lib/whatsapp-webhook-security";
 import { updateDispatchFromWebhook } from "@/lib/whatsapp-server";
+
+type WhatsAppWebhookPayload = {
+  entry?: Array<{
+    changes?: Array<{
+      value?: {
+        statuses?: Array<{
+          id?: string;
+          status?: "sent" | "delivered" | "read" | "failed";
+        }>;
+      };
+    }>;
+  }>;
+};
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -18,20 +32,30 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const body = (await request.json().catch(() => null)) as
-    | {
-        entry?: Array<{
-          changes?: Array<{
-            value?: {
-              statuses?: Array<{
-                id?: string;
-                status?: "sent" | "delivered" | "read" | "failed";
-              }>;
-            };
-          }>;
-        }>;
-      }
-    | null;
+  const config = getWhatsAppServerConfig();
+  const rawBody = await request.text();
+
+  if (!config.appSecret) {
+    return NextResponse.json({ error: "Webhook imza secret eksik." }, { status: 503 });
+  }
+
+  const verified = await verifyMetaWebhookSignature({
+    payload: rawBody,
+    signatureHeader: request.headers.get("x-hub-signature-256"),
+    appSecret: config.appSecret,
+  });
+
+  if (!verified) {
+    return NextResponse.json({ error: "Webhook imzasi dogrulanamadi." }, { status: 403 });
+  }
+
+  let body: WhatsAppWebhookPayload | null = null;
+
+  try {
+    body = rawBody ? (JSON.parse(rawBody) as WhatsAppWebhookPayload) : null;
+  } catch {
+    body = null;
+  }
 
   const statuses =
     body?.entry?.flatMap((entry) =>

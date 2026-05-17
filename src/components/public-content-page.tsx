@@ -1,68 +1,25 @@
-import type { Metadata } from "next";
 import type { Route } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 
-import { getLandingContentFromStorage } from "@/lib/landing-content-server";
-import { buildSeoPageJsonLd, buildSeoPageMetadata } from "@/lib/seo-metadata";
-import {
-  defaultSeoPages,
-  getDefaultSeoPageBySlug,
-} from "@/lib/seo-pages";
-import { getSeoPageBySlugFromStorage } from "@/lib/seo-pages-server";
+import { SeoLeadForm } from "@/components/seo-lead-form";
+import { SeoStickyCta } from "@/components/seo-sticky-cta";
+import type { LandingContent } from "@/lib/landing-content";
+import { buildSeoPageJsonLd } from "@/lib/seo-metadata";
+import type { PublicPageRenderable } from "@/lib/public-site";
 
-export const dynamic = "force-dynamic";
-
-type SeoPageProps = {
-  params: Promise<{ slug: string }>;
-};
-
-export async function generateStaticParams() {
-  return defaultSeoPages.map((page) => ({
-    slug: page.slug,
-  }));
-}
-
-export async function generateMetadata({
-  params,
-}: SeoPageProps): Promise<Metadata> {
-  const { slug } = await params;
-  const fallback = getDefaultSeoPageBySlug(slug);
-
-  if (!fallback) {
-    return {};
-  }
-
-  const { page } = await getSeoPageBySlugFromStorage(slug);
-
-  if (!page || !page.published) {
-    return {};
-  }
-
-  return buildSeoPageMetadata(page);
-}
-
-export default async function SeoPage({ params }: SeoPageProps) {
-  const { slug } = await params;
-  const fallback = getDefaultSeoPageBySlug(slug);
-
-  if (!fallback) {
-    notFound();
-  }
-
-  const [{ page }, { content: landingContent }] = await Promise.all([
-    getSeoPageBySlugFromStorage(slug),
-    getLandingContentFromStorage(),
-  ]);
-
-  if (!page || !page.published) {
-    notFound();
-  }
-
+export function PublicContentPage({
+  page,
+  landingContent,
+}: {
+  page: PublicPageRenderable;
+  landingContent: LandingContent;
+}) {
   const phone = landingContent.siteSettings.contactPhone;
   const normalizedPhone = phone.replace(/[^\d+]/g, "");
   const whatsappDigits = landingContent.siteSettings.whatsappPhone.replace(/\D/g, "");
   const structuredData = buildSeoPageJsonLd(page);
+  const internalLinks = page.internalLinks ?? [];
+  const customSections = page.customSections ?? [];
 
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,#f5f8ff_0%,#eef3ff_54%,#f8fbff_100%)] text-foreground">
@@ -101,6 +58,18 @@ export default async function SeoPage({ params }: SeoPageProps) {
             <div className="rounded-[2rem] border border-white/60 bg-white/84 p-8 shadow-[0_26px_60px_rgba(15,23,42,0.08)] backdrop-blur-xl md:p-10">
               <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">
                 {page.heroEyebrow}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {[page.targetLocation, page.targetBranch, page.targetAgeGroup]
+                  .filter(Boolean)
+                  .map((item) => (
+                    <span
+                      key={item}
+                      className="inline-flex rounded-full border border-primary/15 bg-primary/6 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary"
+                    >
+                      {item}
+                    </span>
+                  ))}
               </div>
               <h1 className="mt-5 max-w-[14ch] font-display text-[2.8rem] font-black leading-[0.92] tracking-[-0.06em] text-foreground md:text-[4.1rem]">
                 {page.heroTitle}
@@ -163,6 +132,55 @@ export default async function SeoPage({ params }: SeoPageProps) {
         </div>
       </section>
 
+      {customSections.length > 0 ? (
+        <section className="mx-auto max-w-[1320px] px-5 pb-4 md:px-8 md:pb-8">
+          <div className="grid gap-5 lg:grid-cols-3">
+            {customSections.map((section) => (
+              <article
+                key={section.id}
+                className={
+                  section.style === "highlight"
+                    ? "rounded-[1.9rem] bg-[linear-gradient(180deg,#0d1628_0%,#13213d_100%)] p-7 text-white shadow-[0_20px_50px_rgba(15,23,42,0.18)]"
+                    : section.style === "proof"
+                      ? "rounded-[1.9rem] border border-sky-200 bg-sky-50 p-7 shadow-[0_16px_34px_rgba(15,23,42,0.06)]"
+                      : "panel-soft rounded-[1.9rem] p-7"
+                }
+              >
+                {section.eyebrow ? (
+                  <div
+                    className={
+                      section.style === "highlight"
+                        ? "text-[11px] font-semibold uppercase tracking-[0.22em] text-white/50"
+                        : "text-[11px] font-semibold uppercase tracking-[0.22em] text-primary"
+                    }
+                  >
+                    {section.eyebrow}
+                  </div>
+                ) : null}
+                <h2
+                  className={
+                    section.style === "highlight"
+                      ? "mt-4 font-display text-[1.8rem] font-bold tracking-[-0.04em] text-white"
+                      : "mt-4 font-display text-[1.8rem] font-bold tracking-[-0.04em] text-foreground"
+                  }
+                >
+                  {section.title}
+                </h2>
+                <p
+                  className={
+                    section.style === "highlight"
+                      ? "mt-4 text-sm leading-8 text-white/76 md:text-base"
+                      : "mt-4 text-sm leading-8 text-muted-foreground md:text-base"
+                  }
+                >
+                  {section.body}
+                </p>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <section className="border-y border-slate-200/70 bg-white/60">
         <div className="mx-auto max-w-[1320px] px-5 py-16 md:px-8 md:py-20">
           <div className="max-w-3xl">
@@ -193,6 +211,30 @@ export default async function SeoPage({ params }: SeoPageProps) {
         </div>
       </section>
 
+      {page.testimonialQuote ? (
+        <section className="mx-auto max-w-[1320px] px-5 py-12 md:px-8 md:py-16">
+          <div className="grid gap-6 rounded-[2rem] border border-white/70 bg-white/86 p-8 shadow-[0_20px_50px_rgba(15,23,42,0.08)] md:grid-cols-[0.9fr_1.1fr] md:p-10">
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">
+                Lokal guven sinyali
+              </div>
+              <h2 className="mt-4 font-display text-[2rem] font-black tracking-[-0.05em] text-foreground md:text-[2.6rem]">
+                Bu sayfa yalnizca bilgi vermek icin degil, aileye karar kolayligi vermek icin kurgulandi.
+              </h2>
+            </div>
+            <blockquote className="rounded-[1.5rem] bg-[linear-gradient(180deg,#0d1628_0%,#13213d_100%)] p-6 text-white shadow-[0_20px_44px_rgba(15,23,42,0.16)]">
+              <p className="text-base leading-8 text-white/80 md:text-lg">{page.testimonialQuote}</p>
+              <footer className="mt-6">
+                <div className="font-display text-lg font-bold tracking-[-0.03em]">{page.testimonialAuthor}</div>
+                <div className="mt-1 text-[11px] uppercase tracking-[0.2em] text-white/46">
+                  {page.testimonialRole}
+                </div>
+              </footer>
+            </blockquote>
+          </div>
+        </section>
+      ) : null}
+
       <section className="mx-auto max-w-[1320px] px-5 py-16 md:px-8 md:py-20">
         <div className="grid gap-6 rounded-[2rem] bg-[linear-gradient(180deg,#0d1628_0%,#13213d_100%)] p-8 text-white shadow-[0_26px_60px_rgba(15,23,42,0.18)] md:p-10 xl:grid-cols-[1.05fr_0.95fr]">
           <div>
@@ -220,18 +262,77 @@ export default async function SeoPage({ params }: SeoPageProps) {
             >
               {page.ctaSecondaryLabel}
             </Link>
-            <a
-              href={`tel:${normalizedPhone}`}
-              className="rounded-[1rem] border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-white/78"
-            >
-              Telefon: {phone}
-            </a>
-            <div className="rounded-[1rem] border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-white/72">
-              {landingContent.siteSettings.location}
+            <div className="rounded-[1.2rem] border border-white/10 bg-black/10 p-4 text-sm leading-7 text-white/70">
+              <div>{landingContent.siteSettings.location}</div>
+              <div>{landingContent.siteSettings.contactPhone}</div>
+              <div>{landingContent.siteSettings.contactEmail}</div>
             </div>
           </div>
         </div>
       </section>
+
+      <section className="border-t border-slate-200/70 bg-white/70">
+        <div className="mx-auto max-w-[1320px] px-5 py-16 md:px-8">
+          <div className="grid gap-10 xl:grid-cols-[1.1fr_0.9fr]">
+            <div className="space-y-5">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">
+                Icerikten talebe gecis
+              </div>
+              <h2 className="font-display text-[2.1rem] font-black tracking-[-0.05em] text-foreground md:text-[2.8rem]">
+                Bu sayfadan ayrilmadan bilgi alin, program sorusu birakin veya geri arama isteyin.
+              </h2>
+              <p className="max-w-[64ch] text-base leading-8 text-muted-foreground">
+                SEO sayfalari yalnizca okunacak metinler degil; lead uretecek net CTA ve kaynak izleme akisiyla tasarlandi.
+              </p>
+
+              {internalLinks.length > 0 ? (
+                <div className="grid gap-3 rounded-[1.6rem] border border-slate-200 bg-white/88 p-5 shadow-[0_16px_34px_rgba(15,23,42,0.06)]">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">
+                    Ilgili sayfalar
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    {internalLinks.map((item) => (
+                      <Link
+                        key={`${page.slug}-${item.href}-${item.label}`}
+                        href={item.href as Route}
+                        className="inline-flex rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-foreground shadow-[0_10px_24px_rgba(15,23,42,0.05)]"
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="grid gap-4 rounded-[1.6rem] border border-slate-200 bg-white/88 p-5 shadow-[0_16px_34px_rgba(15,23,42,0.06)]">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">
+                  Hizli bilgi formu
+                </div>
+                <h3 className="mt-3 font-display text-[1.4rem] font-bold tracking-[-0.04em] text-foreground">
+                  Bilgi almak icin kisa formu doldurun
+                </h3>
+                <p className="mt-2 text-sm leading-7 text-muted-foreground">
+                  Program, yas grubu ve ilk ders sureci icin ekip size geri donsun.
+                </p>
+              </div>
+              <SeoLeadForm
+                source="organic_seo_page"
+                branchInterest={page.targetBranch || page.title}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <SeoStickyCta
+        title={page.ctaTitle}
+        primaryLabel={page.ctaPrimaryLabel}
+        primaryHref={page.ctaPrimaryHref}
+        phone={landingContent.siteSettings.contactPhone}
+        whatsappDigits={landingContent.siteSettings.whatsappPhone.replace(/\D/g, "")}
+      />
     </main>
   );
 }

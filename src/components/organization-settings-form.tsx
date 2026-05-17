@@ -42,7 +42,7 @@ export function OrganizationSettingsForm({
         <label className="text-sm font-medium text-foreground" htmlFor="slug">
           Slug
         </label>
-        <Input id="slug" name="slug" defaultValue={defaults.slug} placeholder="elitkids" />
+        <Input id="slug" name="slug" defaultValue={defaults.slug} placeholder="elit-sanat-ve-spor-kulubu" />
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="grid gap-2">

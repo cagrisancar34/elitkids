@@ -40,9 +40,9 @@ export function LoginForm({ supabaseEnabled }: { supabaseEnabled: boolean }) {
       {demoEnabled ? (
         <Card>
           <CardHeader>
-            <CardTitle>{supabaseEnabled ? "Demo gecisi" : "Canli demo gecisi"}</CardTitle>
+            <CardTitle>{supabaseEnabled ? "Rol onizlemesi" : "Gelistirme onizlemesi"}</CardTitle>
             <CardDescription>
-              Rol bazli ekranlari hizlica gezmek icin bir demo oturumu baslat.
+              Gelistirme ortaminda rol bazli ekranlari hizlica kontrol etmek icin gecici bir onizleme oturumu baslat.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
@@ -78,7 +78,7 @@ export function LoginForm({ supabaseEnabled }: { supabaseEnabled: boolean }) {
                 id="email"
                 name="email"
                 type="email"
-                placeholder="ornek@elitkids.com"
+                placeholder="ornek@elitsanatvesporkulubu.com"
                 autoComplete="email"
                 required
               />

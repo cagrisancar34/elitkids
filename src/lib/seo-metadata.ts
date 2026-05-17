@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import type { SeoPageContent } from "@/lib/seo-pages";
+import type { PublicPageRenderable } from "@/lib/public-site";
 
 export const siteUrl = "https://elitsanatvesporkulubu.com";
 export const siteName = "Elit Sanat ve Spor Kulubu";
@@ -13,13 +13,13 @@ export function buildRootMetadata(): Metadata {
       template: `%s | ${siteName}`,
     },
     description:
-      "Silivri'de yuzme, cimnastik, jimnastik ve tenis odakli cocuk spor programlari sunan Elit Sanat ve Spor Kulubu.",
+      "Silivri'de cocuklar icin yuzme, cimnastik ve tenis odakli planli spor egitimi sunan Elit Sanat ve Spor Kulubu.",
     openGraph: {
       type: "website",
       siteName,
       title: siteName,
       description:
-        "Silivri'de yuzme, cimnastik, jimnastik ve tenis odakli premium cocuk spor sistemi.",
+        "Silivri'de yuzme, cimnastik ve tenis odakli planli cocuk spor sistemi.",
       url: siteUrl,
       locale: "tr_TR",
     },
@@ -27,12 +27,12 @@ export function buildRootMetadata(): Metadata {
       card: "summary_large_image",
       title: siteName,
       description:
-        "Silivri'de yuzme, cimnastik, jimnastik ve tenis odakli premium cocuk spor sistemi.",
+        "Silivri'de yuzme, cimnastik ve tenis odakli planli cocuk spor sistemi.",
     },
   };
 }
 
-export function buildSeoPageMetadata(page: SeoPageContent): Metadata {
+export function buildSeoPageMetadata(page: PublicPageRenderable): Metadata {
   const canonical = page.canonicalPath || `/${page.slug}`;
 
   return {
@@ -43,6 +43,13 @@ export function buildSeoPageMetadata(page: SeoPageContent): Metadata {
     alternates: {
       canonical,
     },
+    robots:
+      page.indexable === false
+        ? {
+            index: false,
+            follow: false,
+          }
+        : undefined,
     openGraph: {
       type: "website",
       siteName,
@@ -59,21 +66,39 @@ export function buildSeoPageMetadata(page: SeoPageContent): Metadata {
   };
 }
 
-export function buildSeoPageJsonLd(page: SeoPageContent) {
+export function buildSeoPageJsonLd(page: PublicPageRenderable) {
   const canonical = `${siteUrl}${page.canonicalPath}`;
 
   const organization = {
     "@context": "https://schema.org",
-    "@type": page.pageType === "contact" ? "Organization" : "SportsActivityLocation",
+    "@type": "SportsActivityLocation",
     name: siteName,
-    url: canonical,
+    url: siteUrl,
     telephone: "+90 530 065 77 77",
     address: {
       "@type": "PostalAddress",
-      addressLocality: "Silivri",
+      addressLocality: page.targetLocation || "Silivri",
       addressRegion: "Istanbul",
       addressCountry: "TR",
     },
+  };
+
+  const webPage = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: page.title,
+    url: canonical,
+    description: page.metaDescription,
+    about: [page.targetBranch, page.targetAgeGroup, page.targetLocation].filter(Boolean),
+  };
+
+  const localBusiness = {
+    "@context": "https://schema.org",
+    "@type": page.pageType === "contact" ? "Organization" : "LocalBusiness",
+    name: siteName,
+    url: siteUrl,
+    telephone: "+90 530 065 77 77",
+    areaServed: page.targetLocation || "Silivri",
   };
 
   const faq = {
@@ -108,5 +133,5 @@ export function buildSeoPageJsonLd(page: SeoPageContent) {
     ],
   };
 
-  return [organization, faq, breadcrumb];
+  return [organization, localBusiness, webPage, faq, breadcrumb];
 }

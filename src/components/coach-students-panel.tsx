@@ -53,7 +53,7 @@ export function CoachStudentsPanel({
         }
 
         const haystack =
-          `${student.name} ${student.program} ${student.category} ${student.club} ${student.status}`.toLocaleLowerCase(
+          `${student.name} ${student.program} ${student.category} ${student.club} ${student.status} ${student.coachNoteSummary ?? ""}`.toLocaleLowerCase(
             "tr-TR",
           );
 
@@ -77,24 +77,24 @@ export function CoachStudentsPanel({
   return (
     <div className="grid gap-6">
       <section className="grid gap-4 md:grid-cols-3">
-        <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
+        <div className="page-surface rounded-[1.7rem] px-5 py-5">
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Tum roster</div>
           <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">{counts.all}</div>
         </div>
-        <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
+        <div className="page-surface rounded-[1.7rem] px-5 py-5">
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Detay girilen</div>
           <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">
             {students.filter((student) => student.detailSaved).length}
           </div>
         </div>
-        <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
+        <div className="page-surface rounded-[1.7rem] px-5 py-5">
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Risk sinyali</div>
           <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">{counts.risk}</div>
         </div>
       </section>
 
       <section className="grid gap-4">
-        <div className="surface-muted flex flex-wrap gap-2 rounded-full px-3 py-2">
+        <div className="page-toolbar flex flex-wrap gap-2 rounded-[1.7rem] px-3 py-3">
           {[
             ["all", "Tum roster", counts.all],
             ["active", "Aktif", counts.active],
@@ -121,6 +121,7 @@ export function CoachStudentsPanel({
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Roster ara: ad, program veya kategori"
             aria-label="Roster ara"
+            className="bg-white/80"
           />
           <Select
             value={sort}
@@ -149,7 +150,7 @@ export function CoachStudentsPanel({
           </div>
         ) : null}
 
-        <div className="overflow-hidden rounded-[1.7rem] border border-white/50 bg-white/92">
+        <div className="page-surface overflow-hidden rounded-[1.9rem]">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1000px] border-collapse">
               <thead>
@@ -186,11 +187,29 @@ export function CoachStudentsPanel({
                         </span>
                       </td>
                       <td className="px-6 py-6 text-[1.02rem] font-semibold text-slate-700">{student.program}</td>
-                      <td className="px-6 py-6 text-[1.02rem] font-semibold text-slate-700">{student.attendance}</td>
                       <td className="px-6 py-6">
-                        <div className="inline-flex items-center gap-2 text-[1rem] font-semibold text-slate-700">
-                          <span className={`h-3 w-3 rounded-full ${statusTone(student.status)}`} />
-                          {student.status}
+                        <div className="text-[1.02rem] font-semibold text-slate-700">{student.attendance}</div>
+                        <div className="mt-2 text-[12px] font-medium text-slate-500">
+                          {student.lastAttendanceLabel ?? "Henuz yoklama yok"}
+                        </div>
+                      </td>
+                      <td className="px-6 py-6">
+                        <div className="space-y-2">
+                          <div className="inline-flex items-center gap-2 text-[1rem] font-semibold text-slate-700">
+                            <span className={`h-3 w-3 rounded-full ${statusTone(student.status)}`} />
+                            {student.status}
+                          </div>
+                          <div className="text-[12px] font-medium text-slate-500">
+                            {student.remainingLessons ?? 0} hak kaldi
+                          </div>
+                          {student.firstSessionFlag ? (
+                            <div className="inline-flex rounded-full bg-cyan-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-cyan-700">
+                              Ilk kez geliyor
+                            </div>
+                          ) : null}
+                          <div className="text-[12px] font-medium text-slate-500">
+                            {student.coachNoteSummary ?? "Ic koc notu henuz eklenmedi"}
+                          </div>
                         </div>
                       </td>
                       <td className="px-6 py-6">

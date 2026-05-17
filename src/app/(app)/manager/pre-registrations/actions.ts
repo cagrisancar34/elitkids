@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 
 import { getActorOrganizationId, logAuditEvent } from "@/lib/audit";
 import { getCurrentAuthContext } from "@/lib/auth";
+import {
+  createRoleScopedTopicNotifications,
+  renderMessageTopicForOrganization,
+} from "@/lib/message-topics-server";
 import { getOrCreateOrganizationContext } from "@/lib/organization-context";
+import { ensureMonthlyChargeForEnrollment } from "@/lib/billing";
 import {
   activatePreRegistrationSchema,
   createPreRegistrationNoteSchema,
@@ -12,16 +17,29 @@ import {
 } from "@/lib/schemas/app-forms";
 import { buildMonthlyLessonCycle } from "@/lib/program-workspace";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { getWhatsAppServerConfig } from "@/lib/whatsapp-config";
 import {
-  createInviteLinkForEmail,
-  createRecoveryLinkForEmail,
+  buildWebWhatsAppHref,
+  formatLessonLabelForWhatsApp,
+  generateTemporaryPassword,
   queueRegistrationCompletedDispatch,
 } from "@/lib/whatsapp-server";
-import { ensureEnrollmentSessionAllocations } from "@/lib/session-allocations";
+import { ensureEnrollmentSessionAllocations, getFirstAllocatedSessionForEnrollment } from "@/lib/session-allocations";
 
 export type PreRegistrationActionState = {
   error: string | null;
   success: string | null;
+  activationResult?: {
+    firstLessonAt: string | null;
+    firstLessonLabel: string | null;
+    temporaryPassword: string | null;
+    whatsAppTarget: string | null;
+    webWhatsAppHref: string | null;
+    autoDispatchStatus: "queued" | "failed" | "skipped";
+    warning: string | null;
+    messagePreview: string | null;
+    loginUrl: string;
+  } | null;
 };
 
 async function resolveOperatorContext() {
@@ -32,6 +50,7 @@ async function resolveOperatorContext() {
       auth: null,
       userId: null,
       organizationId: null,
+      organizationSlug: null,
       adminClient: null,
       error: "Bu islem icin yetkin yok.",
     };
@@ -45,6 +64,7 @@ async function resolveOperatorContext() {
       auth: null,
       userId: operatorUserId,
       organizationId: null,
+      organizationSlug: null,
       adminClient: null,
       error: context.error ?? "Kurum baglami cozulmedi.",
     };
@@ -57,6 +77,7 @@ async function resolveOperatorContext() {
       auth: null,
       userId: operatorUserId,
       organizationId: context.organizationId,
+      organizationSlug: context.organizationSlug,
       adminClient: null,
       error: "Supabase admin baglantisi kurulamadi.",
     };
@@ -65,9 +86,10 @@ async function resolveOperatorContext() {
   return {
     auth,
     userId: operatorUserId,
-    organizationId: context.organizationId,
-    adminClient,
-    error: null,
+      organizationId: context.organizationId,
+      organizationSlug: context.organizationSlug,
+      adminClient,
+      error: null,
   };
 }
 
@@ -164,6 +186,7 @@ export async function updatePreRegistrationStatusAction(
   const parsed = updatePreRegistrationStatusSchema.safeParse({
     preRegistrationId: formData.get("preRegistrationId"),
     status: formData.get("status"),
+    contextNote: formData.get("contextNote"),
   });
 
   if (!parsed.success) {
@@ -188,6 +211,30 @@ export async function updatePreRegistrationStatusAction(
   }
 
   const now = new Date().toISOString();
+  const contextNote = parsed.data.contextNote.trim();
+  const normalizedContextNote =
+    parsed.data.status === "lost" && contextNote
+      ? `KAYIP NEDENI: ${contextNote}`
+      : parsed.data.status === "ready_to_activate" && contextNote
+        ? `DENEME SONUCU: ${contextNote}`
+        : parsed.data.status === "trial_scheduled" && contextNote
+          ? `DENEME PLAN NOTU: ${contextNote}`
+          : contextNote || null;
+
+  if (parsed.data.status === "lost" && contextNote.length < 4) {
+    return {
+      error: "Kaybedilme nedeni girilmeli.",
+      success: null,
+    };
+  }
+
+  if (parsed.data.status === "ready_to_activate" && contextNote.length < 4) {
+    return {
+      error: "Deneme dersi sonucu girilmeli.",
+      success: null,
+    };
+  }
+
   const { error: updateError } = await context.adminClient
     .from("pre_registrations")
     .update({
@@ -210,7 +257,16 @@ export async function updatePreRegistrationStatusAction(
     actorProfileId: context.userId,
     fromStatus: record.status,
     toStatus: parsed.data.status,
+    note: normalizedContextNote,
   });
+
+  if (normalizedContextNote) {
+    await context.adminClient.from("pre_registration_notes").insert({
+      pre_registration_id: parsed.data.preRegistrationId,
+      author_profile_id: context.userId,
+      body: normalizedContextNote,
+    });
+  }
 
   await logAuditEvent({
     organizationId: await getActorOrganizationId(context.userId),
@@ -223,6 +279,7 @@ export async function updatePreRegistrationStatusAction(
     payload: {
       fromStatus: record.status,
       toStatus: parsed.data.status,
+      contextNote: normalizedContextNote,
     },
   });
 
@@ -366,6 +423,7 @@ export async function activatePreRegistrationAction(
       organization_id: context.organizationId,
       full_name: record.student_full_name,
       birth_date: record.student_birth_date,
+      gender: record.student_gender ?? "other",
       active: true,
       source: "pre_registration",
     })
@@ -422,8 +480,15 @@ export async function activatePreRegistrationAction(
     });
   }
 
+  const firstAllocatedSession = await getFirstAllocatedSessionForEnrollment(context.adminClient, enrollment.id);
+  const firstLessonAt = firstAllocatedSession?.startsAt ?? null;
+  const firstLessonLabel = formatLessonLabelForWhatsApp(firstLessonAt);
+  const config = getWhatsAppServerConfig();
+  const loginUrl = `${config.appUrl}/login`;
+
   let activatedParentProfileId: string | null = null;
-  let setupLink: string | null = null;
+  let temporaryPassword: string | null = null;
+  let parentAccessWarning: string | null = null;
   const listedUsers = await context.adminClient.auth.admin.listUsers({
     page: 1,
     perPage: 500,
@@ -433,30 +498,41 @@ export async function activatePreRegistrationAction(
   );
 
   if (!parentUser?.id && record.parent_email) {
-    const invite = await createInviteLinkForEmail(
-      String(record.parent_email),
-      String(record.mother_name || record.father_name || "Veli"),
-    );
-    setupLink = invite.actionLink;
+    const generatedPassword = generateTemporaryPassword();
+    const createdParent = await context.adminClient.auth.admin.createUser({
+      email: String(record.parent_email),
+      password: generatedPassword,
+      email_confirm: true,
+      app_metadata: {
+        app_role: "parent",
+        organization_id: context.organizationId,
+        organization_slug: context.organizationSlug,
+      },
+      user_metadata: {
+        full_name: String(record.mother_name || record.father_name || "Veli"),
+      },
+    });
 
-    if (invite.userId) {
-      const refreshedUsers = await context.adminClient.auth.admin.listUsers({
-        page: 1,
-        perPage: 500,
-      });
-      parentUser =
-        refreshedUsers.data.users.find((user) => user.id === invite.userId) ??
-        refreshedUsers.data.users.find(
-          (user) => user.email?.toLowerCase() === String(record.parent_email ?? "").toLowerCase(),
-        );
+    if (createdParent.error || !createdParent.data.user?.id) {
+      parentAccessWarning =
+        createdParent.error?.message ?? "Veli auth hesabi olusturulamadi. Gecici sifre uretilemedi.";
+    } else {
+      parentUser = createdParent.data.user;
+      temporaryPassword = generatedPassword;
     }
   }
 
   if (parentUser?.id) {
     activatedParentProfileId = parentUser.id;
-    if (!setupLink && record.parent_email) {
-      setupLink = await createRecoveryLinkForEmail(String(record.parent_email), String(record.mother_name || record.father_name || "Veli"));
-    }
+
+    await context.adminClient.auth.admin.updateUserById(parentUser.id, {
+      app_metadata: {
+        ...(typeof parentUser.app_metadata === "object" && parentUser.app_metadata ? parentUser.app_metadata : {}),
+        app_role: "parent",
+        organization_id: context.organizationId,
+        organization_slug: context.organizationSlug,
+      },
+    });
 
     const { data: existingParentProfile } = await context.adminClient
       .from("profiles")
@@ -494,23 +570,32 @@ export async function activatePreRegistrationAction(
       },
       { onConflict: "parent_profile_id,student_id" },
     );
+
+    const { data: existingParentRole } = await context.adminClient
+      .from("user_roles")
+      .select("profile_id")
+      .eq("profile_id", parentUser.id)
+      .eq("role", "parent")
+      .maybeSingle();
+
+    if (!existingParentRole?.profile_id) {
+      await context.adminClient.from("user_roles").insert({
+        profile_id: parentUser.id,
+        role: "parent",
+      });
+    }
+  } else if (record.parent_email) {
+    parentAccessWarning =
+      parentAccessWarning ??
+      "Veli hesabi hazirlanamadi. Aktivasyon tamamlandi ama giris bilgileri uretilemedi.";
   }
 
   if (parsed.data.createInitialCharge === "yes") {
-    const { data: feePlan } = await context.adminClient
-      .from("fee_plans")
-      .select("id")
-      .eq("organization_id", context.organizationId)
-      .eq("amount", program.monthly_price)
-      .limit(1)
-      .maybeSingle();
-
-    await context.adminClient.from("charges").insert({
-      enrollment_id: enrollment.id,
-      fee_plan_id: feePlan?.id ?? null,
-      amount: program.monthly_price,
-      due_date: parsed.data.startsOn,
-      status: "pending",
+    await ensureMonthlyChargeForEnrollment({
+      organizationId: context.organizationId,
+      enrollmentId: enrollment.id,
+      startsOn: parsed.data.startsOn,
+      amount: Number(program.monthly_price ?? 0),
     });
   }
 
@@ -567,20 +652,102 @@ export async function activatePreRegistrationAction(
   revalidatePath("/manager/finance");
   revalidatePath("/parent");
 
-  if (record.parent_email && record.parent_whatsapp) {
-    await queueRegistrationCompletedDispatch({
-      organizationId: context.organizationId,
-      recipientName: String(record.mother_name || record.father_name || "Veli"),
-      recipientPhone: String(record.parent_whatsapp),
-      recipientEmail: String(record.parent_email),
-      setupLink,
-      profileId: activatedParentProfileId,
-      preRegistrationId: parsed.data.preRegistrationId,
-    }).catch(() => null);
+  const warningParts: string[] = [];
+
+  if (!firstLessonLabel) {
+    warningParts.push(
+      "Ilk atanmis seans bulunamadi. Program tarihi veya allocation yapisini kontrol etmeden veliye mesaj gonderme.",
+    );
   }
+
+  if (!temporaryPassword) {
+    warningParts.push(
+      parentAccessWarning ??
+        "Veli icin gecici sifre uretilemedi. Hesap erisimi tamamlanmadan kayit mesajini gonderme.",
+    );
+  }
+
+  const activationWarning = warningParts.length ? warningParts.join(" ") : null;
+  const accessMessage = temporaryPassword
+    ? `Gecici sifreniz: ${temporaryPassword}`
+    : parentAccessWarning;
+
+  const messagePreview =
+    record.parent_email && firstLessonLabel && temporaryPassword
+      ? (
+          await renderMessageTopicForOrganization({
+            organizationId: context.organizationId,
+            topicKey: "pre_registration_activated",
+            variables: {
+              student_name: String(record.student_full_name),
+              program_name: program.title,
+              first_lesson: firstLessonLabel,
+              login_url: loginUrl,
+              email: String(record.parent_email),
+              access_note: accessMessage ?? "",
+            },
+          })
+        ).body
+      : null;
+
+  const webWhatsAppHref =
+    record.parent_whatsapp && messagePreview
+      ? buildWebWhatsAppHref({
+          phone: String(record.parent_whatsapp),
+          message: messagePreview,
+        })
+      : null;
+
+  let autoDispatchStatus: "queued" | "failed" | "skipped" = "skipped";
+
+  if (record.parent_email && record.parent_whatsapp && firstLessonLabel && temporaryPassword) {
+    try {
+      await queueRegistrationCompletedDispatch({
+        organizationId: context.organizationId,
+        recipientName: String(record.mother_name || record.father_name || "Veli"),
+        recipientPhone: String(record.parent_whatsapp),
+        recipientEmail: String(record.parent_email),
+        setupLink: null,
+        temporaryPassword,
+        accessNote: accessMessage,
+        firstLessonLabel,
+        profileId: activatedParentProfileId,
+        preRegistrationId: parsed.data.preRegistrationId,
+      });
+      autoDispatchStatus = "queued";
+    } catch {
+      autoDispatchStatus = "failed";
+    }
+  }
+
+  await createRoleScopedTopicNotifications({
+    organizationId: context.organizationId,
+    topicKey: "panel_notice_registration_completed",
+    channelKey: `message_topic:panel_notice_registration_completed:pre-registration:${parsed.data.preRegistrationId}`,
+    variables: {
+      student_name: String(record.student_full_name),
+      program_name: program.title,
+      first_lesson: firstLessonLabel ?? "-",
+      login_url: loginUrl,
+      email: String(record.parent_email ?? "-"),
+      temporary_password: temporaryPassword ?? "-",
+      access_note: accessMessage ?? "Mevcut sifre korunuyor.",
+    },
+  });
 
   return {
     error: null,
     success: "On kayit aktif ogrenciye donusturuldu.",
+    activationResult: {
+      firstLessonAt,
+      firstLessonLabel,
+      temporaryPassword,
+      whatsAppTarget: record.parent_whatsapp ? String(record.parent_whatsapp) : null,
+      webWhatsAppHref,
+      autoDispatchStatus,
+      warning: activationWarning,
+      messagePreview,
+      loginUrl,
+    },
   };
 }

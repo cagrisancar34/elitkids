@@ -1,6 +1,7 @@
 "use client";
 
 import type { Route } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import {
@@ -48,6 +49,26 @@ const iconMap = {
   star: Sparkles,
 } satisfies Record<IconKey, typeof Snowflake>;
 
+function formatPublicParentName(value: string) {
+  const normalized = value.trim().replace(/\s+/g, " ");
+  if (!normalized) {
+    return "Veli";
+  }
+
+  if (/^[^\s]+\s+[A-Z]\.$/i.test(normalized)) {
+    return normalized;
+  }
+
+  const parts = normalized.split(" ");
+  if (parts.length === 1) {
+    return parts[0];
+  }
+
+  const firstName = parts[0];
+  const lastInitial = parts[parts.length - 1]?.charAt(0).toUpperCase();
+  return lastInitial ? `${firstName} ${lastInitial}.` : firstName;
+}
+
 export function HomePageClient({ initialContent }: { initialContent: LandingContent }) {
   const [content] = useState(initialContent);
   const [hasScrolled, setHasScrolled] = useState(false);
@@ -81,9 +102,12 @@ export function HomePageClient({ initialContent }: { initialContent: LandingCont
   const logoNode = useMemo(() => {
     if (content.siteSettings.logoImage) {
       return (
-        <img
+        <Image
           src={content.siteSettings.logoImage}
           alt={content.siteSettings.brandName}
+          width={32}
+          height={32}
+          unoptimized
           className="h-8 w-8 rounded-full object-cover"
         />
       );
@@ -105,6 +129,18 @@ export function HomePageClient({ initialContent }: { initialContent: LandingCont
       ),
     [content.guide.items],
   );
+  const featuredGalleryItems = useMemo(
+    () =>
+      content.galleryItems.filter((item) => item.featured && item.published && item.image.trim().length > 0),
+    [content.galleryItems],
+  );
+  const featuredTestimonials = useMemo(
+    () =>
+      content.testimonials.items
+        .filter((item) => item.approved)
+        .sort((left, right) => left.sortOrder - right.sortOrder),
+    [content.testimonials.items],
+  );
 
   async function handleLeadSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -125,6 +161,7 @@ export function HomePageClient({ initialContent }: { initialContent: LandingCont
         email: leadForm.email,
         phone: leadForm.phone,
         branchInterest: leadForm.status,
+        source: "organic_home",
       }),
     }).catch(() => null);
 
@@ -139,7 +176,7 @@ export function HomePageClient({ initialContent }: { initialContent: LandingCont
       return;
     }
 
-    trackFormSubmit("landing_lead_cta");
+    trackFormSubmit("landing_lead_cta", { lead_source: "organic_home" });
     setLeadForm({
       fullName: "",
       email: "",
@@ -167,9 +204,12 @@ export function HomePageClient({ initialContent }: { initialContent: LandingCont
           <Link href="/" className="flex items-center gap-3 md:gap-4">
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-sky-300 to-[#42baf9] shadow-[0_14px_30px_rgba(66,186,249,0.28)]">
               {content.siteSettings.logoImage ? (
-                <img
+                <Image
                   src={content.siteSettings.logoImage}
                   alt={content.siteSettings.brandName}
+                  width={56}
+                  height={56}
+                  unoptimized
                   className="h-14 w-14 rounded-full object-cover"
                 />
               ) : (
@@ -269,20 +309,27 @@ export function HomePageClient({ initialContent }: { initialContent: LandingCont
                     {content.hero.secondaryCtaLabel}
                   </TrackedLinkButton>
                 </div>
+
               </div>
 
               <div className="grid grid-cols-2 items-end gap-6 xl:justify-self-end">
                 <div className="overflow-hidden rounded-[2rem] border border-white/[0.06] bg-[#0e1a31] shadow-[0_30px_70px_rgba(0,0,0,0.32)]">
-                  <img
+                  <Image
                     src={content.hero.visualPrimaryImage}
                     alt={`${content.siteSettings.brandName} hero bir`}
+                    width={900}
+                    height={1250}
+                    unoptimized
                     className="aspect-[0.72] h-full w-full object-cover"
                   />
                 </div>
                 <div className="overflow-hidden rounded-[2rem] border border-white/[0.06] bg-[#0e1a31] shadow-[0_30px_70px_rgba(0,0,0,0.32)] xl:translate-y-[-58px]">
-                  <img
+                  <Image
                     src={content.hero.visualSecondaryImage}
                     alt={`${content.siteSettings.brandName} hero iki`}
+                    width={900}
+                    height={880}
+                    unoptimized
                     className="aspect-[0.98] h-full w-full object-cover"
                   />
                 </div>
@@ -316,6 +363,66 @@ export function HomePageClient({ initialContent }: { initialContent: LandingCont
             </div>
           </div>
         </section>
+
+        {featuredGalleryItems.length ? (
+          <section className="border-t border-white/[0.04] bg-[#091224]">
+            <div className="mx-auto max-w-[1320px] px-4 py-16 md:px-6 md:py-18">
+              <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+                <div className="max-w-2xl">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.26em] text-sky-300">
+                    {content.homepageMediaRail.eyebrow}
+                  </div>
+                  <h2 className="mt-4 font-display text-[2.1rem] font-black tracking-[-0.05em] text-white md:text-[2.7rem]">
+                    {content.homepageMediaRail.title}
+                  </h2>
+                  <p className="mt-4 text-sm leading-7 text-slate-400 md:text-base">
+                    {content.homepageMediaRail.description}
+                  </p>
+                </div>
+                <TrackedLinkButton
+                  href={content.homepageMediaRail.ctaHref}
+                  variant="outline"
+                  className="h-12 rounded-full border-white/[0.08] bg-white/[0.03] px-6 text-sm font-semibold text-white hover:bg-white/[0.06]"
+                  trackingName={content.homepageMediaRail.ctaLabel}
+                  trackingLocation="homepage_media_rail"
+                >
+                  {content.homepageMediaRail.ctaLabel}
+                </TrackedLinkButton>
+              </div>
+
+              <div className="mt-10 overflow-hidden rounded-[1.9rem] border border-white/[0.06] bg-[#0e182c] py-4 shadow-[0_18px_52px_rgba(0,0,0,0.18)]">
+                <div className="homepage-media-rail-track flex w-max gap-4 px-4">
+                  {[...featuredGalleryItems, ...featuredGalleryItems].map((item, index) => (
+                    <article
+                      key={`${item.id}-${index}`}
+                      className="w-[280px] shrink-0 overflow-hidden rounded-[1.45rem] border border-white/[0.06] bg-[#10192d]"
+                    >
+                      <Image
+                        src={item.image}
+                        alt={item.title}
+                        width={560}
+                        height={384}
+                        unoptimized
+                        className="h-48 w-full object-cover"
+                      />
+                      <div className="px-4 pb-4 pt-3">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-sky-300">
+                          {item.category}
+                        </div>
+                        <div className="mt-2 font-display text-[1.05rem] font-bold tracking-[-0.03em] text-white">
+                          {item.title}
+                        </div>
+                        {item.description ? (
+                          <p className="mt-2 text-sm leading-6 text-slate-400">{item.description}</p>
+                        ) : null}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         <section id="system" className="border-t border-white/[0.04] bg-[#0b162b]">
           <div className="mx-auto max-w-[1320px] px-4 py-18 md:px-6 md:py-24">
@@ -366,9 +473,12 @@ export function HomePageClient({ initialContent }: { initialContent: LandingCont
                   className="overflow-hidden rounded-[1.45rem] border border-white/[0.05] bg-[#111a2f] shadow-[0_18px_52px_rgba(0,0,0,0.18)]"
                 >
                   <div className="relative h-44 overflow-hidden">
-                    <img
+                    <Image
                       src={program.image}
                       alt={program.title}
+                      width={720}
+                      height={352}
+                      unoptimized
                       className="h-full w-full object-cover"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#111a2f] via-[#111a2f]/30 to-transparent" />
@@ -422,7 +532,14 @@ export function HomePageClient({ initialContent }: { initialContent: LandingCont
                   className="overflow-hidden rounded-[1.45rem] border border-white/[0.05] bg-[#111a2f] shadow-[0_18px_52px_rgba(0,0,0,0.18)]"
                 >
                   <div className="relative h-64 overflow-hidden">
-                    <img src={coach.image} alt={coach.name} className="h-full w-full object-cover" />
+                    <Image
+                      src={coach.image}
+                      alt={coach.name}
+                      width={720}
+                      height={640}
+                      unoptimized
+                      className="h-full w-full object-cover"
+                    />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#111a2f] via-[#111a2f]/10 to-transparent" />
                   </div>
                   <div className="px-5 pb-5 pt-4">
@@ -465,9 +582,12 @@ export function HomePageClient({ initialContent }: { initialContent: LandingCont
 
               <div className="relative max-w-[420px] lg:justify-self-end">
                 <div className="overflow-hidden rounded-[1.7rem] border border-white/[0.06] bg-[#111a2f] shadow-[0_24px_60px_rgba(0,0,0,0.22)]">
-                  <img
+                  <Image
                     src={content.whyUs.image}
                     alt={content.whyUs.title}
+                    width={900}
+                    height={1000}
+                    unoptimized
                     className="aspect-[0.9] h-full w-full object-cover"
                   />
                 </div>
@@ -480,6 +600,114 @@ export function HomePageClient({ initialContent }: { initialContent: LandingCont
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-t border-white/[0.04] bg-[#091224]">
+          <div className="mx-auto max-w-[1320px] px-4 py-18 md:px-6 md:py-24">
+            <div className="grid gap-10 xl:grid-cols-[0.92fr_1.08fr]">
+              <div className="max-w-[520px]">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.26em] text-sky-300">
+                  {content.localProof.eyebrow}
+                </div>
+                <h2 className="mt-4 font-display text-[2.2rem] font-black tracking-[-0.05em] text-white md:text-[2.9rem]">
+                  {content.localProof.title}
+                </h2>
+                <p className="mt-4 text-sm leading-7 text-slate-400 md:text-base">
+                  {content.localProof.description}
+                </p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-3">
+                {content.localProof.items.map((item) => {
+                  const Icon = iconMap[item.icon];
+                  return (
+                    <article
+                      key={item.title}
+                      className="rounded-[1.45rem] border border-white/[0.05] bg-[#10192d] px-5 py-6 shadow-[0_18px_48px_rgba(0,0,0,0.18)]"
+                    >
+                      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-sky-400/10 text-sky-300">
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <h3 className="mt-5 font-display text-[1.18rem] font-bold tracking-[-0.03em] text-white">
+                        {item.title}
+                      </h3>
+                      <p className="mt-3 text-sm leading-7 text-slate-400">{item.description}</p>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="process" className="border-t border-white/[0.04] bg-[#0b162b]">
+          <div className="mx-auto max-w-[1320px] px-4 py-18 md:px-6 md:py-24">
+            <div className="max-w-3xl">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.26em] text-sky-300">
+                {content.process.eyebrow}
+              </div>
+              <h2 className="mt-4 font-display text-[2.2rem] font-black tracking-[-0.05em] text-white md:text-[2.8rem]">
+                {content.process.title}
+              </h2>
+              <p className="mt-4 text-sm leading-7 text-slate-400 md:text-base">
+                {content.process.description}
+              </p>
+            </div>
+
+            <div className="mt-10 grid gap-4 lg:grid-cols-3">
+              {content.process.steps.map((step) => (
+                <article
+                  key={step.title}
+                  className="rounded-[1.45rem] border border-white/[0.05] bg-[#111a2f] px-6 py-6 shadow-[0_18px_48px_rgba(0,0,0,0.16)]"
+                >
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-sky-300">
+                    Surec
+                  </div>
+                  <h3 className="mt-4 font-display text-[1.28rem] font-bold tracking-[-0.03em] text-white">
+                    {step.title}
+                  </h3>
+                  <p className="mt-3 text-sm leading-7 text-slate-400">{step.description}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="border-t border-white/[0.04] bg-[#091224]">
+          <div className="mx-auto max-w-[1320px] px-4 py-18 md:px-6 md:py-24">
+            <div className="max-w-2xl">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.26em] text-sky-300">
+                {content.testimonials.eyebrow}
+              </div>
+              <h2 className="mt-4 font-display text-[2.2rem] font-black tracking-[-0.05em] text-white md:text-[2.8rem]">
+                {content.testimonials.title}
+              </h2>
+              <p className="mt-4 text-sm leading-7 text-slate-400 md:text-base">
+                {content.testimonials.description}
+              </p>
+            </div>
+
+            <div className="mt-10 grid gap-5 lg:grid-cols-3">
+              {featuredTestimonials.map((item) => (
+                <article
+                  key={`${item.id}-${item.context}`}
+                  className="rounded-[1.45rem] border border-white/[0.05] bg-[#10192d] px-6 py-6 shadow-[0_20px_48px_rgba(0,0,0,0.18)]"
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-400/10 text-sky-300">
+                    <Quote className="h-4.5 w-4.5" />
+                  </div>
+                  <p className="mt-5 text-sm leading-7 text-slate-300">{item.quote}</p>
+                  <div className="mt-6">
+                    <div className="font-display text-[1.05rem] font-bold tracking-[-0.03em] text-white">
+                      {formatPublicParentName(item.parentDisplayName)}
+                    </div>
+                    <div className="mt-1 text-[11px] uppercase tracking-[0.22em] text-slate-500">
+                      {[item.context, item.branch, item.childAgeGroup].filter(Boolean).join(" · ")}
+                    </div>
+                  </div>
+                </article>
+              ))}
             </div>
           </div>
         </section>
@@ -643,6 +871,15 @@ export function HomePageClient({ initialContent }: { initialContent: LandingCont
                       {content.cta.phoneCtaLabel}
                     </TrackedLinkButton>
                   </div>
+                  <TrackedButton
+                    type="button"
+                    className="h-11 rounded-[0.95rem] border border-sky-300/20 bg-sky-300/10 text-sm font-semibold text-sky-100 hover:bg-sky-300/16"
+                    trackingName={content.cta.recommendationLabel}
+                    trackingLocation="cta_panel_recommendation"
+                    onClick={() => setIsPreRegistrationOpen(true)}
+                  >
+                    {content.cta.recommendationLabel}
+                  </TrackedButton>
                   <p className="text-xs leading-6 text-slate-500">{content.cta.footnote}</p>
                 </form>
               </div>
@@ -730,7 +967,7 @@ export function HomePageClient({ initialContent }: { initialContent: LandingCont
               <div>
                 <div className="font-display text-sm font-bold text-white">SEO sayfalari</div>
                 <div className="mt-4 space-y-3">
-                  {guideItems.slice(0, 6).map((pageLink) => (
+                  {[...guideItems.slice(0, 5), { label: "Galeri", href: "/galeri" }].map((pageLink) => (
                     <Link
                       key={pageLink.href}
                       href={pageLink.href as Route}
@@ -751,7 +988,70 @@ export function HomePageClient({ initialContent }: { initialContent: LandingCont
         </div>
       </footer>
 
+      <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 px-3 md:hidden">
+        <div className="pointer-events-auto mx-auto flex max-w-[980px] flex-col gap-3 rounded-[1.5rem] border border-white/10 bg-[#08101f]/90 px-4 py-4 shadow-[0_24px_54px_rgba(0,0,0,0.36)] backdrop-blur-2xl md:flex-row md:items-center md:justify-between md:px-5">
+            <div className="min-w-0">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-sky-300">
+                {content.cta.mobileStickyEyebrow}
+              </div>
+              <div className="mt-1 font-display text-[1.05rem] font-bold tracking-[-0.03em] text-white md:text-[1.2rem]">
+                {content.cta.mobileStickyTitle}
+              </div>
+            </div>
+          <div className="flex flex-wrap gap-2">
+            <TrackedLinkButton
+              href={`https://wa.me/${whatsappDigits}`}
+              target="_blank"
+              rel="noreferrer"
+              variant="ghost"
+              className="h-11 rounded-full bg-emerald-500 px-5 text-sm font-semibold text-[#071223] hover:bg-emerald-400"
+              trackingName="WhatsApp ile bilgi al"
+              trackingLocation="sticky_footer_cta"
+              eventType="whatsapp_click"
+            >
+              {content.cta.mobileStickyWhatsAppLabel}
+            </TrackedLinkButton>
+            <TrackedLinkButton
+              href={`tel:${normalizedPhone}`}
+              variant="outline"
+              className="h-11 rounded-full border-white/12 bg-white/[0.04] px-5 text-sm font-semibold text-white hover:bg-white/[0.08]"
+              trackingName="Telefonla gorus"
+              trackingLocation="sticky_footer_cta"
+              eventType="phone_click"
+            >
+              {content.cta.mobileStickyPhoneLabel}
+            </TrackedLinkButton>
+            <TrackedButton
+              className="h-11 rounded-full bg-[#0f6bff] px-5 text-sm font-semibold text-white hover:bg-[#3384ff]"
+              trackingName="Hemen Kayit Ol"
+              trackingLocation="sticky_footer_cta"
+              onClick={() => setIsPreRegistrationOpen(true)}
+            >
+              {content.cta.mobileStickyPrimaryLabel}
+            </TrackedButton>
+          </div>
+        </div>
+      </div>
+
       <PreRegistrationModal open={isPreRegistrationOpen} onOpenChange={setIsPreRegistrationOpen} />
+      <style jsx>{`
+        @keyframes homepageMediaRailMarquee {
+          from {
+            transform: translateX(0);
+          }
+          to {
+            transform: translateX(calc(-50% - 0.5rem));
+          }
+        }
+
+        .homepage-media-rail-track {
+          animation: homepageMediaRailMarquee 34s linear infinite;
+        }
+
+        .homepage-media-rail-track:hover {
+          animation-play-state: paused;
+        }
+      `}</style>
     </div>
   );
 }

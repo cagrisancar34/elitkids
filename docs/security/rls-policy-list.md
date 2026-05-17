@@ -59,6 +59,10 @@
   - admin/manager write
   - coach own student read
   - parent own student read
+- `enrollment_session_allocations`
+  - admin/manager write
+  - coach own student read
+  - parent own student read
 
 ## Detay ve Karne
 - `student_detail_profiles`

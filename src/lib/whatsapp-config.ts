@@ -10,6 +10,7 @@ export function getWhatsAppServerConfig() {
   const phoneNumberId = readEnv("WHATSAPP_PHONE_NUMBER_ID");
   const businessAccountId = readEnv("WHATSAPP_BUSINESS_ACCOUNT_ID");
   const verifyToken = readEnv("WHATSAPP_VERIFY_TOKEN");
+  const appSecret = readEnv("WHATSAPP_APP_SECRET");
   const apiVersion = readEnv("WHATSAPP_API_VERSION") ?? "v22.0";
   const appUrl =
     readEnv("NEXT_PUBLIC_SITE_URL") ??
@@ -21,6 +22,7 @@ export function getWhatsAppServerConfig() {
     !phoneNumberId ? "WHATSAPP_PHONE_NUMBER_ID" : null,
     !businessAccountId ? "WHATSAPP_BUSINESS_ACCOUNT_ID" : null,
     !verifyToken ? "WHATSAPP_VERIFY_TOKEN" : null,
+    !appSecret ? "WHATSAPP_APP_SECRET" : null,
   ].filter((key): key is string => Boolean(key));
 
   return {
@@ -28,6 +30,7 @@ export function getWhatsAppServerConfig() {
     phoneNumberId,
     businessAccountId,
     verifyToken,
+    appSecret,
     apiVersion,
     appUrl,
     configured: missingKeys.length === 0,

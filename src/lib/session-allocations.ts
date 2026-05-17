@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 
+import { createRoleScopedTopicNotifications } from "@/lib/message-topics-server";
 import { buildMonthlyLessonCycle, cycleContainsSessionDate } from "@/lib/program-workspace";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
@@ -229,53 +230,15 @@ async function createLessonStateNotifications(
   }
 
   const channel = `lesson_rights:${input.enrollmentId}:${notificationFlavor}`;
-  const { data: recipients } = await adminClient
-    .from("profiles")
-    .select("id, user_roles(role)")
-    .eq("organization_id", input.organizationId);
-
-  const targetProfileIds = (recipients ?? [])
-    .filter((profile) =>
-      Array.isArray(profile.user_roles)
-        ? profile.user_roles.some((role) => role.role === "admin" || role.role === "manager")
-        : false,
-    )
-    .map((profile) => profile.id);
-
-  if (!targetProfileIds.length) {
-    return;
-  }
-
-  const { data: existingNotifications } = await adminClient
-    .from("notifications")
-    .select("id, profile_id")
-    .eq("channel", channel)
-    .in("profile_id", targetProfileIds);
-
-  const existingProfileIds = new Set((existingNotifications ?? []).map((item) => item.profile_id));
-  const missingProfileIds = targetProfileIds.filter((profileId) => !existingProfileIds.has(profileId));
-
-  if (!missingProfileIds.length) {
-    return;
-  }
-
-  const title =
-    input.remainingLessons === 0
-      ? `${input.studentName} seans hakkini bitirdi`
-      : `${input.studentName} icin 1 hak kaldi`;
-  const body =
-    input.remainingLessons === 0
-      ? "Yeni paket acilmadan sonraki seanslar roster ve veli takviminde gosterilmez."
-      : "Haklar 1 seans sonra bitecek. Yenileme veya ek hak icin veli ile iletisime gecin.";
-
-  await adminClient.from("notifications").insert(
-    missingProfileIds.map((profileId) => ({
-      profile_id: profileId,
-      title,
-      body,
-      channel,
-    })),
-  );
+  await createRoleScopedTopicNotifications({
+    organizationId: input.organizationId,
+    topicKey: "panel_notice_lesson_rights_expiring",
+    channelKey: channel,
+    variables: {
+      student_name: input.studentName,
+      remaining_lessons: input.remainingLessons,
+    },
+  });
 }
 
 async function syncEnrollmentDerivedState(
@@ -769,6 +732,33 @@ export async function getEnrollmentAllocationSummary(
     nextAllocatedSessionAt: nextPlanned ? sessionTimes.get(nextPlanned.session_id) ?? null : null,
     lastAllocatedSessionAt: lastAllocated ? sessionTimes.get(lastAllocated.session_id) ?? null : null,
   } satisfies AllocationSummary;
+}
+
+export async function getFirstAllocatedSessionForEnrollment(
+  adminClient: SupabaseAdminClient,
+  enrollmentId: string,
+) {
+  const allocations = await listEnrollmentAllocations(adminClient, enrollmentId);
+  const activeAllocations = allocations.filter((allocation) => allocation.status !== "cancelled");
+
+  if (!activeAllocations.length) {
+    return null;
+  }
+
+  const sessionTimes = await listSessionTimes(
+    adminClient,
+    activeAllocations.map((allocation) => allocation.session_id),
+  );
+
+  const sortedAllocations = activeAllocations
+    .map((allocation) => ({
+      allocation,
+      startsAt: sessionTimes.get(allocation.session_id) ?? null,
+    }))
+    .filter((entry) => entry.startsAt)
+    .sort((left, right) => String(left.startsAt).localeCompare(String(right.startsAt), "tr"));
+
+  return sortedAllocations.find((entry) => entry.allocation.status === "planned") ?? sortedAllocations[0] ?? null;
 }
 
 export async function getAllocationSummaryMap(

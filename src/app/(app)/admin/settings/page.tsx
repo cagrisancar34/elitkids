@@ -4,7 +4,7 @@ import {
   getBranchSettingsData,
   getOrganizationSettingsData,
   getSeasonSettingsData,
-} from "@/lib/dashboard-data";
+} from "@/lib/dashboard/admin-data";
 import { getWhatsAppSettingsOverview } from "@/lib/whatsapp-server";
 import { MapPin, Archive, AlertTriangle, CalendarDays } from "lucide-react";
 

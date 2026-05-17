@@ -8,7 +8,7 @@ import { AttendanceModal } from "@/components/attendance-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import type { CoachSessionBoard } from "@/lib/types";
+import type { CoachSessionSummary } from "@/lib/types";
 
 type SessionFilter = "all" | "open" | "full";
 type SessionSort = "slot-asc" | "title-asc" | "roster-desc";
@@ -20,7 +20,7 @@ function rosterStats(roster: string) {
   return { current: Number(match[1]), capacity: Number(match[2]) };
 }
 
-export function CoachSessionsPanel({ sessions }: { sessions: CoachSessionBoard[] }) {
+export function CoachSessionsPanel({ sessions }: { sessions: CoachSessionSummary[] }) {
   const [filter, setFilter] = useState<SessionFilter>("all");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SessionSort>("slot-asc");
@@ -44,7 +44,7 @@ export function CoachSessionsPanel({ sessions }: { sessions: CoachSessionBoard[]
   const dayBuckets = useMemo(() => {
     const grouped = new Map<
       string,
-      { dayKey: string; dayShort: string; dateLabel: string; sessions: CoachSessionBoard[] }
+      { dayKey: string; dayShort: string; dateLabel: string; sessions: CoachSessionSummary[] }
     >();
 
     sessions.forEach((session) => {
@@ -114,7 +114,7 @@ export function CoachSessionsPanel({ sessions }: { sessions: CoachSessionBoard[]
       </section>
 
       <section className="grid gap-4">
-        <div className="surface-muted flex flex-wrap gap-2 rounded-full px-3 py-2">
+        <div className="page-toolbar flex flex-wrap gap-2 rounded-[1.7rem] px-3 py-3">
           {[
             ["all", "Tum seanslar", counts.all],
             ["open", "Yer acik", counts.open],
@@ -141,13 +141,14 @@ export function CoachSessionsPanel({ sessions }: { sessions: CoachSessionBoard[]
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Seans ara: baslik, alan veya saat"
             aria-label="Koc seans ara"
+            className="bg-white/80"
           />
           <Select value={sort} onChange={(event) => setSort(event.target.value as SessionSort)}>
             <option value="slot-asc">Saate gore</option>
             <option value="title-asc">Basliga gore A-Z</option>
             <option value="roster-desc">Doluluga gore</option>
           </Select>
-          <div className="surface-muted flex rounded-full p-1">
+          <div className="page-toolbar flex rounded-[1.3rem] p-1.5">
             {[
               ["day", "Gun gorunumu"],
               ["week", "Hafta gorunumu"],
@@ -178,8 +179,8 @@ export function CoachSessionsPanel({ sessions }: { sessions: CoachSessionBoard[]
                   onClick={() => setSelectedDayKey(bucket.dayKey)}
                   className={
                     activeDay?.dayKey === bucket.dayKey
-                      ? "workspace-panel min-w-[140px] rounded-[1.5rem] px-4 py-4 text-left"
-                      : "min-w-[140px] rounded-[1.5rem] border border-white/55 bg-white/55 px-4 py-4 text-left backdrop-blur-md"
+                      ? "page-surface min-w-[160px] rounded-[1.5rem] px-4 py-4 text-left"
+                      : "page-subsection min-w-[160px] rounded-[1.5rem] px-4 py-4 text-left"
                   }
                 >
                   <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{bucket.dayShort}</div>
@@ -195,7 +196,7 @@ export function CoachSessionsPanel({ sessions }: { sessions: CoachSessionBoard[]
                   <SessionCard key={session.sessionId} session={session} />
                 ))
               ) : (
-                <div className="surface-muted rounded-[1.25rem] p-4 text-sm leading-6 text-muted-foreground">
+                <div className="page-empty-state rounded-[1.25rem] p-4 text-sm leading-6 text-muted-foreground">
                   Bu filtre ve arama sonucunda gosterilecek seans yok.
                 </div>
               )}
@@ -205,7 +206,7 @@ export function CoachSessionsPanel({ sessions }: { sessions: CoachSessionBoard[]
           <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
             {visibleDayBuckets.length ? (
               visibleDayBuckets.map((bucket) => (
-                <section key={bucket.dayKey} className="workspace-panel rounded-[1.8rem] p-4">
+                <section key={bucket.dayKey} className="page-surface rounded-[1.8rem] p-4">
                   <div className="mb-4 flex items-end justify-between gap-3 border-b border-slate-200/70 pb-4">
                     <div>
                       <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{bucket.dayShort}</div>
@@ -225,7 +226,7 @@ export function CoachSessionsPanel({ sessions }: { sessions: CoachSessionBoard[]
                 </section>
               ))
             ) : (
-              <div className="surface-muted rounded-[1.25rem] p-4 text-sm leading-6 text-muted-foreground">
+              <div className="page-empty-state rounded-[1.25rem] p-4 text-sm leading-6 text-muted-foreground">
                 Bu filtre ve arama sonucunda gosterilecek seans yok.
               </div>
             )}
@@ -238,16 +239,16 @@ export function CoachSessionsPanel({ sessions }: { sessions: CoachSessionBoard[]
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="workspace-panel rounded-[1.5rem] px-5 py-5">
+    <div className="page-surface rounded-[1.7rem] px-5 py-5">
       <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
       <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">{value}</div>
     </div>
   );
 }
 
-function SessionCard({ session, compact = false }: { session: CoachSessionBoard; compact?: boolean }) {
+function SessionCard({ session, compact = false }: { session: CoachSessionSummary; compact?: boolean }) {
   return (
-    <article className="workspace-panel rounded-[1.7rem] p-5 md:p-6">
+    <article className="page-surface rounded-[1.9rem] p-5 md:p-6">
       <div className="flex items-center justify-between gap-4">
         <div className="inline-flex rounded-full bg-secondary px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-secondary-foreground">
           <Clock3 className="mr-1.5 h-3.5 w-3.5" />
@@ -275,16 +276,28 @@ function SessionCard({ session, compact = false }: { session: CoachSessionBoard;
       </div>
       {!compact ? (
         <div className="mt-5 grid gap-2 sm:grid-cols-3">
-          {session.students.slice(0, 3).map((student) => (
-            <div key={student.studentId} className="rounded-[1.15rem] bg-slate-50/90 p-3">
-              <div className="truncate text-sm font-semibold text-foreground">{student.name}</div>
-              <div className="mt-1 text-xs uppercase tracking-[0.14em] text-muted-foreground">{student.status === "present" ? "Geldi" : student.status === "excused" ? "Izinli" : "Gelmedi"}</div>
+          {session.studentPreviewNames.slice(0, 3).map((studentName) => (
+            <div key={`${session.sessionId}-${studentName}`} className="page-subsection rounded-[1.15rem] p-3">
+              <div className="truncate text-sm font-semibold text-foreground">{studentName}</div>
+              <div className="mt-1 text-xs uppercase tracking-[0.14em] text-muted-foreground">Roster onizlemesi</div>
             </div>
           ))}
         </div>
       ) : null}
+      {session.sessionClosingNote ? (
+        <div className="mt-5 rounded-[1.15rem] border border-cyan-200 bg-cyan-50 px-4 py-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-700">
+            Son kapanis notu{session.sessionClosingUpdatedAt ? ` · ${session.sessionClosingUpdatedAt}` : ""}
+          </div>
+          <div className="mt-2 text-sm leading-6 text-slate-700">{session.sessionClosingNote}</div>
+        </div>
+      ) : null}
       <div className="mt-5 flex flex-wrap gap-2">
-        <AttendanceModal sessionId={session.sessionId} sessionTitle={session.title} students={session.students} />
+        <AttendanceModal
+          sessionId={session.sessionId}
+          sessionTitle={session.title}
+          fetchPath={`/api/coach/sessions/${session.sessionId}`}
+        />
         <Button asChild type="button" variant="outline" size="sm">
           <Link href="/coach/students">
             <FileText className="h-4 w-4" />

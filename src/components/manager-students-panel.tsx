@@ -1,21 +1,22 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import { Download, Funnel, Search, Sparkles } from "lucide-react";
 
 import { StudentActions } from "@/components/student-actions";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type {
   DetailQuestionRecord,
+  ManagerStudentListRow,
+  PaymentLifecycleStatus,
   ProgramRecord,
   SessionSeriesOption,
-  StudentRecord,
 } from "@/lib/types";
 
 type AgeFilter = "all" | "child" | "teen" | "adult";
-type PaymentFilter = "all" | "clear" | "due" | "risk";
+type PaymentFilter = "all" | PaymentLifecycleStatus;
 
 function statusTone(status: string) {
   const lower = status.toLocaleLowerCase("tr-TR");
@@ -69,55 +70,32 @@ function getAgeBand(age: number | null) {
   return { key: "adult" as AgeFilter, label: "16+ yas" };
 }
 
-function getPaymentState(student: StudentRecord): PaymentFilter {
-  const lowerBalance = student.balance.toLocaleLowerCase("tr-TR");
-  const lowerStatus = student.status.toLocaleLowerCase("tr-TR");
-
-  if (lowerStatus.includes("risk")) {
-    return "risk";
-  }
-
-  if (lowerBalance === "₺0" || lowerBalance === "₺0,00" || lowerBalance === "odendi") {
-    return "clear";
-  }
-
-  if (lowerStatus.includes("takip") || lowerBalance.includes("₺")) {
-    return "due";
-  }
-
-  return "all";
+function getPaymentState(student: ManagerStudentListRow): PaymentLifecycleStatus {
+  return student.paymentStatus ?? "completed";
 }
 
-function getPaymentLabel(state: PaymentFilter) {
-  if (state === "clear") {
-    return "Temiz bakiye";
+function getPaymentLabel(state: PaymentLifecycleStatus) {
+  if (state === "completed") {
+    return "Odeme Tamamlandi";
   }
 
-  if (state === "risk") {
-    return "Riskte";
+  if (state === "overdue") {
+    return "Odeme Yapilmadi";
   }
 
-  if (state === "due") {
-    return "Odeme bekliyor";
-  }
-
-  return "Belirsiz";
+  return "Odeme Bekleniyor";
 }
 
-function paymentBadgeTone(state: PaymentFilter) {
-  if (state === "clear") {
+function paymentBadgeTone(state: PaymentLifecycleStatus) {
+  if (state === "completed") {
     return "bg-emerald-500/12 text-emerald-700";
   }
 
-  if (state === "risk") {
+  if (state === "overdue") {
     return "bg-rose-500/12 text-rose-700";
   }
 
-  if (state === "due") {
-    return "bg-amber-500/12 text-amber-700";
-  }
-
-  return "bg-slate-500/12 text-slate-600";
+  return "bg-amber-500/12 text-amber-700";
 }
 
 function formatAllocationDate(value?: string | null) {
@@ -135,31 +113,67 @@ function formatAllocationDate(value?: string | null) {
       });
 }
 
+function StudentAvatar({ student, size = "md" }: { student: ManagerStudentListRow; size?: "md" | "sm" }) {
+  const sizeClass = size === "sm" ? "h-12 w-12 rounded-xl" : "h-12 w-12 rounded-full";
+
+  if (student.photoUrl) {
+    return (
+      <Image
+        src={student.photoUrl}
+        alt={student.name}
+        width={48}
+        height={48}
+        unoptimized
+        className={`${sizeClass} shrink-0 object-cover border border-slate-200 bg-slate-100`}
+      />
+    );
+  }
+
+  return (
+    <div
+      className={`flex ${sizeClass} shrink-0 items-center justify-center bg-sky-100 text-lg font-black text-sky-700 shadow-inner`}
+    >
+      {student.initials}
+    </div>
+  );
+}
+
 export function ManagerStudentsPanel({
   students,
   programs,
   sessionSeriesOptions,
   questions,
 }: {
-  students: StudentRecord[];
+  students: ManagerStudentListRow[];
   programs: ProgramRecord[];
   sessionSeriesOptions: SessionSeriesOption[];
   questions: DetailQuestionRecord[];
 }) {
+  const [view, setView] = useState<"active" | "passive">("active");
   const [search, setSearch] = useState("");
   const [ageBand, setAgeBand] = useState<AgeFilter>("all");
   const [program, setProgram] = useState("all");
   const [payment, setPayment] = useState<PaymentFilter>("all");
 
-  const programsSet = useMemo(
-    () => ["all", ...Array.from(new Set(students.map((student) => student.program).filter(Boolean)))],
+  const activeStudents = useMemo(
+    () => students.filter((student) => !student.status.toLocaleLowerCase("tr-TR").includes("pasif")),
     [students],
+  );
+  const passiveStudents = useMemo(
+    () => students.filter((student) => student.status.toLocaleLowerCase("tr-TR").includes("pasif")),
+    [students],
+  );
+  const sourceStudents = view === "active" ? activeStudents : passiveStudents;
+
+  const programsSet = useMemo(
+    () => ["all", ...Array.from(new Set(sourceStudents.map((student) => student.program).filter(Boolean)))],
+    [sourceStudents],
   );
 
   const normalizedSearch = search.trim().toLocaleLowerCase("tr-TR");
 
   const filteredStudents = useMemo(() => {
-    return students.filter((student) => {
+    return sourceStudents.filter((student) => {
       const studentAgeBand = getAgeBand(resolveAge(student.birthDate)).key;
       const paymentState = getPaymentState(student);
 
@@ -180,18 +194,42 @@ export function ManagerStudentsPanel({
       }
 
       const haystack =
-        `${student.name} ${student.club} ${student.category} ${student.gender} ${student.birthDate} ${student.status} ${student.program}`.toLocaleLowerCase(
+        `${student.name} ${student.club} ${student.category} ${student.gender} ${student.birthDate} ${student.status} ${student.program} ${student.parentName ?? ""} ${student.registrationSourceLabel ?? ""}`.toLocaleLowerCase(
           "tr-TR",
         );
 
       return haystack.includes(normalizedSearch);
     });
-  }, [ageBand, normalizedSearch, payment, program, students]);
+  }, [ageBand, normalizedSearch, payment, program, sourceStudents]);
 
   return (
     <div className="grid gap-8">
       {/* FILTER SECTION BENTO BLOCK */}
       <section className="overflow-hidden rounded-[2.5rem] p-6 lg:p-8 bg-white border border-slate-100 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.03)]">
+        <div className="mb-6 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setView("active")}
+            className={
+              view === "active"
+                ? "rounded-full bg-slate-900 px-5 py-2.5 text-sm font-bold text-white"
+                : "rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-500"
+            }
+          >
+            Aktif Ogrenciler ({activeStudents.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("passive")}
+            className={
+              view === "passive"
+                ? "rounded-full bg-slate-900 px-5 py-2.5 text-sm font-bold text-white"
+                : "rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-500"
+            }
+          >
+            Pasif Ogrenciler ({passiveStudents.length})
+          </button>
+        </div>
         <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
           <div className="relative group">
             <Search className="pointer-events-none absolute left-6 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400 group-focus-within:text-sky-500 transition-colors" />
@@ -222,9 +260,9 @@ export function ManagerStudentsPanel({
               aria-label="Ödeme filtresi"
             >
               <option value="all">Tüm Ödeme Durumları</option>
-              <option value="clear">Temiz Bakiye</option>
-              <option value="due">Ödeme Bekleyen</option>
-              <option value="risk">Riskte</option>
+              <option value="completed">Ödeme Tamamlandı</option>
+              <option value="pending">Ödeme Bekleniyor</option>
+              <option value="overdue">Ödeme Yapılmadı</option>
             </Select>
           </div>
         </div>
@@ -291,9 +329,7 @@ export function ManagerStudentsPanel({
                   <tr key={student.id} className="border-b border-slate-50 align-middle hover:bg-slate-50/80 transition-colors last:border-b-0 group">
                     <td className="px-6 py-5">
                       <div className="flex items-center gap-4">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-[1rem] bg-sky-100 text-lg font-black text-sky-700 shadow-inner">
-                          {student.initials}
-                        </div>
+                        <StudentAvatar student={student} />
                         <div>
                           <div className="text-[15px] font-bold text-slate-800">{student.name}</div>
                           <div className="mt-0.5 text-[12px] font-medium text-slate-400">ID: #{student.id.slice(0, 6)}</div>
@@ -305,6 +341,9 @@ export function ManagerStudentsPanel({
                         <div className="text-[14px] font-bold text-slate-700">{student.program}</div>
                         <div className="text-[13px] font-medium text-slate-500">
                           {student.sessionSeriesLabel ?? student.club}
+                        </div>
+                        <div className="text-[11px] font-semibold text-slate-500">
+                          {student.registrationSourceLabel ?? "Kaynak belirtilmedi"}
                         </div>
                         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
                           <span className="text-sky-600">{student.remainingLessons ?? 0} HAK</span> · {formatAllocationDate(student.lastAllocatedSessionAt)}
@@ -330,9 +369,23 @@ export function ManagerStudentsPanel({
                       </div>
                     </td>
                     <td className="px-6 py-5">
-                      <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-bold text-slate-700 shadow-sm">
-                        <span className={`h-2.5 w-2.5 rounded-full ${statusTone(student.status)}`} />
-                        {student.status}
+                      <div className="space-y-2">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-bold text-slate-700 shadow-sm">
+                          <span className={`h-2.5 w-2.5 rounded-full ${statusTone(student.status)}`} />
+                          {student.status}
+                        </div>
+                        <div className="text-[12px] font-medium text-slate-500">
+                          {student.parentName ? `${student.parentName} · ${student.parentWhatsapp ?? "Telefon yok"}` : "Veli baglantisi bekleniyor"}
+                        </div>
+                        <div className="text-[11px] font-semibold text-slate-500">
+                          Son tahakkuk: {student.lastChargeLabel ?? "Kayit yok"}
+                        </div>
+                        <div className="text-[11px] font-semibold text-slate-500">
+                          Son iletisim: {student.lastCommunicationLabel ?? "Kayit yok"}
+                        </div>
+                        <div className="text-[11px] font-semibold text-slate-500">
+                          Son WhatsApp: {student.lastWhatsAppStatusLabel ?? "Kayit yok"}
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-5 text-right opacity-0 group-hover:opacity-100 transition-opacity">
@@ -361,7 +414,7 @@ export function ManagerStudentsPanel({
 
         <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-6 py-4 text-xs font-bold uppercase tracking-widest text-slate-400">
           <p>
-            {students.length} SPORCU ARASINDAN {filteredStudents.length === 0 ? 0 : 1}-
+            {sourceStudents.length} SPORCU ARASINDAN {filteredStudents.length === 0 ? 0 : 1}-
             {filteredStudents.length} LİSTELENİYOR
           </p>
         </div>
@@ -379,9 +432,7 @@ export function ManagerStudentsPanel({
               <article key={student.id} className="rounded-[2rem] bg-white border border-slate-100 p-5 shadow-sm">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex min-w-0 items-center gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-lg font-black text-sky-700">
-                      {student.initials}
-                    </div>
+                    <StudentAvatar student={student} size="sm" />
                     <div className="min-w-0">
                       <div className="truncate text-[15px] font-bold text-slate-800">{student.name}</div>
                       <div className="mt-0.5 truncate text-[12px] font-medium text-slate-500">
@@ -402,6 +453,7 @@ export function ManagerStudentsPanel({
                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Program / Grup</div>
                     <div className="mt-2 text-[13px] font-bold text-slate-800">{student.program}</div>
                     <div className="mt-1 text-[12px] font-medium text-slate-500">{student.sessionSeriesLabel ?? student.club}</div>
+                    <div className="mt-2 text-[11px] font-semibold text-slate-500">{student.registrationSourceLabel ?? "Kaynak belirtilmedi"}</div>
                   </div>
                   <div className="rounded-2xl bg-slate-50 p-4 border border-slate-100">
                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Yaş Grubu</div>
@@ -423,6 +475,15 @@ export function ManagerStudentsPanel({
                     </div>
                     <div className="mt-2 text-[11px] font-medium text-slate-500">
                       {student.remainingLessons ?? 0} hak · {formatAllocationDate(student.lastAllocatedSessionAt)}
+                    </div>
+                    <div className="mt-2 text-[11px] font-medium text-slate-500">
+                      {student.parentName ? `${student.parentName} · ${student.parentWhatsapp ?? "Telefon yok"}` : "Veli baglantisi bekleniyor"}
+                    </div>
+                    <div className="mt-2 text-[11px] font-medium text-slate-500">
+                      Son tahakkuk: {student.lastChargeLabel ?? "Kayit yok"}
+                    </div>
+                    <div className="mt-1 text-[11px] font-medium text-slate-500">
+                      Son WhatsApp: {student.lastWhatsAppStatusLabel ?? "Kayit yok"}
                     </div>
                   </div>
                 </div>

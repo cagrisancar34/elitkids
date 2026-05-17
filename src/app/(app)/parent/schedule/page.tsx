@@ -1,7 +1,7 @@
 import { DashboardPage } from "@/components/dashboard-page";
 import { WorkspaceContentLayout, WorkspaceHighlight, WorkspaceMainColumn, WorkspaceSideColumn } from "@/components/operations-workspace";
 import { ParentSchedulePanel } from "@/components/parent-schedule-panel";
-import { getSessionsData } from "@/lib/dashboard-data";
+import { getSessionsData } from "@/lib/dashboard/parent-data";
 
 export default async function ParentSchedulePage() {
   const sessions = await getSessionsData();
@@ -9,14 +9,14 @@ export default async function ParentSchedulePage() {
   return (
     <DashboardPage
       role="parent"
-      eyebrow="Program takvimi"
-      title="Yaklasan dersler"
-      description="Veli deneyiminde takvim, gereksiz tablo karmasasi olmadan okunur ve hizli aksiyonlar icin uygun olur."
+      eyebrow="Veli / Planner"
+      title="Yaklasan Dersler"
+      description="Takvim yogunluk yaratmadan, guven veren ve hizli okunur bir akista sunulur."
       primaryAction={{ href: "/parent/schedule", label: "Takvimi ac" }}
       contextCard={{
         eyebrow: "Haftalik akis",
         title: `${sessions.length} yaklasan ders`,
-        description: "Takvim daha yumusak ama yine Stitch ailesine ait; yogun tablo yerine okunakli kart akisi kullaniliyor.",
+        description: "Aile takvimi ders, saat ve alan iliskisini tek bakista okutur.",
         badge: "Aile takvimi",
       }}
     >
@@ -27,8 +27,8 @@ export default async function ParentSchedulePage() {
         <WorkspaceSideColumn>
           <WorkspaceHighlight
             eyebrow="Haftalik akis"
-            title="Yaklasan dersler veli icin tek bakista guven verici olmali."
-            description="Takvim daha yumusak ama yine Stitch ailesine ait; yogun tablo yerine okunakli kart akisi kullaniliyor."
+            title="Yaklasan dersler tek bakista guven vermeli."
+            description="Takvim yuzeyi saat, yer ve koc bilgisini daha sakin ama daha net bir hiyerarsiyle sunar."
             badge="Takvim"
           />
         </WorkspaceSideColumn>

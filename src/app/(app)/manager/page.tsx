@@ -1,31 +1,12 @@
 import { AppShell } from "@/components/app-shell";
 import {
-  getAnnouncementsData,
-  getManagerMetrics,
-  getManagerStudents,
-  getChargeData,
-  getSessionsData,
-} from "@/lib/dashboard-data";
+  getManagerDashboardSummary,
+} from "@/lib/dashboard/manager-data";
 import { ArrowUpRight, Trophy, FileText, Wallet, Calendar, BellRing, UsersRound } from "lucide-react";
 
 export default async function ManagerPage() {
-  const [metrics, students, announcements, sessions, charges] = await Promise.all([
-    getManagerMetrics(),
-    getManagerStudents(),
-    getAnnouncementsData(),
-    getSessionsData(),
-    getChargeData(),
-  ]);
-
-  const pendingCharges = charges.filter((charge) => !charge.status.toLocaleLowerCase("tr-TR").includes("odendi"));
-  const pendingRisk = pendingCharges.slice(0, 4);
-
-  // Sadece bugünün seanslarını filtrele
-  const todayDateString = new Date().toDateString();
-  const todaySessions = sessions.filter((s) => {
-    if (!s.startsAt) return false;
-    return new Date(s.startsAt).toDateString() === todayDateString;
-  });
+  const summary = await getManagerDashboardSummary();
+  const { metrics, criticalStudents, announcements, todaySessions, priorityPayments } = summary;
 
   return (
     <AppShell
@@ -141,7 +122,7 @@ export default async function ManagerPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50/80">
-                {students.map((student, i) => (
+                {criticalStudents.map((student, i) => (
                   <tr key={i} className="group hover:bg-slate-50/50 transition-colors">
                     <td className="py-6 px-4">
                       <div className="font-bold text-slate-900 text-lg group-hover:text-blue-600 transition-colors">{student.name}</div>
@@ -182,14 +163,14 @@ export default async function ManagerPage() {
                 <div className="bg-rose-500 p-2.5 rounded-[1.25rem] shadow-lg shadow-rose-500/20">
                   <Wallet className="w-5 h-5 text-white" />
                 </div>
-                Finansal Risk
+                Odeme Durumu
               </h2>
-              <div className="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center font-black text-sm">{pendingRisk.length}</div>
+              <div className="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center font-black text-sm">{priorityPayments.length}</div>
             </div>
             
             <div className="space-y-4 relative z-10">
-              {pendingRisk.length > 0 ? (
-                pendingRisk.map(c => (
+              {priorityPayments.length > 0 ? (
+                priorityPayments.map(c => (
                   <div key={`${c.item}-${c.dueDate}`} className="bg-white rounded-[1.5rem] p-5 shadow-sm border border-rose-50 hover:shadow-md hover:-translate-y-1 transition-transform duration-300">
                     <div className="flex justify-between items-start mb-4">
                       <div className="font-bold text-slate-800 pr-4 leading-tight">{c.item}</div>
@@ -197,12 +178,12 @@ export default async function ManagerPage() {
                     </div>
                     <div className="pt-4 border-t border-slate-50 flex items-center justify-between">
                       <div className="text-[10px] uppercase font-black tracking-widest text-rose-500">{c.status}</div>
-                      <div className="font-black text-slate-900 text-lg">{c.amount}</div>
+                      <div className="font-black text-slate-900 text-lg">{c.remainingAmount ?? c.amount}</div>
                     </div>
                   </div>
                 ))
               ) : (
-                <p className="text-slate-500 font-medium text-center py-6">Kritik risk takibi bulunmuyor.</p>
+              <p className="text-slate-500 font-medium text-center py-6">Geciken veya bekleyen ödeme bulunmuyor.</p>
               )}
             </div>
           </div>

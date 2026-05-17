@@ -6,23 +6,13 @@ import { DataTable } from "@/components/data-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import type { ChargeRecord } from "@/lib/types";
+import type { ChargeRecord, PaymentLifecycleStatus } from "@/lib/types";
 
-type PaymentFilter = "all" | "pending" | "paid" | "follow";
+type PaymentFilter = "all" | PaymentLifecycleStatus;
 type PaymentSort = "due" | "amount-desc" | "amount-asc";
 
-function chargeKey(status: string) {
-  const lower = status.toLocaleLowerCase("tr-TR");
-
-  if (lower.includes("odendi")) {
-    return "paid";
-  }
-
-  if (lower.includes("takip") || lower.includes("plan")) {
-    return "follow";
-  }
-
-  return "pending";
+function chargeKey(charge: ChargeRecord): PaymentLifecycleStatus {
+  return charge.paymentStatus ?? "pending";
 }
 
 function amountValue(value: string) {
@@ -37,9 +27,9 @@ export function ParentPaymentsPanel({ charges }: { charges: ChargeRecord[] }) {
   const counts = useMemo(
     () => ({
       all: charges.length,
-      pending: charges.filter((charge) => chargeKey(charge.status) === "pending").length,
-      paid: charges.filter((charge) => chargeKey(charge.status) === "paid").length,
-      follow: charges.filter((charge) => chargeKey(charge.status) === "follow").length,
+      pending: charges.filter((charge) => chargeKey(charge) === "pending").length,
+      completed: charges.filter((charge) => chargeKey(charge) === "completed").length,
+      overdue: charges.filter((charge) => chargeKey(charge) === "overdue").length,
     }),
     [charges],
   );
@@ -47,11 +37,11 @@ export function ParentPaymentsPanel({ charges }: { charges: ChargeRecord[] }) {
   const totals = useMemo(
     () => ({
       pending: charges
-        .filter((charge) => chargeKey(charge.status) === "pending")
-        .reduce((sum, charge) => sum + amountValue(charge.amount), 0),
-      paid: charges
-        .filter((charge) => chargeKey(charge.status) === "paid")
-        .reduce((sum, charge) => sum + amountValue(charge.amount), 0),
+        .filter((charge) => chargeKey(charge) === "pending")
+        .reduce((sum, charge) => sum + (charge.remainingAmountValue ?? amountValue(charge.amount)), 0),
+      completed: charges
+        .filter((charge) => chargeKey(charge) === "completed")
+        .reduce((sum, charge) => sum + (charge.paidAmountValue ?? charge.totalAmountValue ?? amountValue(charge.amount)), 0),
     }),
     [charges],
   );
@@ -60,24 +50,24 @@ export function ParentPaymentsPanel({ charges }: { charges: ChargeRecord[] }) {
 
   const filteredCharges = useMemo(() => {
     return charges
-      .filter((charge) => (filter === "all" ? true : chargeKey(charge.status) === filter))
+      .filter((charge) => (filter === "all" ? true : chargeKey(charge) === filter))
       .filter((charge) => {
         if (!normalizedSearch) {
           return true;
         }
 
-        const haystack = `${charge.item} ${charge.amount} ${charge.dueDate} ${charge.status}`.toLocaleLowerCase(
+        const haystack = `${charge.item} ${charge.remainingAmount ?? charge.amount} ${charge.dueDate} ${charge.status}`.toLocaleLowerCase(
           "tr-TR",
         );
         return haystack.includes(normalizedSearch);
       })
       .sort((left, right) => {
         if (sort === "amount-desc") {
-          return amountValue(right.amount) - amountValue(left.amount);
+          return (right.remainingAmountValue ?? amountValue(right.amount)) - (left.remainingAmountValue ?? amountValue(left.amount));
         }
 
         if (sort === "amount-asc") {
-          return amountValue(left.amount) - amountValue(right.amount);
+          return (left.remainingAmountValue ?? amountValue(left.amount)) - (right.remainingAmountValue ?? amountValue(right.amount));
         }
 
         return left.dueDate.localeCompare(right.dueDate, "tr");
@@ -89,35 +79,35 @@ export function ParentPaymentsPanel({ charges }: { charges: ChargeRecord[] }) {
   return (
     <div className="grid gap-6">
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
+        <div className="page-surface rounded-[1.7rem] px-5 py-5">
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Tum kalemler</div>
           <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">{counts.all}</div>
         </div>
-        <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
+        <div className="page-surface rounded-[1.7rem] px-5 py-5">
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Bekleyen toplam</div>
           <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">
             ₺{totals.pending.toLocaleString("tr-TR")}
           </div>
         </div>
-        <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Takipte</div>
-          <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">{counts.follow}</div>
+        <div className="page-surface rounded-[1.7rem] px-5 py-5">
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Ödeme yapılmadı</div>
+          <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">{counts.overdue}</div>
         </div>
-        <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
+        <div className="page-surface rounded-[1.7rem] px-5 py-5">
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Kapanan toplam</div>
           <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">
-            ₺{totals.paid.toLocaleString("tr-TR")}
+            ₺{totals.completed.toLocaleString("tr-TR")}
           </div>
         </div>
       </section>
 
       <section className="grid gap-4">
-        <div className="surface-muted flex flex-wrap gap-2 rounded-full px-3 py-2">
+        <div className="page-toolbar flex flex-wrap gap-2 rounded-[1.7rem] px-3 py-3">
           {[
             ["all", "Tum kalemler", counts.all],
-            ["pending", "Bekleyen", counts.pending],
-            ["follow", "Takipte", counts.follow],
-            ["paid", "Kapandi", counts.paid],
+            ["pending", "Odeme bekleniyor", counts.pending],
+            ["overdue", "Odeme yapilmadi", counts.overdue],
+            ["completed", "Odeme tamamlandi", counts.completed],
           ].map(([key, label, count]) => (
             <button
               key={key}
@@ -134,12 +124,13 @@ export function ParentPaymentsPanel({ charges }: { charges: ChargeRecord[] }) {
           ))}
         </div>
 
-        <div className="grid gap-3 md:grid-cols-[1fr_220px]">
+        <div className="page-toolbar grid gap-3 rounded-[1.8rem] p-3 md:grid-cols-[1fr_220px]">
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Odeme kalemi ara"
             aria-label="Odeme kalemi ara"
+            className="bg-white/80"
           />
           <Select
             value={sort}
@@ -173,7 +164,7 @@ export function ParentPaymentsPanel({ charges }: { charges: ChargeRecord[] }) {
           columns={[
             { key: "item", label: "Kalem" },
             { key: "dueDate", label: "Tarih" },
-            { key: "amount", label: "Tutar" },
+            { key: "remainingAmount", label: "Kalan" },
             { key: "status", label: "Durum" },
           ]}
           rows={filteredCharges}

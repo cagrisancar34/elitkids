@@ -1,26 +1,31 @@
 import { AppShell } from "@/components/app-shell";
 import { AnnouncementComposer } from "@/components/announcement-composer";
 import { AnnouncementsPanel } from "@/components/announcements-panel";
+import { ManagerCommunicationAsyncSections } from "@/components/manager-communication-async-sections";
+import { ManagerSupportThreadsPanel } from "@/components/manager-support-threads-panel";
 import { NotificationQueuePanel } from "@/components/notification-queue-panel";
-import { WhatsAppCampaignPanel } from "@/components/whatsapp-campaign-panel";
 import {
   getAnnouncementsData,
   getNotificationData,
-  getProgramFormOptions,
-  getProgramOptions,
   getSupportThreadsData,
-} from "@/lib/dashboard-data";
-import { getWhatsAppCampaignOverview } from "@/lib/whatsapp-server";
-import { Megaphone, BellRing, MessageSquare, AlertCircle, PlusCircle, HeadphonesIcon, SendIcon } from "lucide-react";
+} from "@/lib/dashboard/manager-data";
+import type { SupportThreadStatusKey } from "@/lib/types";
+import { Megaphone, BellRing, MessageSquare, AlertCircle, PlusCircle, HeadphonesIcon } from "lucide-react";
 
-export default async function ManagerCommunicationPage() {
-  const [announcements, notifications, supportThreads, whatsappOverview, programOptions, programFormOptions] = await Promise.all([
+export default async function ManagerCommunicationPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ supportStatus?: string; supportThread?: string }>;
+}) {
+  const params = await searchParams;
+  const [
+    announcements,
+    notifications,
+    supportThreads,
+  ] = await Promise.all([
     getAnnouncementsData(),
     getNotificationData(),
     getSupportThreadsData(),
-    getWhatsAppCampaignOverview(),
-    getProgramOptions(),
-    getProgramFormOptions(),
   ]);
   const queuedNotifications = notifications.filter((item) =>
     item.status.toLocaleLowerCase("tr-TR").includes("hazir"),
@@ -28,6 +33,10 @@ export default async function ManagerCommunicationPage() {
   const openThreads = supportThreads.filter((thread) =>
     thread.status.toLocaleLowerCase("tr-TR").includes("bekli"),
   );
+  const initialSupportStatus =
+    params.supportStatus === "open" || params.supportStatus === "waiting_parent" || params.supportStatus === "resolved"
+      ? (params.supportStatus as SupportThreadStatusKey)
+      : "all";
 
   return (
     <AppShell
@@ -105,20 +114,7 @@ export default async function ManagerCommunicationPage() {
             </div>
           </div>
 
-          <div className="rounded-[3rem] bg-indigo-50 border border-indigo-100 p-4 md:p-8 shadow-sm">
-            <div className="flex items-center gap-3 mb-8 pb-6 border-b border-indigo-100/50 px-4 md:px-0">
-               <div className="bg-indigo-100 border border-indigo-200 p-2.5 rounded-xl"><SendIcon className="w-6 h-6 text-indigo-600" /></div>
-               <h2 className="text-2xl font-black text-indigo-950 tracking-tight">WhatsApp Kampanyaları</h2>
-            </div>
-            
-            <div className="[&_.bg-background]:bg-transparent [&_.border-border]:border-indigo-100 [&_.rounded-xl]:rounded-[2rem] [&_.shadow-sm]:shadow-none">
-              <WhatsAppCampaignPanel
-                overview={whatsappOverview}
-                programOptions={programOptions}
-                branchOptions={programFormOptions.branches}
-              />
-            </div>
-          </div>
+          <ManagerCommunicationAsyncSections />
         </div>
 
         {/* SIDE COLUMN */}
@@ -151,21 +147,11 @@ export default async function ManagerCommunicationPage() {
              </div>
              
              <div className="space-y-3">
-                {supportThreads.length ? (
-                  supportThreads.map((thread, i) => (
-                     <div key={i} className="bg-slate-50 border border-slate-100 rounded-[1.5rem] p-4 shadow-sm flex flex-col transition-transform hover:-translate-y-0.5">
-                        <div className="font-bold text-[14px] text-slate-800">{thread.subject}</div>
-                        <div className="flex items-center justify-between mt-3">
-                           <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400">{thread.updatedAt}</div>
-                           <div className="inline-flex rounded-full bg-amber-50 px-3 py-1 text-[11px] font-black uppercase tracking-widest text-amber-600 border border-amber-100">
-                              {thread.status}
-                           </div>
-                        </div>
-                     </div>
-                  ))
-                ) : (
-                  <div className="text-sm font-medium text-slate-500 py-4 text-center">Açık destek talebi bulunmuyor.</div>
-                )}
+                <ManagerSupportThreadsPanel
+                  threads={supportThreads}
+                  initialStatusFilter={initialSupportStatus}
+                  focusThreadId={params.supportThread ?? null}
+                />
              </div>
           </div>
           

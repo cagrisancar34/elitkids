@@ -45,7 +45,7 @@ export function WorkspaceKpiCard({
   badge,
 }: WorkspaceKpiCardProps) {
   return (
-    <div className="panel-float workspace-hover-lift rounded-[1.75rem] p-5 md:p-6">
+    <div className="page-surface workspace-hover-lift rounded-[1.9rem] p-5 md:p-6">
       <div className="flex items-start justify-between gap-3">
         <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
         {badge ? (
@@ -94,16 +94,16 @@ export function WorkspaceSideColumn({
 
 export function WorkspacePanel({
   title,
+  description,
   children,
   className,
   contentClassName,
 }: WorkspacePanelProps) {
   return (
-    <Card className={cn("overflow-hidden rounded-[2rem] border border-white/60 bg-gradient-to-b from-white/90 to-white/50 shadow-[0_8px_30px_rgba(0,0,0,0.03)] backdrop-blur-2xl transition-all duration-300 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)]", className)}>
-      {/* Decorative top glint */}
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent" />
+    <Card className={cn("page-surface overflow-hidden rounded-[2.2rem] transition-all duration-300 hover:shadow-[0_12px_38px_rgba(0,0,0,0.08)]", className)}>
       <CardHeader className="pb-4">
         <CardTitle className="text-[1.35rem] font-semibold tracking-tight text-slate-800">{title}</CardTitle>
+        {description ? <p className="text-sm leading-6 text-muted-foreground">{description}</p> : null}
       </CardHeader>
       <CardContent className={contentClassName}>{children}</CardContent>
     </Card>
@@ -113,6 +113,7 @@ export function WorkspacePanel({
 export function WorkspaceHighlight({
   eyebrow,
   title,
+  description,
   badge,
   children,
   className,
@@ -120,27 +121,23 @@ export function WorkspaceHighlight({
   return (
     <div
       className={cn(
-        "group relative overflow-hidden rounded-[2.25rem] border border-white/10 bg-[#0a0f1a] p-6 text-white shadow-[0_20px_50px_rgba(0,0,0,0.4)] md:p-8",
+        "page-utility-rail group rounded-[2.2rem] p-6 md:p-7",
         className,
       )}
     >
-      {/* Absolute dark glow meshes */}
-      <div className="absolute -left-1/4 -top-1/4 h-[150%] w-[150%] animate-pulse bg-[radial-gradient(circle_at_40%_20%,rgba(40,110,255,0.18),transparent_40%)] duration-10000" />
-      <div className="absolute -bottom-1/4 -right-1/4 h-full w-full bg-[radial-gradient(circle_at_60%_80%,rgba(20,200,255,0.1),transparent_50%)]" />
-      
-      {/* Top inner white glow ring */}
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-
-      <div className="relative z-10 flex items-start justify-between gap-4">
-        <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-cyan-200/60 drop-shadow-sm">{eyebrow}</div>
+      <div className="relative z-10 pl-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-primary/70">{eyebrow}</div>
         {badge ? (
-          <div className="rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-[11px] font-black uppercase tracking-[0.2em] text-white/90 shadow-sm backdrop-blur-md">
+          <div className="rounded-full border border-primary/10 bg-primary/8 px-3.5 py-1.5 text-[11px] font-black uppercase tracking-[0.2em] text-primary/80 shadow-sm backdrop-blur-md">
             {badge}
           </div>
         ) : null}
       </div>
-      <div className="relative z-10 mt-6 font-display text-[2.5rem] font-semibold leading-[0.92] tracking-[-0.04em] text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-white/60 drop-shadow-[0_2px_2px_rgba(0,0,0,0.5)]">{title}</div>
-      {children ? <div className="relative z-10 mt-8">{children}</div> : null}
+      <div className="mt-5 font-display text-[1.85rem] font-semibold leading-[0.95] tracking-[-0.04em] text-[#152133]">{title}</div>
+      {description ? <p className="mt-3 text-sm leading-6 text-muted-foreground">{description}</p> : null}
+      {children ? <div className="mt-6">{children}</div> : null}
+      </div>
     </div>
   );
 }

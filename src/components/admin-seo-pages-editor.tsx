@@ -117,6 +117,80 @@ export function AdminSeoPagesEditor({
     });
   }
 
+  function updateInternalLink(index: number, field: "label" | "href", value: string) {
+    if (!activePage) {
+      return;
+    }
+
+    const currentLinks = activePage.content.internalLinks ?? [];
+
+    updatePage({
+      ...activePage,
+      content: {
+        ...activePage.content,
+        internalLinks: currentLinks.map((item, itemIndex) =>
+          itemIndex === index ? { ...item, [field]: value } : item,
+        ),
+      },
+    });
+  }
+
+  function addInternalLink() {
+    if (!activePage) {
+      return;
+    }
+
+    const currentLinks = activePage.content.internalLinks ?? [];
+
+    updatePage({
+      ...activePage,
+      content: {
+        ...activePage.content,
+        internalLinks: [...currentLinks, { label: "", href: "" }],
+      },
+    });
+  }
+
+  function removeInternalLink(index: number) {
+    if (!activePage) {
+      return;
+    }
+
+    const currentLinks = activePage.content.internalLinks ?? [];
+
+    updatePage({
+      ...activePage,
+      content: {
+        ...activePage.content,
+        internalLinks: currentLinks.filter((_, itemIndex) => itemIndex !== index),
+      },
+    });
+  }
+
+  function moveInternalLink(index: number, direction: -1 | 1) {
+    if (!activePage) {
+      return;
+    }
+
+    const currentLinks = [...(activePage.content.internalLinks ?? [])];
+    const nextIndex = index + direction;
+
+    if (nextIndex < 0 || nextIndex >= currentLinks.length) {
+      return;
+    }
+
+    const [item] = currentLinks.splice(index, 1);
+    currentLinks.splice(nextIndex, 0, item);
+
+    updatePage({
+      ...activePage,
+      content: {
+        ...activePage.content,
+        internalLinks: currentLinks,
+      },
+    });
+  }
+
   return (
     <div className="grid gap-6">
       {storageError ? (
@@ -268,6 +342,36 @@ export function AdminSeoPagesEditor({
                 onChange={(event) => updateField("canonicalPath", event.target.value)}
               />
             </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 rounded-[1.6rem] border border-white/60 bg-white/80 p-5 md:grid-cols-3">
+          <div className="grid gap-2">
+            <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Hedef lokasyon
+            </label>
+            <Input
+              value={activePage.content.targetLocation ?? ""}
+              onChange={(event) => updateField("targetLocation", event.target.value)}
+            />
+          </div>
+          <div className="grid gap-2">
+            <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Hedef brans
+            </label>
+            <Input
+              value={activePage.content.targetBranch ?? ""}
+              onChange={(event) => updateField("targetBranch", event.target.value)}
+            />
+          </div>
+          <div className="grid gap-2">
+            <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Hedef yas grubu
+            </label>
+            <Input
+              value={activePage.content.targetAgeGroup ?? ""}
+              onChange={(event) => updateField("targetAgeGroup", event.target.value)}
+            />
           </div>
         </div>
 
@@ -521,6 +625,136 @@ export function AdminSeoPagesEditor({
                 rows={7}
               />
             </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 rounded-[1.6rem] border border-white/60 bg-white/80 p-5 md:grid-cols-[0.9fr_1.1fr]">
+          <div className="grid gap-4">
+            <div className="font-display text-xl font-semibold tracking-[-0.03em] text-foreground">
+              Referans yorumu
+            </div>
+            <div className="rounded-[1.2rem] border border-slate-200 bg-[#f8fbff] p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Canli onizleme
+              </div>
+              <div className="mt-3 rounded-[1.2rem] bg-[linear-gradient(180deg,#0d1628_0%,#13213d_100%)] p-5 text-white shadow-[0_18px_40px_rgba(15,23,42,0.14)]">
+                <p className="text-sm leading-7 text-white/78">
+                  {activePage.content.testimonialQuote?.trim() || "Yorum girildiginde burada onizleme gorunur."}
+                </p>
+                <div className="mt-5">
+                  <div className="font-display text-base font-bold tracking-[-0.03em]">
+                    {activePage.content.testimonialAuthor?.trim() || "Yorum sahibi"}
+                  </div>
+                  <div className="mt-1 text-[11px] uppercase tracking-[0.2em] text-white/46">
+                    {activePage.content.testimonialRole?.trim() || "Baglam"}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Yorum
+              </label>
+              <Textarea
+                value={activePage.content.testimonialQuote ?? ""}
+                onChange={(event) => updateField("testimonialQuote", event.target.value)}
+                rows={5}
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Yorum sahibi
+                </label>
+                <Input
+                  value={activePage.content.testimonialAuthor ?? ""}
+                  onChange={(event) => updateField("testimonialAuthor", event.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Baglam
+                </label>
+                <Input
+                  value={activePage.content.testimonialRole ?? ""}
+                  onChange={(event) => updateField("testimonialRole", event.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" onClick={() => updateField("testimonialQuote", "")}>
+                Yorumu temizle
+              </Button>
+              <Button type="button" variant="outline" onClick={() => updateField("testimonialAuthor", "")}>
+                Yazari temizle
+              </Button>
+              <Button type="button" variant="outline" onClick={() => updateField("testimonialRole", "")}>
+                Baglami temizle
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="font-display text-xl font-semibold tracking-[-0.03em] text-foreground">
+                Internal link bloklari
+              </div>
+              <Button type="button" variant="outline" onClick={addInternalLink}>
+                Link ekle
+              </Button>
+            </div>
+            {(activePage.content.internalLinks ?? []).map((item, index) => (
+              <div
+                key={`${activePage.slug}-internal-link-${index}`}
+                className="grid gap-3 rounded-[1.2rem] border border-slate-200 p-4"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="font-medium text-foreground">Ilgili sayfa {index + 1}</div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => moveInternalLink(index, -1)}
+                      disabled={index === 0}
+                    >
+                      Yukari
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => moveInternalLink(index, 1)}
+                      disabled={index === (activePage.content.internalLinks ?? []).length - 1}
+                    >
+                      Asagi
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => removeInternalLink(index)}>
+                      Sil
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Etiket
+                  </label>
+                  <Input
+                    value={item.label}
+                    onChange={(event) => updateInternalLink(index, "label", event.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Href
+                  </label>
+                  <Input
+                    value={item.href}
+                    onChange={(event) => updateInternalLink(index, "href", event.target.value)}
+                  />
+                </div>
+                <div className="rounded-[1rem] border border-slate-200 bg-[#f8fbff] px-4 py-3 text-xs leading-6 text-muted-foreground">
+                  Onizleme: {item.label?.trim() || "Etiket"} {item.href?.trim() ? `→ ${item.href}` : ""}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 

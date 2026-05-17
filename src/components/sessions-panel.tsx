@@ -78,6 +78,7 @@ export function SessionsPanel({
   );
 
   const attendanceMap = useMemo(() => buildAttendanceMap(attendanceBoards), [attendanceBoards]);
+  const todayKey = format(new Date(), "yyyy-MM-dd");
 
   const sportsBranchOptions = useMemo(
     () => ["all", ...Array.from(new Set(sessions.map((session) => session.sportsBranchName).filter(Boolean)))],
@@ -133,195 +134,232 @@ export function SessionsPanel({
   );
 
   const hourLabels = useMemo(() => Array.from({ length: endHour - startHour + 1 }, (_, index) => startHour + index), []);
+  const activeTodayCount = useMemo(
+    () => calendarSessions.filter((session) => session.startsAt && format(parseISO(session.startsAt), "yyyy-MM-dd") === todayKey).length,
+    [calendarSessions, todayKey],
+  );
 
   return (
     <div className="grid gap-6">
-      {showSummary ? (
-        <section className="grid gap-4 md:grid-cols-4">
-          <SummaryMetric label="Toplam seans" value={sessions.length} />
-          <SummaryMetric label="Haftalik gorunen" value={calendarSessions.length} />
-          <SummaryMetric label="Kullanilan alan" value={new Set(sessions.map((session) => session.areaName ?? session.location)).size} />
-          <SummaryMetric label="Aktif egitmen" value={new Set(sessions.map((session) => session.coach)).size} />
-        </section>
-      ) : null}
-
-      <section className="surface-panel grid gap-5 rounded-[1.8rem] border border-white/50 px-6 py-6">
-        <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr_1fr_1.1fr]">
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Grup, program urunu veya egitmen ara..."
-          />
-          <Select value={sportsBranchFilter} onChange={(event) => setSportsBranchFilter(event.target.value)}>
-            <option value="all">Tum branslar</option>
-            {sportsBranchOptions.filter(Boolean).map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </Select>
-          <Select value={coachFilter} onChange={(event) => setCoachFilter(event.target.value)}>
-            <option value="all">Tum egitmenler</option>
-            {coaches.map((coach) => (
-              <option key={coach.id} value={coach.name}>
-                {coach.name}
-              </option>
-            ))}
-          </Select>
-          <Select value={areaFilter} onChange={(event) => setAreaFilter(event.target.value)}>
-            <option value="all">Tum alanlar</option>
-            {areas.map((area) => (
-              <option key={area.id} value={area.name}>
-                {area.name}
-              </option>
-            ))}
-          </Select>
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_17rem] xl:items-start">
+        <div className="pt-2">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">Haftalik plan</div>
+          <h2 className="mt-3 font-display text-[clamp(2.9rem,5vw,4.35rem)] font-semibold leading-[0.92] tracking-[-0.07em] text-foreground">
+            Seans Takvimi
+          </h2>
+          <p className="mt-4 max-w-2xl text-[1.05rem] leading-7 text-muted-foreground">
+            Yogunlugu gorun, cakismalari fark edin ve seans yonetimini tek akista yonetin.
+            {showSummary ? " Takvim ve liste gorunumleri ayni filtrelerle birlikte calisir." : null}
+          </p>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="surface-muted inline-flex rounded-full p-2">
-            <button
-              type="button"
-              onClick={() => setView("calendar")}
-              className={
-                view === "calendar"
-                  ? "rounded-full bg-white px-6 py-3 text-sm font-semibold text-primary shadow-[0_12px_28px_rgba(15,33,66,0.12)]"
-                  : "rounded-full px-6 py-3 text-sm font-semibold text-muted-foreground"
-              }
-              >
-              Takvim
-            </button>
-            <button
-              type="button"
-              onClick={() => setView("list")}
-              className={
-                view === "list"
-                  ? "rounded-full bg-white px-6 py-3 text-sm font-semibold text-primary shadow-[0_12px_28px_rgba(15,33,66,0.12)]"
-                  : "rounded-full px-6 py-3 text-sm font-semibold text-muted-foreground"
-              }
-              >
-              Liste
-            </button>
-          </div>
-
-          <div className="surface-muted inline-flex items-center gap-3 rounded-full px-4 py-3">
-            <button
-              type="button"
-              onClick={() => setWeekStart((current) => subWeeks(current, 1))}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-foreground"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <div className="text-center">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Hafta</div>
-              <div className="mt-1 text-xl font-semibold tracking-[-0.03em] text-foreground">{getWeekRangeLabel(weekStart)}</div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setWeekStart((current) => addWeeks(current, 1))}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-foreground"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
+          <SummaryMetric label="Bu hafta" value={calendarSessions.length} helper="planli seans" />
+          <SummaryMetric label="Bugun" value={activeTodayCount} helper="aktif takvim akisi" />
         </div>
       </section>
 
+      <section className="surface-panel overflow-hidden rounded-[2rem] border border-white/55">
+        <div className="grid gap-6 px-6 py-6 xl:grid-cols-[minmax(0,1fr)_380px] xl:items-end">
+          <div className="grid gap-4">
+            <div className="grid gap-4 lg:grid-cols-3">
+              <LabeledFilter label="Brans">
+                <Select value={sportsBranchFilter} onChange={(event) => setSportsBranchFilter(event.target.value)}>
+                  <option value="all">Tum branslar</option>
+                  {sportsBranchOptions.filter(Boolean).map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </Select>
+              </LabeledFilter>
+              <LabeledFilter label="Egitmen">
+                <Select value={coachFilter} onChange={(event) => setCoachFilter(event.target.value)}>
+                  <option value="all">Tum egitmenler</option>
+                  {coaches.map((coach) => (
+                    <option key={coach.id} value={coach.name}>
+                      {coach.name}
+                    </option>
+                  ))}
+                </Select>
+              </LabeledFilter>
+              <LabeledFilter label="Alan">
+                <Select value={areaFilter} onChange={(event) => setAreaFilter(event.target.value)}>
+                  <option value="all">Tum alanlar</option>
+                  {areas.map((area) => (
+                    <option key={area.id} value={area.name}>
+                      {area.name}
+                    </option>
+                  ))}
+                </Select>
+              </LabeledFilter>
+            </div>
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Grup, program, egitmen veya alan ara..."
+            />
+          </div>
+
+          <div className="grid gap-4">
+            <div className="surface-muted inline-flex rounded-full p-2">
+              <button
+                type="button"
+                onClick={() => setView("calendar")}
+                className={
+                  view === "calendar"
+                    ? "rounded-full bg-white px-7 py-3 text-base font-semibold text-primary shadow-[0_12px_28px_rgba(15,33,66,0.12)]"
+                    : "rounded-full px-7 py-3 text-base font-semibold text-muted-foreground"
+                }
+              >
+                Takvim Gorunumu
+              </button>
+              <button
+                type="button"
+                onClick={() => setView("list")}
+                className={
+                  view === "list"
+                    ? "rounded-full bg-white px-7 py-3 text-base font-semibold text-primary shadow-[0_12px_28px_rgba(15,33,66,0.12)]"
+                    : "rounded-full px-7 py-3 text-base font-semibold text-muted-foreground"
+                }
+              >
+                Liste Gorunumu
+              </button>
+            </div>
+
+            <div className="surface-muted inline-flex items-center justify-between gap-3 rounded-full px-4 py-3">
+              <button
+                type="button"
+                onClick={() => setWeekStart((current) => subWeeks(current, 1))}
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-foreground shadow-[0_10px_20px_rgba(18,43,84,0.06)]"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <div className="text-center">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Hafta</div>
+                <div className="mt-1 text-[1.8rem] font-semibold tracking-[-0.05em] text-foreground">{getWeekRangeLabel(weekStart)}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWeekStart((current) => addWeeks(current, 1))}
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-foreground shadow-[0_10px_20px_rgba(18,43,84,0.06)]"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-[#dbe3ee]" />
+
       {view === "calendar" ? (
-        <section className="surface-panel overflow-hidden rounded-[1.8rem] border border-white/50">
-          <div className="grid grid-cols-[96px_repeat(7,minmax(0,1fr))] border-b border-[#dde5f0]">
+        <section className="px-6 py-7">
+          <div className="overflow-hidden rounded-[2rem] border border-[#d9e2ee] bg-white">
+            <div className="grid grid-cols-[96px_repeat(7,minmax(0,1fr))] border-b border-[#dde5f0]">
             <div className="border-r border-[#dde5f0] px-4 py-5 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               Saat
             </div>
             {dayColumns.map((day) => (
               <div key={day.key} className="border-r border-[#dde5f0] px-4 py-5 text-center last:border-r-0">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{day.label}</div>
-                <div className="mt-2 text-[1.65rem] font-semibold tracking-[-0.04em] text-foreground">{day.dateLabel}</div>
+                <div className="mt-2 text-[1.75rem] font-semibold tracking-[-0.05em] text-foreground">{day.dateLabel}</div>
               </div>
             ))}
-          </div>
-
-          <div className="grid grid-cols-[96px_repeat(7,minmax(0,1fr))]">
-            <div className="border-r border-[#dde5f0]">
-              {hourLabels.map((hour) => (
-                <div
-                  key={hour}
-                  className="border-b border-[#eef2f7] px-4 py-3 text-center text-sm font-semibold text-muted-foreground"
-                  style={{ height: rowHeight }}
-                >
-                  {String(hour).padStart(2, "0")}:00
-                </div>
-              ))}
             </div>
 
-            {dayColumns.map((day) => {
-              const daySessions = calendarSessions.filter(
-                (session) =>
-                  session.startsAt && format(parseISO(session.startsAt), "yyyy-MM-dd") === day.key,
-              );
+            <div className="grid grid-cols-[96px_repeat(7,minmax(0,1fr))]">
+              <div className="border-r border-[#dde5f0]">
+                {hourLabels.map((hour) => (
+                  <div
+                    key={hour}
+                    className="border-b border-[#eef2f7] px-4 py-3 text-center text-sm font-semibold text-muted-foreground"
+                    style={{ height: rowHeight }}
+                  >
+                    {String(hour).padStart(2, "0")}:00
+                  </div>
+                ))}
+              </div>
 
-              return (
-                <div key={day.key} className="relative border-r border-[#dde5f0] last:border-r-0" style={{ height: rowHeight * hourLabels.length }}>
-                  {hourLabels.map((hour) => (
-                    <div
-                      key={`${day.key}-${hour}`}
-                      className="border-b border-[#eef2f7]"
-                      style={{ height: rowHeight }}
-                    />
-                  ))}
+              {dayColumns.map((day) => {
+                const daySessions = calendarSessions.filter(
+                  (session) =>
+                    session.startsAt && format(parseISO(session.startsAt), "yyyy-MM-dd") === day.key,
+                );
 
-                  {daySessions.map((session) => {
-                    if (!session.startsAt || !session.endsAt) {
-                      return null;
-                    }
-
-                    const top = (toMinuteOffset(session.startsAt) / 60) * rowHeight;
-                    const duration = Math.max(
-                      (differenceInMinutes(parseISO(session.endsAt), parseISO(session.startsAt)) / 60) * rowHeight,
-                      92,
-                    );
-                    const students = attendanceMap.get(session.id) ?? [];
-
-                    return (
+                return (
+                  <div key={day.key} className="relative border-r border-[#dde5f0] last:border-r-0" style={{ height: rowHeight * hourLabels.length }}>
+                    {hourLabels.map((hour) => (
                       <div
-                        key={session.id}
-                        className={`absolute left-3 right-3 overflow-hidden rounded-[1.4rem] border px-4 py-3 shadow-[0_18px_38px_rgba(22,38,65,0.14)] ${getSessionTone(session)}`}
-                        style={{ top, height: duration }}
-                      >
-                        <div className="text-xl font-semibold tracking-[-0.04em] text-foreground">{session.title}</div>
-                        {session.programTitle ? (
-                          <div className="mt-1 text-sm text-slate-700">Program: {session.programTitle}</div>
-                        ) : null}
-                        <div className="mt-1 text-sm text-slate-700">
-                          {format(parseISO(session.startsAt), "HH:mm")} - {format(parseISO(session.endsAt), "HH:mm")}
+                        key={`${day.key}-${hour}`}
+                        className="border-b border-[#eef2f7]"
+                        style={{ height: rowHeight }}
+                      />
+                    ))}
+
+                    {daySessions.map((session) => {
+                      if (!session.startsAt || !session.endsAt) {
+                        return null;
+                      }
+
+                      const top = (toMinuteOffset(session.startsAt) / 60) * rowHeight;
+                      const duration = Math.max(
+                        (differenceInMinutes(parseISO(session.endsAt), parseISO(session.startsAt)) / 60) * rowHeight,
+                        90,
+                      );
+                      const students = attendanceMap.get(session.id) ?? [];
+
+                      return (
+                        <div
+                          key={session.id}
+                          className={`group/session absolute left-0.5 right-0.5 overflow-hidden rounded-[1.55rem] border px-4 py-3 text-center shadow-[0_18px_38px_rgba(22,38,65,0.14)] transition-transform duration-200 hover:z-10 hover:-translate-y-0.5 ${getSessionTone(session)}`}
+                          style={{ top, height: duration }}
+                        >
+                          <div className="relative h-full">
+                            <div className="pointer-events-none transition-opacity duration-200 group-hover/session:opacity-15">
+                              <div className="text-[1.45rem] font-semibold tracking-[-0.05em] text-foreground">{session.title}</div>
+                              <div className="mt-1.5 text-sm font-medium text-slate-800">
+                                {format(parseISO(session.startsAt), "HH:mm")} - {format(parseISO(session.endsAt), "HH:mm")}
+                              </div>
+                              <div className="mt-1.5 text-sm leading-5 text-slate-700">
+                                {session.studentCount ?? 0} ogrenci · {session.coach}
+                              </div>
+                            </div>
+
+                            <div className="absolute inset-x-2 bottom-2 flex translate-y-2 justify-center opacity-0 transition-all duration-200 group-hover/session:translate-y-0 group-hover/session:opacity-100">
+                              <div className="rounded-[1.2rem] bg-[linear-gradient(180deg,rgba(15,23,42,0.18),rgba(15,23,42,0.44))] p-1.5 backdrop-blur">
+                                <SessionActions
+                                  session={session}
+                                  programs={programs}
+                                  coaches={coaches}
+                                  areas={areas}
+                                  students={students}
+                                  layout="calendar-overlay"
+                                  showCancel={false}
+                                />
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        <div className="mt-1 text-sm text-slate-700">
-                          {session.studentCount ?? 0} kayitli sporcu · {session.coach}
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <SessionActions
-                            session={session}
-                            programs={programs}
-                            coaches={coaches}
-                            areas={areas}
-                            students={students}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
           </div>
+          {!calendarSessions.length ? (
+            <div className="mt-5 rounded-[1.5rem] border border-dashed border-[#d7e0ec] bg-[#f8fbff] px-5 py-6 text-sm text-muted-foreground">
+              Bu hafta secili filtrelerle eslesen bir seans bulunmuyor.
+            </div>
+          ) : null}
         </section>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid gap-4 px-6 py-7">
           {filteredSessions.length ? (
             filteredSessions.map((session) => (
               <article
                 key={session.id}
-                className="surface-panel rounded-[1.6rem] border border-white/50 px-6 py-5"
+                className="surface-panel rounded-[1.8rem] border border-white/50 px-6 py-5"
               >
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
@@ -365,15 +403,26 @@ export function SessionsPanel({
           )}
         </div>
       )}
+      </section>
     </div>
   );
 }
 
-function SummaryMetric({ label, value }: { label: string; value: number }) {
+function LabeledFilter({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
+    <div className="grid gap-2">
+      <div className="px-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function SummaryMetric({ label, value, helper }: { label: string; value: number; helper: string }) {
+  return (
+    <div className="surface-panel rounded-[1.7rem] border border-white/40 px-6 py-5 text-center">
       <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
-      <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">{value}</div>
+      <div className="mt-2 font-display text-[3rem] font-semibold tracking-[-0.06em] text-foreground">{value}</div>
+      <div className="text-sm text-muted-foreground">{helper}</div>
     </div>
   );
 }

@@ -4,6 +4,9 @@ import { revalidatePath } from "next/cache";
 
 import { getActorOrganizationId, logAuditEvent } from "@/lib/audit";
 import { getCurrentAuthContext } from "@/lib/auth";
+import { formatTry } from "@/lib/finance";
+import { createRoleScopedTopicNotifications } from "@/lib/message-topics-server";
+import { resolveChargeAnchorDate, resolvePaymentLifecycleStatus } from "@/lib/payment-status";
 import {
   createManualPaymentSchema,
   sendBulkPaymentReminderSchema,
@@ -16,6 +19,28 @@ export type FinanceActionState = {
   error: string | null;
   success: string | null;
 };
+
+function resolveChargeLifecycle(input: {
+  amount: number | string | null | undefined;
+  payments?: Array<{ amount?: number | string | null }> | null;
+  enrollmentStartsOn?: string | null;
+  chargeCreatedAt?: string | null;
+  dueDate?: string | null;
+}) {
+  const totalPaid = Array.isArray(input.payments)
+    ? input.payments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0)
+    : 0;
+
+  return resolvePaymentLifecycleStatus({
+    amount: input.amount,
+    totalPaid,
+    anchorDate: resolveChargeAnchorDate({
+      enrollmentStartsOn: input.enrollmentStartsOn,
+      chargeCreatedAt: input.chargeCreatedAt,
+      dueDate: input.dueDate,
+    }),
+  });
+}
 
 export async function createManualPaymentAction(
   _previousState: FinanceActionState,
@@ -30,6 +55,10 @@ export async function createManualPaymentAction(
   const parsed = createManualPaymentSchema.safeParse({
     chargeId: formData.get("chargeId"),
     amount: formData.get("amount"),
+    paymentMethod: formData.get("paymentMethod"),
+    paymentDate: formData.get("paymentDate"),
+    referenceNo: formData.get("referenceNo"),
+    note: formData.get("note"),
   });
 
   if (!parsed.success) {
@@ -48,7 +77,7 @@ export async function createManualPaymentAction(
 
   const { data: charge, error: chargeError } = await adminClient
     .from("charges")
-    .select("id, amount, enrollment_id")
+    .select("id, amount, enrollment_id, due_date, created_at, payments(amount), enrollments(student_id, starts_on, students(full_name))")
     .eq("id", parsed.data.chargeId)
     .maybeSingle();
 
@@ -56,10 +85,26 @@ export async function createManualPaymentAction(
     return { error: "Tahakkuk bulunamadi.", success: null };
   }
 
+  const totalPaidBefore = Array.isArray(charge.payments)
+    ? charge.payments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0)
+    : 0;
+  const chargeAmount = Number(charge.amount ?? 0);
+  const remainingBefore = Math.max(chargeAmount - totalPaidBefore, 0);
+
+  if (parsed.data.amount > remainingBefore) {
+    return {
+      error: `Girilen tutar kalan bakiyeyi asiyor. En fazla ${formatTry(remainingBefore)} tahsil edebilirsiniz.`,
+      success: null,
+    };
+  }
+
   const { error: paymentError } = await adminClient.from("payments").insert({
     charge_id: parsed.data.chargeId,
     amount: parsed.data.amount,
-    payment_method: "manual",
+    payment_method: parsed.data.paymentMethod,
+    paid_at: new Date(parsed.data.paymentDate).toISOString(),
+    reference_no: parsed.data.referenceNo || null,
+    note: parsed.data.note || "",
   });
 
   if (paymentError) {
@@ -72,7 +117,7 @@ export async function createManualPaymentAction(
     .eq("charge_id", parsed.data.chargeId);
 
   const totalPaid = (payments ?? []).reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
-  const status = totalPaid >= Number(charge.amount ?? 0) ? "paid" : "pending";
+  const status = totalPaid >= chargeAmount ? "paid" : "pending";
 
   await adminClient
     .from("charges")
@@ -100,8 +145,8 @@ export async function createManualPaymentAction(
           title: "Yeni odeme kaydi eklendi",
           body:
             status === "paid"
-              ? "Tahakkuk odemesi tamamen kapandi."
-              : "Yeni odeme kaydi eklendi, kalan bakiye guncellendi.",
+              ? "Aylik tahakkuk odemesi tamamen kapandi."
+              : `Yeni odeme kaydi eklendi. Kalan bakiye ${formatTry(Math.max(chargeAmount - totalPaid, 0))}.`,
           channel: "in_app",
         })),
       );
@@ -109,6 +154,9 @@ export async function createManualPaymentAction(
   }
 
   revalidatePath("/manager");
+  revalidatePath("/manager/debts");
+  revalidatePath("/manager/payments");
+  revalidatePath("/manager/fees");
   revalidatePath("/manager/finance");
   revalidatePath("/manager/students");
   revalidatePath("/parent");
@@ -126,13 +174,15 @@ export async function createManualPaymentAction(
     payload: {
       chargeId: parsed.data.chargeId,
       amount: parsed.data.amount,
+      paymentMethod: parsed.data.paymentMethod,
+      paymentDate: parsed.data.paymentDate,
       status,
     },
   });
 
   return {
     error: null,
-    success: "Manuel odeme kaydi olusturuldu.",
+    success: "Odeme kaydi basariyla olusturuldu.",
   };
 }
 
@@ -165,7 +215,7 @@ export async function sendPaymentReminderAction(
 
   const { data: charge } = await adminClient
     .from("charges")
-    .select("id, amount, due_date, status, enrollments(student_id, students(full_name))")
+    .select("id, amount, due_date, status, created_at, payments(amount), enrollments(student_id, starts_on, students(full_name))")
     .eq("id", parsed.data.chargeId)
     .maybeSingle();
 
@@ -178,6 +228,18 @@ export async function sendPaymentReminderAction(
 
   if (!charge?.id || !studentId) {
     return { error: "Tahakkuk kaydi bulunamadi.", success: null };
+  }
+
+  const paymentStatus = resolveChargeLifecycle({
+    amount: charge.amount,
+    payments: charge.payments,
+    enrollmentStartsOn: enrollment?.starts_on ?? null,
+    chargeCreatedAt: charge.created_at,
+    dueDate: charge.due_date,
+  });
+
+  if (paymentStatus === "completed") {
+    return { error: "Bu tahakkuk zaten odeme tamamlandi durumunda.", success: null };
   }
 
   const organizationId = await getActorOrganizationId(auth.userId);
@@ -218,6 +280,17 @@ export async function sendPaymentReminderAction(
   revalidatePath("/manager/finance");
   revalidatePath("/admin/settings");
 
+  await createRoleScopedTopicNotifications({
+    organizationId,
+    topicKey: "panel_notice_payment_risk",
+    channelKey: `message_topic:panel_notice_payment_risk:charge:${charge.id}`,
+    variables: {
+      student_name: studentName,
+      amount: `₺${Number(charge.amount ?? 0).toLocaleString("tr-TR")}`,
+      due_date: charge.due_date ?? "",
+    },
+  });
+
   return {
     error: null,
     success: "Secili tahakkuk icin WhatsApp hatirlatmasi kuyruga alindi.",
@@ -252,26 +325,38 @@ export async function sendBulkPaymentReminderAction(
     return { error: "Kurum baglami cozulmedi.", success: null };
   }
 
-  const today = new Date().toISOString().slice(0, 10);
   const { data: charges } = await adminClient
     .from("charges")
-    .select("id, amount, due_date, enrollments(student_id, students(full_name))")
-    .neq("status", "paid")
-    .lte("due_date", today)
+    .select("id, amount, due_date, created_at, payments(amount), enrollments(student_id, starts_on, students(full_name))")
     .limit(25);
 
-  if (!charges?.length) {
+  const overdueCharges = (charges ?? []).filter((charge) => {
+    const enrollment = Array.isArray(charge.enrollments) ? charge.enrollments[0] : charge.enrollments;
+
+    return (
+      resolveChargeLifecycle({
+        amount: charge.amount,
+        payments: charge.payments,
+        enrollmentStartsOn: enrollment?.starts_on ?? null,
+        chargeCreatedAt: charge.created_at,
+        dueDate: charge.due_date,
+      }) === "overdue"
+    );
+  });
+
+  if (!overdueCharges.length) {
     return {
       error: null,
       success: "Toplu hatirlatma icin uygun gecikmis tahakkuk bulunamadi.",
     };
   }
 
-  for (const charge of charges) {
+  for (const charge of overdueCharges) {
     const enrollment = Array.isArray(charge.enrollments) ? charge.enrollments[0] : charge.enrollments;
     const studentId = enrollment?.student_id ?? null;
     const studentRecord = enrollment?.students as { full_name?: string } | null | undefined;
     const studentName = studentRecord?.full_name ?? "Sporcu";
+    const dueDateValue = charge.due_date ?? "";
 
     if (!studentId) {
       continue;
@@ -282,7 +367,18 @@ export async function sendBulkPaymentReminderAction(
       studentId,
       studentName,
       amount: `₺${Number(charge.amount ?? 0).toLocaleString("tr-TR")}`,
-      dueDate: charge.due_date ?? today,
+      dueDate: dueDateValue,
+    });
+
+    await createRoleScopedTopicNotifications({
+      organizationId,
+      topicKey: "panel_notice_payment_risk",
+      channelKey: `message_topic:panel_notice_payment_risk:charge:${charge.id}`,
+      variables: {
+        student_name: studentName,
+        amount: `₺${Number(charge.amount ?? 0).toLocaleString("tr-TR")}`,
+        due_date: dueDateValue,
+      },
     });
   }
 
@@ -292,9 +388,9 @@ export async function sendBulkPaymentReminderAction(
     actorRole: auth.role,
     eventType: "Toplu odeme hatirlatmasi baslatildi",
     scope: "Finans",
-    entityType: "message_dispatches",
-    payload: {
-      count: charges.length,
+      entityType: "message_dispatches",
+      payload: {
+      count: overdueCharges.length,
       scope: parsed.data.scope,
     },
   });
@@ -304,6 +400,6 @@ export async function sendBulkPaymentReminderAction(
 
   return {
     error: null,
-    success: `${charges.length} gecikmis kayit icin WhatsApp hatirlatmasi kuyruga alindi.`,
+    success: `${overdueCharges.length} gecikmis kayit icin WhatsApp hatirlatmasi kuyruga alindi.`,
   };
 }

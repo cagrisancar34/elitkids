@@ -46,6 +46,13 @@ export type LandingContent = {
     visualPrimaryImage: string;
     visualSecondaryImage: string;
   };
+  homepageMediaRail: {
+    eyebrow: string;
+    title: string;
+    description: string;
+    ctaLabel: string;
+    ctaHref: string;
+  };
   stats: Array<{
     value: string;
     label: string;
@@ -98,6 +105,59 @@ export type LandingContent = {
       description: string;
     }>;
   };
+  localProof: {
+    eyebrow: string;
+    title: string;
+    description: string;
+    items: Array<{
+      title: string;
+      description: string;
+      icon: IconKey;
+    }>;
+  };
+  process: {
+    eyebrow: string;
+    title: string;
+    description: string;
+    steps: Array<{
+      title: string;
+      description: string;
+    }>;
+  };
+  testimonials: {
+    eyebrow: string;
+    title: string;
+    description: string;
+    items: Array<{
+      id: string;
+      quote: string;
+      parentDisplayName: string;
+      context: string;
+      branch: string;
+      childAgeGroup: string;
+      approved: boolean;
+      featured: boolean;
+      sortOrder: number;
+    }>;
+  };
+  galleryPage: {
+    eyebrow: string;
+    title: string;
+    description: string;
+    published: boolean;
+    indexable: boolean;
+    includeInSitemap: boolean;
+  };
+  galleryItems: Array<{
+    id: string;
+    image: string;
+    title: string;
+    description: string;
+    category: "tesis" | "yuzme" | "cimnastik" | "tenis" | "genel";
+    featured: boolean;
+    sortOrder: number;
+    published: boolean;
+  }>;
   faq: {
     eyebrow: string;
     title: string;
@@ -119,8 +179,15 @@ export type LandingContent = {
   cta: {
     title: string;
     description: string;
+    mobileStickyEyebrow: string;
+    mobileStickyTitle: string;
+    mobileStickyWhatsAppLabel: string;
+    mobileStickyPhoneLabel: string;
+    mobileStickyPrimaryLabel: string;
     whatsappLabel: string;
     phoneCtaLabel: string;
+    recommendationLabel: string;
+    recommendationHref: string;
     fullNameLabel: string;
     fullNamePlaceholder: string;
     emailLabel: string;
@@ -151,67 +218,75 @@ export type LandingContent = {
 
 export const defaultLandingContent: LandingContent = {
   siteSettings: {
-    brandName: "Elit Kids",
-    brandTagline: "Cocuk spor akademisi",
-    logoLabel: "EK",
+    brandName: "Elit Sanat ve Spor Kulubu",
+    brandTagline: "Silivri cocuk spor kulubu",
+    logoLabel: "ES",
     logoImage: "",
-    contactPhone: "+90 555 000 00 00",
-    whatsappPhone: "+90 555 000 00 00",
-    contactEmail: "iletisim@elitkids.com",
-    location: "Istanbul, Turkiye",
-    copyright: "© 2026 Elit Kids Athletic Academy. Tum haklari saklidir.",
-    footerBadge: "Designed for Excellence",
+    contactPhone: "+90 530 065 77 77",
+    whatsappPhone: "+90 530 065 77 77",
+    contactEmail: "iletisim@elitsanatvesporkulubu.com",
+    location: "Silivri, Istanbul",
+    copyright: "© 2026 Elit Sanat ve Spor Kulubu. Tum haklari saklidir.",
+    footerBadge: "Silivri merkezli planli spor egitimi",
   },
   navbar: {
     links: [
-      { label: "Programs", href: "#programs" },
-      { label: "System", href: "#system" },
-      { label: "Why Us", href: "#why-us" },
-      { label: "Contact", href: "#contact" },
+      { label: "Branslar", href: "#programs" },
+      { label: "Sistem", href: "#system" },
+      { label: "Surec", href: "#process" },
+      { label: "Iletisim", href: "#contact" },
     ],
-    statusLabel: "Canli vitrinde",
+    statusLabel: "Silivri kayit hatti acik",
     ctaLabel: "Hemen Kayit Ol",
     ctaHref: "/login",
   },
   hero: {
-    eyebrow: "Premium gelisim modeli",
-    title: "Silivri Elit Kids'de",
-    highlight: "Cocugunuz sadece\nspor yapmaz,\ndogru sistemle\ngelisir.",
+    eyebrow: "Silivri cocuk spor okulu",
+    title: "Silivri'de cocugunuz",
+    highlight: "yuzme,\ncimnastik ve\ntenisle planli\ngelisir.",
     description:
-      "Planli, guvenli ve olculebilir gelisim modeli ile gelecegin saglikli nesillerini yetistiriyoruz.",
+      "Elit Sanat ve Spor Kulubu, Silivri'de cocuklar icin yuzme, cimnastik ve tenis programlarini veli gorunurlugu, guvenli tesis akisi ve net kayit sureciyle birlestirir.",
     primaryCtaLabel: "Hemen Kayit Ol",
     primaryCtaHref: "#contact",
-    secondaryCtaLabel: "Programlari Incele",
-    secondaryCtaHref: "#programs",
+    secondaryCtaLabel: "WhatsApp ile Bilgi Al",
+    secondaryCtaHref: "#contact",
     visualPrimaryImage:
       "https://images.unsplash.com/photo-1602211844066-d3bb556e983b?auto=format&fit=crop&w=900&q=80",
     visualSecondaryImage:
       "https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=900&q=80",
   },
+  homepageMediaRail: {
+    eyebrow: "Tesis ve antrenman atmosferi",
+    title: "Silivri'deki egitim ritmimizi tesisten gercek anlara bakarak hissedin.",
+    description:
+      "Yuzme, cimnastik ve tenis akisini yalnizca metinle degil; sahadan, tesisten ve ders ortamindan gercek karelerle gosteriyoruz.",
+    ctaLabel: "Tum galeriyi gor",
+    ctaHref: "/galeri",
+  },
   stats: [
     {
-      value: "4-12 Yas",
-      label: "gelisim odakli yas grubu",
-      description: "Motor beceri ve disiplin omurgasi icin erken yas planlamasi.",
+      value: "Silivri",
+      label: "lokal spor merkezi",
+      description: "Tek lokasyonda hizli geri donus, net program yerlesimi ve ulasilabilir kayit akisi.",
       icon: "users",
     },
     {
-      value: "Yuzme",
-      label: "olimpik temelli egitim",
-      description: "Su guveni, teknik progresyon ve kondisyon beraber ilerler.",
+      value: "3 Brans",
+      label: "yuzme, cimnastik, tenis",
+      description: "Yas grubu ve hedefe gore ayrilan programlarla cocuklar kendi ritminde ilerler.",
       icon: "waves",
     },
     {
-      value: "Cimnastik",
-      label: "koordinasyon ve guc",
-      description: "Esneklik, denge ve postur hattini sistemli sekilde gelistirir.",
+      value: "Veli Paneli",
+      label: "takvim ve odeme gorunurlugu",
+      description: "Ders, yoklama, tahakkuk ve duyurular tek panelden izlenebilir.",
       icon: "sparkles",
     },
   ],
   methodology: {
-    eyebrow: "Benzersiz metodoloji",
+    eyebrow: "Elit sistem omurgasi",
     title: "4G Egitim Sistemi",
-    description: "Sporu sadece hareket degil, karakter ve ritim insasi olarak goruyoruz.",
+    description: "Sporu yalnizca ders saati olarak degil; guven, gelisim, geri bildirim ve guleryuz ile kurulan surdurulebilir bir aile deneyimi olarak tasarliyoruz.",
     items: [
       {
         title: "Guvenlik",
@@ -237,13 +312,13 @@ export const defaultLandingContent: LandingContent = {
   },
   programs: {
     eyebrow: "Branslarimiz",
-    title: "Her brans kendi sahnesine, kendi ritmine ve kendi disiplinine sahip.",
+    title: "Silivri'de her cocuk icin dogru ritmi olan bir spor programi kuruyoruz.",
     description:
-      "Premium tesis standardi, net egitim plani ve guclu iletisim hattiyla cocuklarin gelisim yolculugunu destekliyoruz.",
+      "Programlar yas, seviye ve ders ritmine gore sekillenir. Ama her programda guven, disiplin ve veli gorunurlugu ayni standardi korur.",
     items: [
       {
         title: "Yuzme Programi",
-        description: "Suya alisma, temel teknikler ve stil gelisimi ayni akademik cizgide ilerler.",
+        description: "Su guveni, temel teknik ve stil gelisimi ayni planli progresyon icinde ilerler.",
         image:
           "https://images.unsplash.com/photo-1600965962361-9035dbfd1c50?auto=format&fit=crop&w=1200&q=80",
         bullets: [
@@ -251,12 +326,12 @@ export const defaultLandingContent: LandingContent = {
           "Stil gelistirme ve koordinasyon",
           "Olimpik olculerde steril havuz",
         ],
-        href: "#contact",
-        ctaLabel: "Detayli Bilgi Al",
+        href: "/silivri-yuzme-kursu",
+        ctaLabel: "Yuzme Sayfasini Incele",
       },
       {
         title: "Cimnastik Programi",
-        description: "Esneklik, denge ve akrobasi temelli ilerleyen guclu bir koordinasyon hattı.",
+        description: "Esneklik, denge, koordinasyon ve beden farkindaligini guclendiren temel altyapi programi.",
         image:
           "https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=1200&q=80",
         bullets: [
@@ -264,29 +339,29 @@ export const defaultLandingContent: LandingContent = {
           "Temel akrobasi hareketleri",
           "Kondisyon ve postur duzeni",
         ],
-        href: "#contact",
-        ctaLabel: "Detayli Bilgi Al",
+        href: "/silivri-cimnastik-kursu",
+        ctaLabel: "Cimnastik Sayfasini Incele",
       },
       {
-        title: "Gelisim Takibi",
-        description: "Ailelerin anlik gorunurluk alabildigi veri destekli sporcu takip modeli.",
+        title: "Tenis Programi",
+        description: "Dikkat, reaksiyon, koordinasyon ve saha disiplini ile ilerleyen cocuk tenis akisi.",
         image:
-          "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=80",
+          "https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&w=1200&q=80",
         bullets: [
-          "Aylik fiziksel analiz raporu",
-          "Mobil erisim ve veli gorunurlugu",
-          "Bireysel gelisim mentorlugu",
+          "Cocuklara uygun teknik temel",
+          "Reaksiyon ve saha koordinasyonu",
+          "Planli grup ve saat akisi",
         ],
-        href: "#contact",
-        ctaLabel: "Sistemi Incele",
+        href: "/silivri-tenis-kursu",
+        ctaLabel: "Tenis Programini Incele",
       },
     ],
   },
   coaches: {
     eyebrow: "Egitmenler",
-    title: "Cocugun ritmine gore yon veren uzman kadro.",
+    title: "Cocugun ritmine gore yon veren uzman ve iletisimi guclu kadro.",
     description:
-      "Her egitmen saha deneyimini pedagojik yaklasim ve net iletisim diliyle birlestirir.",
+      "Her egitmen saha deneyimini pedagojik yaklasim, guvenli ders akisi ve veliye karsi net iletisim diliyle birlestirir.",
     items: [
       {
         name: "Ece Yilmaz",
@@ -312,35 +387,177 @@ export const defaultLandingContent: LandingContent = {
     ],
   },
   whyUs: {
-    title: "Sadece bir spor merkezi degil, bir",
-    highlight: "gelisim sistemi",
+    title: "Sadece ders acan bir yer degil,",
+    highlight: "tam gorunurlu bir spor sistemi",
     description:
-      "Her cocuk farkli ogrenir. Biz standart kaliplar yerine cocugun ritmine gore sekillenen, bilimsel ve surdurulebilir bir ilerleme yolu kuruyoruz.",
+      "Her cocuk farkli ogrenir. Biz de Silivri'deki aileler icin kayit, takvim, gelisim, odeme ve iletisim akisini ayni sistemde toplayarak daha guvenli bir spor deneyimi kuruyoruz.",
     image:
       "https://images.unsplash.com/photo-1517837016564-bfc4fcb7d1d2?auto=format&fit=crop&w=1200&q=80",
-    statValue: "10k+",
-    statLabel: "Mutlu mezun ogrenci",
+    statValue: "Panel + Saha",
+    statLabel: "tek yerden gorunurluk",
     points: [
       {
-        title: "Her cocuk farkli ogrenir",
+        title: "Her cocuk farkli hizda ilerler",
         description:
-          "Hazirbulunusluk duzeyine gore sekillenen dinamik bir ogrenme haritasi olusturuyoruz.",
+          "Hazirbulunusluk duzeyine gore sekillenen bir ritim kuruyor, grup yapisini buna gore planliyoruz.",
       },
       {
-        title: "Uzman kadro, bilimsel yaklasim",
+        title: "Uzman kadro, net operasyon",
         description:
-          "Egitmenlerimiz cocuk psikolojisi ve motor gelisim alaninda da egitimli profesyonellerdir.",
+          "Egitmen, grup, seans ve veli bilgilendirme akislarini tek cizgide yurutarak karisiklik alanlarini azaltiyoruz.",
       },
       {
-        title: "Surdurulebilir basari",
+        title: "Surdurulebilir gelisim",
         description:
-          "Hedefimiz sadece madalya degil; ozguvenli, disiplinli ve sporu seven bireyler yetistirmektir.",
+          "Hedefimiz yalnizca performans degil; sporu seven, duzenli devam eden ve ozguven kazanan cocuklar yetistirmektir.",
       },
     ],
   },
+  localProof: {
+    eyebrow: "Silivri guven sinyalleri",
+    title: "Ailelerin karar verirken baktigi temel guven noktalarini acik sekilde sunuyoruz.",
+    description:
+      "Lokasyon, veli gorunurlugu, tesis duzeni ve kayit sureci gibi kritik basliklari gizlemiyor; daha ilk ekranda gorunur hale getiriyoruz.",
+    items: [
+      {
+        title: "Silivri merkezli net erisim",
+        description: "Tek lokasyon, hizli geri donus ve ailelerin kolay bulabilecegi acik kurum kimligi.",
+        icon: "map",
+      },
+      {
+        title: "Veli paneli ile gorunurluk",
+        description: "Takvim, odeme, duyuru ve gelisim sinyalleri panelde ayni yerde toplanir.",
+        icon: "shield",
+      },
+      {
+        title: "Guvenli tesis ve planli akıs",
+        description: "Gruplar, alanlar ve seans ritmi karisik degil; kontrol edilebilir bir plan uzerinden ilerler.",
+        icon: "clock",
+      },
+    ],
+  },
+  process: {
+    eyebrow: "Kayit ve ilk ders sureci",
+    title: "Bilgi almaktan ilk derse kadar sureci aile icin olabildigince sade tutuyoruz.",
+    description:
+      "Karar vermeyi zorlastiran belirsizligi azaltmak icin kayit oncesi iletisim, uygun grup secimi ve ilk ders akisini netlestiriyoruz.",
+    steps: [
+      {
+        title: "1. Bilgi alin ve uygun bransi secin",
+        description: "WhatsApp, telefon veya kisa form ile bize ulasin; ekibimiz yas grubu ve hedefe gore sizi yonlendirsin.",
+      },
+      {
+        title: "2. Grup ve saat netlessin",
+        description: "Yuzme, cimnastik veya tenis icin uygun grup, gun ve saat planini sizinle birlikte belirleyelim.",
+      },
+      {
+        title: "3. Kayit, ilk ders ve panel erisimi",
+        description: "Kayit sonrasi ilk ders bilgisi, odeme akisi ve veli paneli erisimi tek bir duzende aileye iletilir.",
+      },
+    ],
+  },
+  testimonials: {
+    eyebrow: "Veli bakis acisi",
+    title: "Ailelerin en cok deger verdigi sey, cocugun ilerlemesini ve kurum ciddiyetini ayni anda gorebilmek.",
+    description:
+      "SEO sayfalari ve ana sayfa yalnizca bilgi vermesin; karar asamasindaki aileye guven de versin diye yorum ve deneyim bloklarini one cikartiyoruz.",
+    items: [
+      {
+        id: "testimonial-1",
+        quote:
+          "Silivri'de once duzenli iletisim aradik. Burada hem ders saatleri hem odeme hem de cocugumuzun devam durumu net oldu.",
+        parentDisplayName: "Aylin K.",
+        context: "Yuzme programi velisi",
+        branch: "Yuzme",
+        childAgeGroup: "7-10 yas",
+        approved: true,
+        featured: true,
+        sortOrder: 1,
+      },
+      {
+        id: "testimonial-2",
+        quote:
+          "Cocugumuzun hangi grupta oldugu, ilk ders saati ve sonraki adimlar karismadan ilerledi. Bizim icin en rahatlatan kisim buydu.",
+        parentDisplayName: "Murat S.",
+        context: "Cimnastik programi velisi",
+        branch: "Cimnastik",
+        childAgeGroup: "4-6 yas",
+        approved: true,
+        featured: true,
+        sortOrder: 2,
+      },
+      {
+        id: "testimonial-3",
+        quote:
+          "Tenis icin bilgi alirken sadece tanitim degil, gercek bir kayit sureci anlatildi. Bu da karar vermemizi kolaylastirdi.",
+        parentDisplayName: "Zeynep T.",
+        context: "Tenis programi velisi",
+        branch: "Tenis",
+        childAgeGroup: "10-12 yas",
+        approved: true,
+        featured: true,
+        sortOrder: 3,
+      },
+    ],
+  },
+  galleryPage: {
+    eyebrow: "Galeri",
+    title: "Tesisi, branşlari ve ders atmosferini sahadan gercek karelerle inceleyin.",
+    description:
+      "Silivri'deki tesis, yuzme, cimnastik ve tenis akisini yayinlanan gorseller uzerinden kategori bazli inceleyebilirsiniz.",
+    published: true,
+    indexable: true,
+    includeInSitemap: true,
+  },
+  galleryItems: [
+    {
+      id: "gallery-1",
+      image:
+        "https://images.unsplash.com/photo-1600965962361-9035dbfd1c50?auto=format&fit=crop&w=1400&q=80",
+      title: "Yuzme dersi hazirlik alani",
+      description: "Havuz kenari akisi ve guvenli gecis ritmi.",
+      category: "yuzme",
+      featured: true,
+      sortOrder: 1,
+      published: true,
+    },
+    {
+      id: "gallery-2",
+      image:
+        "https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=1400&q=80",
+      title: "Cimnastik koordinasyon calismasi",
+      description: "Esneklik ve denge odakli cocuk grubu antrenmani.",
+      category: "cimnastik",
+      featured: true,
+      sortOrder: 2,
+      published: true,
+    },
+    {
+      id: "gallery-3",
+      image:
+        "https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&w=1400&q=80",
+      title: "Tenis saha ritmi",
+      description: "Reaksiyon ve saha koordinasyonu odakli ders ortami.",
+      category: "tenis",
+      featured: true,
+      sortOrder: 3,
+      published: true,
+    },
+    {
+      id: "gallery-4",
+      image:
+        "https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=1400&q=80",
+      title: "Yuzme tesis genel gorunumu",
+      description: "Tesis duzeni ve ders oncesi bekleme alani.",
+      category: "tesis",
+      featured: true,
+      sortOrder: 4,
+      published: true,
+    },
+  ],
   faq: {
     eyebrow: "Sik sorulan sorular",
-    title: "Kayit, deneme dersi ve gelisim takibi hakkinda net cevaplar.",
+    title: "Kayit, ilk ders, veli paneli ve program secimi hakkinda net cevaplar.",
     description:
       "Velilerin ilk gorusmeden kayit anina kadar sordugu en kritik basliklari tek yerde topladik.",
     items: [
@@ -369,25 +586,35 @@ export const defaultLandingContent: LandingContent = {
   guide: {
     eyebrow: "Silivri spor rehberi",
     title:
-      "Silivri'de yuzme, cimnastik, jimnastik, tenis ve spor okulu arayanlar icin ayri sayfalar.",
+      "Silivri'de spor okulu arayan aileler icin branş, yas grubu ve karar niyetine gore ayri sayfalar hazirliyoruz.",
     description:
-      "Her brans ve lokal niyet icin ayri bilgi sayfalari hazirladik. Size en uygun basliga dogrudan gidin.",
+      "Her branş ve lokal niyet icin ayri bilgi sayfalari hazirladik. Size en yakin karar basligina dogrudan gidin.",
     items: [
       { label: "Silivri Spor Okulu", href: "/silivri-spor-okulu" },
       { label: "Silivri Yuzme Kursu", href: "/silivri-yuzme-kursu" },
       { label: "Silivri Cimnastik Kursu", href: "/silivri-cimnastik-kursu" },
-      { label: "Silivri Jimnastik Kursu", href: "/silivri-jimnastik-kursu" },
       { label: "Silivri Tenis Kursu", href: "/silivri-tenis-kursu" },
-      { label: "Elit Sanat ve Spor Kulubu", href: "/elit-sanat-ve-spor-kulubu" },
-      { label: "Iletisim", href: "/iletisim" },
+      { label: "Silivri Cocuk Spor Kursu", href: "/silivri-cocuk-spor-kursu" },
+      { label: "Silivri Cocuk Yuzme Kursu", href: "/silivri-cocuk-yuzme-kursu" },
+      { label: "4-6 Yas Yuzme", href: "/silivri-4-6-yas-yuzme-kursu" },
+      { label: "7-10 Yas Yuzme", href: "/silivri-7-10-yas-yuzme-kursu" },
+      { label: "Veli Takip Sistemi", href: "/veli-takip-sistemi" },
+      { label: "Kayit ve Ilk Ders Sureci", href: "/kayit-ve-ilk-ders-sureci" },
     ],
   },
   cta: {
-    title: "Sampiyonlarin Arasina Katilin",
+    title: "Program onerisi alin, uygun grubu ogrenin ve kayit surecini ayni gun icinde netlestirin.",
     description:
-      "Ucretsiz tanisma dersi ve gelisim analizi icin formu doldurun, biz sizi arayalim.",
+      "Silivri'de cocugunuz icin uygun yuzme, cimnastik veya tenis programini birlikte belirleyelim. Formu birakin, sizi arayalim.",
+    mobileStickyEyebrow: "Silivri yeni kayit hatti",
+    mobileStickyTitle: "Programi secmekte zorlanirsaniz bize yazin, ayni gun yonlendirelim.",
+    mobileStickyWhatsAppLabel: "WhatsApp",
+    mobileStickyPhoneLabel: "Telefon",
+    mobileStickyPrimaryLabel: "Hemen Kayit Ol",
     whatsappLabel: "WhatsApp ile Ulas",
     phoneCtaLabel: "Telefon ile Ara",
+    recommendationLabel: "Program Onerisi Iste",
+    recommendationHref: "#contact",
     fullNameLabel: "Ad Soyad",
     fullNamePlaceholder: "Adiniz Soyadiniz",
     emailLabel: "Email Adresi",
@@ -400,30 +627,32 @@ export const defaultLandingContent: LandingContent = {
       "Bilgi almak istiyorum",
       "On kayit yaptirmak istiyorum",
       "Deneme dersi talep ediyorum",
+      "Program onerisi istiyorum",
     ],
     submitLabel: "Basvuruyu Gonder",
-    footnote: "Bu form bilgi alma ve ilk iletisim icindir; gonderilen basvurular admin ve manager panelinde gorunur.",
+    footnote: "Bu form bilgi alma ve ilk iletisim icindir; kaynak bilgisi ile birlikte admin ve manager paneline duser.",
   },
   footer: {
     description:
-      "Yeni nesil spor akademisi anlayisi ile cocuklarin fiziksel ve karakter gelisimine yon veriyoruz.",
+      "Silivri'de cocuklar icin yuzme, cimnastik ve tenis odakli planli spor egitimi sunuyoruz.",
     groups: [
       {
         title: "Kurumsal",
         links: [
-          { label: "Privacy Policy", href: "#" },
-          { label: "Terms of Service", href: "#" },
-          { label: "Careers", href: "#" },
-          { label: "Academy Press", href: "#" },
+          { label: "Elit Sanat ve Spor Kulubu", href: "/elit-sanat-ve-spor-kulubu" },
+          { label: "Iletisim", href: "/iletisim" },
+          { label: "Kayit ve ilk ders", href: "/kayit-ve-ilk-ders-sureci" },
+          { label: "Veli takip sistemi", href: "/veli-takip-sistemi" },
+          { label: "Galeri", href: "/galeri" },
         ],
       },
       {
-        title: "Hizli Baglantilar",
+        title: "Branslar",
         links: [
-          { label: "Yuzme Programi", href: "#programs" },
-          { label: "Cimnastik Programi", href: "#programs" },
-          { label: "Ucretsiz Deneme", href: "#contact" },
-          { label: "Subelerimiz", href: "#contact" },
+          { label: "Silivri Yuzme Kursu", href: "/silivri-yuzme-kursu" },
+          { label: "Silivri Cimnastik Kursu", href: "/silivri-cimnastik-kursu" },
+          { label: "Silivri Tenis Kursu", href: "/silivri-tenis-kursu" },
+          { label: "Silivri Cocuk Spor Kursu", href: "/silivri-cocuk-spor-kursu" },
         ],
       },
     ],
@@ -431,13 +660,17 @@ export const defaultLandingContent: LandingContent = {
       { label: "IG", href: "https://instagram.com", icon: "instagram" },
       { label: "YT", href: "https://youtube.com", icon: "youtube" },
     ],
-    bottomText: "Elit Kids Athletic Academy. The Kinetic Editorial.",
-    bottomBadge: "Designed for Excellence",
+    bottomText: "Elit Sanat ve Spor Kulubu · Silivri",
+    bottomBadge: "Yuzme, cimnastik ve tenis odakli cocuk spor kulubu",
   },
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function createLandingEntityId(prefix: string) {
+  return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function mergeUnknown(base: unknown, override: unknown): unknown {
@@ -446,7 +679,10 @@ function mergeUnknown(base: unknown, override: unknown): unknown {
       return base;
     }
 
-    return base.map((baseItem, index) => mergeUnknown(baseItem, override[index]));
+    return override.map((overrideItem, index) => {
+      const baseItem = base[index];
+      return baseItem === undefined ? overrideItem : mergeUnknown(baseItem, overrideItem);
+    });
   }
 
   if (isRecord(base)) {
@@ -474,5 +710,56 @@ export function mergeLandingContent(
     return base;
   }
 
-  return mergeUnknown(base, override) as LandingContent;
+  const merged = mergeUnknown(base, override) as LandingContent;
+
+  merged.testimonials.items = merged.testimonials.items
+    .map((item, index) => {
+      const legacyItem = item as { author?: string };
+      const legacyAuthor =
+        typeof legacyItem.author === "string" ? legacyItem.author : "";
+
+      return {
+        ...item,
+        id: item.id || createLandingEntityId("testimonial"),
+        parentDisplayName: item.parentDisplayName || legacyAuthor || "Veli",
+        branch: item.branch || "Genel",
+        childAgeGroup: item.childAgeGroup || "",
+        approved: typeof item.approved === "boolean" ? item.approved : true,
+        featured: typeof item.featured === "boolean" ? item.featured : index < 3,
+        sortOrder:
+          typeof item.sortOrder === "number" && Number.isFinite(item.sortOrder)
+            ? item.sortOrder
+            : index + 1,
+      };
+    })
+    .sort((left, right) => left.sortOrder - right.sortOrder);
+
+  merged.galleryItems = merged.galleryItems
+    .map((item, index) => ({
+      ...item,
+      id: item.id || createLandingEntityId("gallery"),
+      description: item.description || "",
+      category: item.category || "genel",
+      featured: typeof item.featured === "boolean" ? item.featured : index < 4,
+      sortOrder:
+        typeof item.sortOrder === "number" && Number.isFinite(item.sortOrder)
+          ? item.sortOrder
+          : index + 1,
+      published: typeof item.published === "boolean" ? item.published : true,
+    }))
+    .sort((left, right) => left.sortOrder - right.sortOrder);
+
+  merged.galleryPage = {
+    ...merged.galleryPage,
+    published:
+      typeof merged.galleryPage.published === "boolean" ? merged.galleryPage.published : true,
+    indexable:
+      typeof merged.galleryPage.indexable === "boolean" ? merged.galleryPage.indexable : true,
+    includeInSitemap:
+      typeof merged.galleryPage.includeInSitemap === "boolean"
+        ? merged.galleryPage.includeInSitemap
+        : true,
+  };
+
+  return merged;
 }

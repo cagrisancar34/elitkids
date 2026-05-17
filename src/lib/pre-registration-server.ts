@@ -3,11 +3,13 @@ import { format } from "date-fns";
 import { getCurrentAuthContext } from "@/lib/auth";
 import { getOrCreateOrganizationContext } from "@/lib/organization-context";
 import {
+  defaultPreRegistrationFields,
   defaultPreRegistrationSettings,
   mergePreRegistrationSettings,
 } from "@/lib/pre-registration";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import type {
+  PreRegistrationFieldRecord,
   PreRegistrationNote,
   PreRegistrationOption,
   PreRegistrationRecord,
@@ -18,6 +20,11 @@ import type {
 
 type SettingsRow = {
   form_enabled: boolean;
+  form_eyebrow?: string | null;
+  form_title?: string | null;
+  form_description?: string | null;
+  form_logo_url: string | null;
+  form_logo_path: string | null;
   kvkk_title: string;
   kvkk_body: string;
   kvkk_checkbox_label: string;
@@ -35,6 +42,21 @@ type OptionBundle = {
   sessionSeries: PreRegistrationSessionSeriesOption[];
 };
 
+type FormFieldRow = {
+  id: string;
+  field_key: string;
+  label: string;
+  input_type: PreRegistrationFieldRecord["inputType"];
+  helper_text: string | null;
+  placeholder: string | null;
+  options: string[] | null;
+  required: boolean;
+  active: boolean;
+  sort_order: number;
+  section: PreRegistrationFieldRecord["section"];
+  system: boolean;
+};
+
 const PRE_REGISTRATION_ASSET_BUCKET = "pre-registration-assets";
 
 function mapSettings(row: SettingsRow | null | undefined): PreRegistrationSettings {
@@ -44,6 +66,11 @@ function mapSettings(row: SettingsRow | null | undefined): PreRegistrationSettin
 
   return mergePreRegistrationSettings(defaultPreRegistrationSettings, {
     formEnabled: row.form_enabled,
+    formEyebrow: row.form_eyebrow ?? defaultPreRegistrationSettings.formEyebrow,
+    formTitle: row.form_title ?? defaultPreRegistrationSettings.formTitle,
+    formDescription: row.form_description ?? defaultPreRegistrationSettings.formDescription,
+    formLogoUrl: row.form_logo_url ?? "",
+    formLogoPath: row.form_logo_path ?? "",
     kvkkTitle: row.kvkk_title,
     kvkkBody: row.kvkk_body,
     kvkkCheckboxLabel: row.kvkk_checkbox_label,
@@ -90,12 +117,28 @@ function getStatusLabel(status: PreRegistrationStatus) {
     return "Iletisime gecildi";
   }
 
+  if (status === "documents_pending") {
+    return "Evrak bekleniyor";
+  }
+
+  if (status === "trial_scheduled") {
+    return "Deneme ders planlandi";
+  }
+
+  if (status === "ready_to_activate") {
+    return "Aktivasyona hazir";
+  }
+
   if (status === "approved") {
     return "Onaylandi";
   }
 
   if (status === "activated") {
     return "Aktif kayda donustu";
+  }
+
+  if (status === "lost") {
+    return "Kaybedildi";
   }
 
   if (status === "rejected") {
@@ -107,6 +150,72 @@ function getStatusLabel(status: PreRegistrationStatus) {
   }
 
   return "Yeni";
+}
+
+function extractTaggedNote(notes: PreRegistrationNote[] | undefined, prefixes: string[]) {
+  const matching = notes?.find((note) =>
+    prefixes.some((prefix) => note.body.toLocaleUpperCase("tr-TR").startsWith(prefix)),
+  );
+
+  if (!matching) {
+    return null;
+  }
+
+  const matchedPrefix = prefixes.find((prefix) =>
+    matching.body.toLocaleUpperCase("tr-TR").startsWith(prefix),
+  );
+
+  return matchedPrefix ? matching.body.slice(matchedPrefix.length).trim() || matching.body : matching.body;
+}
+
+function normalizePreRegistrationFields(rows: FormFieldRow[] | null | undefined): PreRegistrationFieldRecord[] {
+  if (!rows?.length) {
+    return defaultPreRegistrationFields;
+  }
+
+  const fallbackMap = new Map(defaultPreRegistrationFields.map((field) => [field.fieldKey, field]));
+  const databaseFields = rows.map((row) => {
+    const fallback = fallbackMap.get(row.field_key);
+
+    return {
+      id: row.id,
+      fieldKey: row.field_key,
+      label: row.label,
+      inputType: row.input_type,
+      helperText: row.helper_text ?? "",
+      placeholder: row.placeholder ?? "",
+      options: Array.isArray(row.options) ? row.options : fallback?.options ?? [],
+      required: row.required,
+      active: row.active,
+      sortOrder: row.sort_order,
+      section: row.section,
+      system: row.system,
+      source: "database",
+    } satisfies PreRegistrationFieldRecord;
+  });
+
+  const seen = new Set(databaseFields.map((field) => field.fieldKey));
+  const missingFallbacks = defaultPreRegistrationFields.filter((field) => !seen.has(field.fieldKey));
+
+  return [...databaseFields, ...missingFallbacks].sort((left, right) => left.sortOrder - right.sortOrder);
+}
+
+export async function getPreRegistrationFormFields(
+  organizationId: string | null | undefined,
+): Promise<PreRegistrationFieldRecord[]> {
+  const adminClient = createSupabaseAdminClient();
+
+  if (!adminClient || !organizationId) {
+    return defaultPreRegistrationFields;
+  }
+
+  const { data } = await adminClient
+    .from("pre_registration_form_fields")
+    .select("id, field_key, label, input_type, helper_text, placeholder, options, required, active, sort_order, section, system")
+    .eq("organization_id", organizationId)
+    .order("sort_order", { ascending: true });
+
+  return normalizePreRegistrationFields(data as FormFieldRow[] | null | undefined);
 }
 
 async function getSingleOrganizationId() {
@@ -215,20 +324,20 @@ export async function getPublicPreRegistrationPayload() {
     };
   }
 
-  const [{ data: settingsRow }, options] = await Promise.all([
+  const [{ data: settingsRow }, options, fields] = await Promise.all([
     adminClient
       .from("pre_registration_settings")
-      .select(
-        "form_enabled, kvkk_title, kvkk_body, kvkk_checkbox_label, parent_permission_title, parent_permission_body, parent_permission_checkbox_label, success_message, helper_note",
-      )
+      .select("*")
       .eq("organization_id", organizationId)
       .maybeSingle(),
     getPreRegistrationOptionsForOrganization(organizationId),
+    getPreRegistrationFormFields(organizationId),
   ]);
 
   return {
     settings: mapSettings(settingsRow),
     options,
+    fields,
   };
 }
 
@@ -239,6 +348,7 @@ export async function getAdminPreRegistrationSettings() {
     return {
       organizationId: null,
       settings: defaultPreRegistrationSettings,
+      fields: defaultPreRegistrationFields,
       error: "Oturum bulunamadi.",
     };
   }
@@ -249,6 +359,7 @@ export async function getAdminPreRegistrationSettings() {
     return {
       organizationId: null,
       settings: defaultPreRegistrationSettings,
+      fields: defaultPreRegistrationFields,
       error: context.error ?? "Kurum baglami cozulmedi.",
     };
   }
@@ -259,21 +370,24 @@ export async function getAdminPreRegistrationSettings() {
     return {
       organizationId: context.organizationId,
       settings: defaultPreRegistrationSettings,
+      fields: defaultPreRegistrationFields,
       error: "Supabase admin baglantisi kurulamadi.",
     };
   }
 
-  const { data } = await adminClient
-    .from("pre_registration_settings")
-    .select(
-      "form_enabled, kvkk_title, kvkk_body, kvkk_checkbox_label, parent_permission_title, parent_permission_body, parent_permission_checkbox_label, success_message, helper_note",
-    )
-    .eq("organization_id", context.organizationId)
-    .maybeSingle();
+  const [{ data }, fields] = await Promise.all([
+    adminClient
+      .from("pre_registration_settings")
+      .select("*")
+      .eq("organization_id", context.organizationId)
+      .maybeSingle(),
+    getPreRegistrationFormFields(context.organizationId),
+  ]);
 
   return {
     organizationId: context.organizationId,
     settings: mapSettings(data),
+    fields,
     error: null,
   };
 }
@@ -328,7 +442,7 @@ export async function getOperatorPreRegistrations() {
     adminClient
       .from("pre_registrations")
       .select(
-        "id, student_tc_identity_no, student_full_name, student_birth_date, note, parent_email, parent_whatsapp, emergency_contact, mother_name, mother_phone, mother_occupation, father_name, father_phone, father_occupation, address, branch_id, season_id, program_id, status, submitted_at, reviewed_at, reviewed_by_profile_id, activated_student_id, activated_parent_profile_id, kvkk_accepted_at, parent_permission_accepted_at, submitted_ip, forwarded_ip, user_agent, device_summary, client_platform, client_browser, client_device_type, branches(name), seasons(title), programs(title)",
+        "id, student_tc_identity_no, student_full_name, student_birth_date, student_gender, note, parent_email, parent_whatsapp, emergency_contact, mother_name, mother_phone, mother_occupation, father_name, father_phone, father_occupation, address, branch_id, season_id, program_id, status, submitted_at, reviewed_at, reviewed_by_profile_id, activated_student_id, activated_parent_profile_id, kvkk_accepted_at, parent_permission_accepted_at, submitted_ip, forwarded_ip, user_agent, device_summary, client_platform, client_browser, client_device_type, custom_answers, branches(name), seasons(title), programs(title)",
       )
       .eq("organization_id", context.organizationId)
       .order("submitted_at", { ascending: false }),
@@ -412,11 +526,17 @@ export async function getOperatorPreRegistrations() {
     id: row.id,
     studentFullName: row.student_full_name,
     studentBirthDate: formatDateLabel(row.student_birth_date),
+    studentGender:
+      row.student_gender === "female" ? "Kadin" : row.student_gender === "male" ? "Erkek" : "Belirtilmedi",
     tcIdentityNo: row.student_tc_identity_no ?? "",
     note: row.note ?? "",
     parentEmail: row.parent_email,
     parentWhatsapp: row.parent_whatsapp ?? "",
     emergencyContact: row.emergency_contact ?? "",
+    customAnswers:
+      row.custom_answers && typeof row.custom_answers === "object" && !Array.isArray(row.custom_answers)
+        ? (row.custom_answers as Record<string, string>)
+        : {},
     motherName: row.mother_name ?? "",
     motherPhone: row.mother_phone ?? "",
     motherOccupation: row.mother_occupation ?? "",
@@ -449,6 +569,8 @@ export async function getOperatorPreRegistrations() {
     sourceLabel: "On kayit",
     assets: assetMap.get(row.id) ?? [],
     notes: noteMap.get(row.id) ?? [],
+    latestTrialOutcome: extractTaggedNote(noteMap.get(row.id), ["DENEME SONUCU:", "DENEME PLAN NOTU:"]),
+    latestLostReason: extractTaggedNote(noteMap.get(row.id), ["KAYIP NEDENI:"]),
   })) satisfies PreRegistrationRecord[];
 
   return {

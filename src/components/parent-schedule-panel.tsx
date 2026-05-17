@@ -45,27 +45,28 @@ export function ParentSchedulePanel({ sessions }: { sessions: SessionRecord[] })
   return (
     <div className="grid gap-6">
       <section className="grid gap-4 md:grid-cols-3">
-        <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
+        <div className="page-surface rounded-[1.7rem] px-5 py-5">
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Toplam ders</div>
           <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">{sessions.length}</div>
         </div>
-        <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
+        <div className="page-surface rounded-[1.7rem] px-5 py-5">
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Ilk gorunen</div>
           <div className="mt-4 text-lg font-semibold text-foreground">{sessions[0]?.title ?? "-"}</div>
         </div>
-        <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
+        <div className="page-surface rounded-[1.7rem] px-5 py-5">
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Aktif sonuc</div>
           <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">{filteredSessions.length}</div>
         </div>
       </section>
 
       <section className="grid gap-4">
-        <div className="grid gap-3 md:grid-cols-[1fr_220px]">
+        <div className="page-toolbar grid gap-3 rounded-[1.8rem] p-3 md:grid-cols-[1fr_220px]">
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Ders ara: baslik, yer veya koc"
             aria-label="Ders ara"
+            className="bg-white/80"
           />
           <Select
             value={sort}
@@ -97,7 +98,7 @@ export function ParentSchedulePanel({ sessions }: { sessions: SessionRecord[] })
         <div className="grid gap-6 xl:grid-cols-2">
           {filteredSessions.length ? (
             filteredSessions.map((session) => (
-              <article key={`${session.title}-${session.slot}`} className="surface-panel rounded-[1.65rem] border border-white/40 px-6 py-6">
+              <article key={`${session.title}-${session.slot}`} className="page-surface rounded-[1.8rem] px-6 py-6">
                 <div className="inline-flex rounded-full bg-secondary px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-secondary-foreground">
                   <Clock3 className="mr-1.5 h-3.5 w-3.5" />
                   {session.slot}
@@ -118,7 +119,7 @@ export function ParentSchedulePanel({ sessions }: { sessions: SessionRecord[] })
               </article>
             ))
           ) : (
-            <div className="surface-muted rounded-[1.25rem] p-4 text-sm leading-6 text-muted-foreground">
+            <div className="page-empty-state rounded-[1.25rem] p-4 text-sm leading-6 text-muted-foreground">
               Bu arama sonucunda gosterilecek ders yok.
             </div>
           )}

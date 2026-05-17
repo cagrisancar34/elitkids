@@ -1,7 +1,7 @@
 import { AdminDetailQuestionsPanel } from "@/components/admin-detail-questions-panel";
 import { DashboardPage } from "@/components/dashboard-page";
 import { WorkspaceHighlight, WorkspacePanel } from "@/components/operations-workspace";
-import { getStudentDetailQuestions } from "@/lib/dashboard-data";
+import { getStudentDetailQuestions } from "@/lib/dashboard/admin-data";
 
 export default async function AdminDetailTemplatesPage() {
   const questions = await getStudentDetailQuestions();

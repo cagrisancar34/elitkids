@@ -28,8 +28,12 @@ export type StudentListFilterState = {
   search: string;
   ageBand: "all" | "child" | "teen" | "adult";
   program: string;
-  payment: "all" | "clear" | "due" | "risk";
+  payment: "all" | "completed" | "pending" | "overdue";
 };
+
+export type PaymentLifecycleStatus = "pending" | "overdue" | "completed";
+export type PaymentMethod = "cash" | "transfer" | "card" | "manual";
+export type SupportThreadStatusKey = "open" | "waiting_parent" | "resolved";
 
 export type CollectionTrendPoint = {
   label: string;
@@ -46,10 +50,68 @@ export type FinanceCockpitSummary = {
 };
 
 export type ParentDashboardSummary = {
-  upcomingCount: number;
-  outstandingTotal: string;
-  unreadAnnouncements: number;
+  metrics: Metric[];
+  linkedStudentsLabel: string;
+  linkedStudentsSummary: string;
+  totalOutstandingValue: number;
+  unreadNotifications: number;
   reportCardCount: number;
+  upcomingSessions: SessionRecord[];
+  actionItems: Array<{
+    title: string;
+    subtitle: string;
+    state: string;
+    actionLabel: string;
+    href: string;
+  }>;
+  linkedStudentSummaries: ParentLinkedStudentSummary[];
+  financeCharges: ChargeRecord[];
+};
+
+export type AdminOverviewSummary = {
+  metrics: Metric[];
+  notifications: NotificationRecord[];
+};
+
+export type ManagerDashboardStudentSummary = Pick<
+  StudentRecord,
+  "id" | "name" | "program" | "status" | "attendance" | "balance"
+>;
+
+export type ManagerDashboardSummary = {
+  metrics: Metric[];
+  todaySessions: SessionRecord[];
+  announcements: AnnouncementRecord[];
+  priorityPayments: ChargeRecord[];
+  criticalStudents: ManagerDashboardStudentSummary[];
+};
+
+export type CoachDashboardAttentionItem = {
+  sessionId: string;
+  sessionTitle: string;
+  dateLabel: string;
+  studentName: string;
+  reason?: string;
+};
+
+export type CoachDashboardSummary = {
+  metrics: Metric[];
+  focusSessions: Array<
+    Pick<
+      CoachSessionBoard,
+      "sessionId" | "title" | "location" | "dateLabel" | "dayKey" | "dayShort" | "startTime" | "endTime"
+    > & {
+      studentCount: number;
+      pendingAttendanceCount: number;
+      firstSessionCount: number;
+    }
+  >;
+  pendingAttendance: number;
+  noteQueue: number;
+  firstTimers: number;
+  postSessionClosures: number;
+  firstTimerStudents: CoachDashboardAttentionItem[];
+  exceptionStudents: CoachDashboardAttentionItem[];
 };
 
 export type DetailQuestionInputType = "text" | "textarea" | "number" | "select";
@@ -89,6 +151,7 @@ export type StudentRecord = {
   enrollmentId?: string;
   initials: string;
   name: string;
+  photoUrl?: string | null;
   club: string;
   category: string;
   gender: string;
@@ -98,6 +161,17 @@ export type StudentRecord = {
   attendance: string;
   balance: string;
   status: string;
+  paymentStatus?: PaymentLifecycleStatus;
+  registrationSourceLabel?: string | null;
+  parentName?: string | null;
+  parentWhatsapp?: string | null;
+  lastChargeLabel?: string | null;
+  lastChargeStatusLabel?: string | null;
+  lastCommunicationLabel?: string | null;
+  lastWhatsAppStatusLabel?: string | null;
+  lastSupportSubject?: string | null;
+  lastCampaignLabel?: string | null;
+  lastPaymentNote?: string | null;
   programId?: string;
   sessionSeriesId?: string | null;
   sessionSeriesLabel?: string | null;
@@ -111,6 +185,39 @@ export type StudentRecord = {
   detailSaved?: boolean;
   reportCard?: StudentReportCard | null;
   detailEntries?: DetailAnswerRecord[];
+  crmTimeline?: StudentCrmTimelineItem[];
+};
+
+export type ManagerStudentListRow = Omit<
+  StudentRecord,
+  "chargeOptions" | "reportCard" | "detailEntries" | "crmTimeline"
+> & {
+  detailSaved?: boolean;
+};
+
+export type ManagerStudentSheet = Pick<
+  StudentRecord,
+  | "id"
+  | "chargeOptions"
+  | "reportCard"
+  | "detailEntries"
+  | "crmTimeline"
+  | "lastSupportSubject"
+  | "lastCampaignLabel"
+  | "lastPaymentNote"
+  | "lastChargeLabel"
+  | "lastChargeStatusLabel"
+  | "lastCommunicationLabel"
+  | "lastWhatsAppStatusLabel"
+  | "detailSaved"
+>;
+
+export type StudentCrmTimelineItem = {
+  id: string;
+  title: string;
+  detail: string;
+  createdAt: string;
+  tone: "sky" | "amber" | "rose" | "emerald" | "slate";
 };
 
 export type CoachStudentRecord = {
@@ -125,6 +232,10 @@ export type CoachStudentRecord = {
   coach: string;
   attendance: string;
   status: string;
+  remainingLessons?: number;
+  lastAttendanceLabel?: string | null;
+  coachNoteSummary?: string | null;
+  firstSessionFlag?: boolean;
   detailSaved?: boolean;
   reportCard?: StudentReportCard | null;
   detailEntries?: DetailAnswerRecord[];
@@ -137,6 +248,7 @@ export type SessionRecord = {
   coach: string;
   roster: string;
   location: string;
+  studentNames?: string[];
   programTitle?: string;
   branchName?: string;
   sportsBranchName?: string;
@@ -186,6 +298,14 @@ export type ChargeRecord = {
   dueDate: string;
   amount: string;
   status: string;
+  paymentStatus?: PaymentLifecycleStatus;
+  billingPeriodLabel?: string;
+  totalAmountValue?: number;
+  paidAmountValue?: number;
+  remainingAmountValue?: number;
+  paidAmount?: string;
+  remainingAmount?: string;
+  lastPaymentLabel?: string | null;
 };
 
 export type AnnouncementRecord = {
@@ -232,6 +352,20 @@ export type WhatsAppTemplateEventKey =
   | "report_card_updated"
   | "bulk_broadcast";
 
+export type MessageChannel = "whatsapp" | "panel" | "both";
+
+export type MessageTopicKey =
+  | "registration_completed"
+  | "pre_registration_activated"
+  | "student_created_manual"
+  | "attendance_absent_manual"
+  | "payment_reminder_manual"
+  | "report_card_updated"
+  | "bulk_broadcast"
+  | "panel_notice_registration_completed"
+  | "panel_notice_payment_risk"
+  | "panel_notice_lesson_rights_expiring";
+
 export type WhatsAppOptInStatus = "opted_in" | "opted_out" | "unknown";
 
 export type MessageDeliveryStatus =
@@ -249,9 +383,23 @@ export type RecipientSegment =
   | "debt_parents"
   | "program_parents"
   | "branch_parents"
+  | "session_series_members"
+  | "specific_students"
   | "all_staff"
   | "coaches"
   | "managers";
+
+export type MessageTopic = {
+  id: string;
+  topicKey: MessageTopicKey;
+  title: string;
+  description: string;
+  channel: MessageChannel;
+  bodyTemplate: string;
+  availableVariables: string[];
+  active: boolean;
+  editableByManager: boolean;
+};
 
 export type WhatsAppTemplateDefinition = {
   id: string;
@@ -290,6 +438,7 @@ export type MessageCampaign = {
   id: string;
   title: string;
   audienceType: RecipientSegment;
+  topicKey?: MessageTopicKey | null;
   status: "draft" | "queued" | "processing" | "completed" | "failed";
   createdAt: string;
   sentAt: string | null;
@@ -305,6 +454,7 @@ export type WhatsAppSettingsStatus = {
 export type WhatsAppSettingsOverview = {
   status: WhatsAppSettingsStatus;
   templates: WhatsAppTemplateDefinition[];
+  messageTopics: MessageTopic[];
   dispatches: MessageDispatch[];
   queueCount: number;
   blockedCount: number;
@@ -312,6 +462,7 @@ export type WhatsAppSettingsOverview = {
 
 export type WhatsAppCampaignOverview = {
   templates: WhatsAppTemplateDefinition[];
+  messageTopics: MessageTopic[];
   campaigns: MessageCampaign[];
   dispatches: MessageDispatch[];
 };
@@ -354,22 +505,52 @@ export type ParentNotification = {
 };
 
 export type SupportThread = {
+  id?: string;
   subject: string;
   status: string;
   updatedAt: string;
+  openedAtValue?: string | null;
+  updatedAtValue?: string | null;
+  latestMessagePreview?: string;
+  messageCount?: number;
+  parentName?: string;
+  statusKey?: SupportThreadStatusKey;
+  openedAtLabel?: string | null;
+  responseAgeLabel?: string | null;
+  responseAgeDays?: number | null;
+  slaStatusLabel?: string | null;
+  slaTone?: "rose" | "amber" | "emerald";
+  messages?: SupportThreadMessage[];
+};
+
+export type SupportThreadMessage = {
+  id: string;
+  body: string;
+  createdAt: string;
+  authorLabel: string;
+  authorType: "parent" | "staff";
 };
 
 export type PreRegistrationStatus =
   | "new"
   | "reviewing"
   | "contacted"
+  | "documents_pending"
+  | "trial_scheduled"
+  | "ready_to_activate"
   | "approved"
   | "activated"
+  | "lost"
   | "rejected"
   | "archived";
 
 export type PreRegistrationSettings = {
   formEnabled: boolean;
+  formEyebrow: string;
+  formTitle: string;
+  formDescription: string;
+  formLogoUrl: string;
+  formLogoPath: string;
   kvkkTitle: string;
   kvkkBody: string;
   kvkkCheckboxLabel: string;
@@ -378,6 +559,25 @@ export type PreRegistrationSettings = {
   parentPermissionCheckboxLabel: string;
   successMessage: string;
   helperNote: string;
+};
+
+export type PreRegistrationFieldInputType = "text" | "textarea" | "date" | "select" | "email" | "phone" | "file";
+export type PreRegistrationFieldSection = "student" | "parent" | "application";
+
+export type PreRegistrationFieldRecord = {
+  id: string;
+  fieldKey: string;
+  label: string;
+  inputType: PreRegistrationFieldInputType;
+  helperText: string;
+  placeholder: string;
+  options: string[];
+  required: boolean;
+  active: boolean;
+  sortOrder: number;
+  section: PreRegistrationFieldSection;
+  system: boolean;
+  source?: "database" | "default";
 };
 
 export type PreRegistrationOption = {
@@ -406,11 +606,13 @@ export type PreRegistrationRecord = {
   id: string;
   studentFullName: string;
   studentBirthDate: string;
+  studentGender: string;
   tcIdentityNo: string;
   note: string;
   parentEmail: string;
   parentWhatsapp: string;
   emergencyContact: string;
+  customAnswers?: Record<string, string>;
   motherName: string;
   motherPhone: string;
   motherOccupation: string;
@@ -443,6 +645,8 @@ export type PreRegistrationRecord = {
   sourceLabel: string;
   assets: PreRegistrationAsset[];
   notes: PreRegistrationNote[];
+  latestTrialOutcome?: string | null;
+  latestLostReason?: string | null;
 };
 
 export type AuditLogRow = {
@@ -450,6 +654,11 @@ export type AuditLogRow = {
   actor: string;
   scope: string;
   createdAt: string;
+  createdAtValue?: string | null;
+  actorRole?: string | null;
+  entityType?: string | null;
+  entityId?: string | null;
+  detail?: string | null;
 };
 
 export type LeadSubmissionRow = {
@@ -458,7 +667,33 @@ export type LeadSubmissionRow = {
   email: string;
   phone: string;
   status: string;
+  source?: string;
   createdAt: string;
+};
+
+export type CommunicationTimelineItem = {
+  id: string;
+  studentName: string;
+  parentName: string;
+  channel: string;
+  summary: string;
+  status: string;
+  createdAt: string;
+};
+
+export type ParentLinkedStudentSummary = {
+  studentId: string;
+  studentName: string;
+  ageBand: string;
+  programName: string;
+  sessionSeriesLabel: string;
+  coachName: string;
+  paymentStatus: PaymentLifecycleStatus;
+  paymentStatusLabel: string;
+  billingPeriodLabel: string;
+  remainingAmountLabel: string;
+  remainingAmountValue: number;
+  nextPaymentDueLabel: string;
 };
 
 export type ChargeOption = {
@@ -466,6 +701,81 @@ export type ChargeOption = {
   label: string;
   amount: string;
   status: string;
+  paymentStatus?: PaymentLifecycleStatus;
+  remainingAmountValue?: number;
+  billingPeriodLabel?: string;
+  dueDateLabel?: string;
+};
+
+export type PaymentHistoryEntry = {
+  id: string;
+  amountValue: number;
+  amountLabel: string;
+  paidAt: string | null;
+  paidAtLabel: string;
+  paymentMethod: PaymentMethod;
+  paymentMethodLabel: string;
+  referenceNo: string;
+  note: string;
+};
+
+export type BillingChargeRecord = {
+  id: string;
+  enrollmentId: string;
+  studentId: string;
+  studentName: string;
+  studentInitials: string;
+  parentName: string;
+  parentWhatsapp: string | null;
+  programName: string;
+  sessionSeriesLabel: string;
+  billingPeriod: string | null;
+  billingPeriodLabel: string;
+  dueDate: string | null;
+  dueDateLabel: string;
+  totalAmountValue: number;
+  totalAmountLabel: string;
+  paidAmountValue: number;
+  paidAmountLabel: string;
+  remainingAmountValue: number;
+  remainingAmountLabel: string;
+  lastPaymentAt: string | null;
+  lastPaymentLabel: string | null;
+  paymentStatus: PaymentLifecycleStatus;
+  statusLabel: string;
+  statusTone: "amber" | "rose" | "emerald";
+  history: PaymentHistoryEntry[];
+  auditTrail?: AuditLogRow[];
+  reminderPreview: string | null;
+  webWhatsAppHref: string | null;
+};
+
+export type FinanceTimelineItem = {
+  id: string;
+  title: string;
+  subtitle: string;
+  detail: string;
+  amountLabel?: string | null;
+  tone: "sky" | "amber" | "rose" | "emerald" | "slate";
+  createdAt: string;
+  createdAtValue?: string | null;
+};
+
+export type StudentPaymentSummary = {
+  studentId: string;
+  studentName: string;
+  programName: string;
+  sessionSeriesLabel: string;
+  totalAmountValue: number;
+  totalAmountLabel: string;
+  paidAmountValue: number;
+  paidAmountLabel: string;
+  remainingAmountValue: number;
+  remainingAmountLabel: string;
+  paymentStatus: PaymentLifecycleStatus;
+  statusLabel: string;
+  dueDateLabel: string;
+  billingPeriodLabel: string;
 };
 
 export type AdminUserRow = {
@@ -500,6 +810,13 @@ export type SessionSeriesOption = {
   startsOn: string;
   endsOn: string;
   status: "active" | "paused" | "cancelled";
+};
+
+export type StudentOption = {
+  id: string;
+  label: string;
+  programLabel?: string;
+  sessionSeriesLabel?: string;
 };
 
 export type ProgramRecord = {
@@ -584,6 +901,8 @@ export type AttendanceStudent = {
   name: string;
   status: string;
   note?: string;
+  hasAttendanceRecord?: boolean;
+  firstSessionFlag?: boolean;
   allocationStatus?: "planned" | "consumed" | "cancelled";
 };
 
@@ -640,5 +959,23 @@ export type CoachSessionBoard = {
   dayShort?: string;
   startTime?: string;
   endTime?: string;
+  sessionClosingNote?: string | null;
+  sessionClosingUpdatedAt?: string | null;
   students: AttendanceStudent[];
+};
+
+export type CoachSessionSummary = Omit<CoachSessionBoard, "students"> & {
+  studentCount: number;
+  pendingNotesCount: number;
+  studentPreviewNames: string[];
+};
+
+export type CoachSessionDetail = CoachSessionBoard;
+
+export type CoachClosingNoteArchiveItem = {
+  sessionId: string;
+  sessionTitle: string;
+  note: string;
+  createdAt: string;
+  createdAtValue?: string | null;
 };

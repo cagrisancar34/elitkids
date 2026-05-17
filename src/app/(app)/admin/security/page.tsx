@@ -1,6 +1,6 @@
 import { Siren, Sparkles, Activity, ShieldAlert, FileText, WifiHigh } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { getAuditLogRows, getLeadSubmissionRows } from "@/lib/dashboard-data";
+import { getAuditLogRows, getLeadSubmissionRows } from "@/lib/dashboard/admin-data";
 
 export default async function AdminSecurityPage({
   searchParams,

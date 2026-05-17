@@ -26,11 +26,20 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import type {
   DetailQuestionRecord,
+  ManagerStudentListRow,
+  ManagerStudentSheet,
   ProgramRecord,
   SessionSeriesOption,
-  StudentRecord,
 } from "@/lib/types";
 
 const initialState: ActionState = {
@@ -61,13 +70,28 @@ function toDateInputValue(value: string) {
   return value;
 }
 
+function formatAllocationDate(value?: string | null) {
+  if (!value) {
+    return "Seans atanmadi";
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "Seans atanmadi"
+    : date.toLocaleDateString("tr-TR", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      });
+}
+
 export function StudentActions({
   student,
   programs,
   sessionSeriesOptions,
   questions,
 }: {
-  student: StudentRecord;
+  student: ManagerStudentListRow;
   programs: ProgramRecord[];
   sessionSeriesOptions: SessionSeriesOption[];
   questions: DetailQuestionRecord[];
@@ -77,14 +101,66 @@ export function StudentActions({
   const [grantState, grantAction] = useActionState(grantStudentLessonsAction, initialState);
   const [rebuildState, rebuildAction] = useActionState(rebuildStudentAllocationsAction, initialState);
   const [selectedProgramId, setSelectedProgramId] = useState(student.programId ?? "");
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [operationsOpen, setOperationsOpen] = useState(false);
+  const [reportCardOpen, setReportCardOpen] = useState(false);
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [studentSheet, setStudentSheet] = useState<ManagerStudentSheet | null>(null);
+  const [sheetLoading, setSheetLoading] = useState(false);
+  const [sheetError, setSheetError] = useState<string | null>(null);
   const filteredSeries = useMemo(
     () => sessionSeriesOptions.filter((series) => series.programId === selectedProgramId),
     [selectedProgramId, sessionSeriesOptions],
   );
+  const runtimeStudent = useMemo(
+    () => ({
+      ...student,
+      ...(studentSheet ?? {}),
+    }),
+    [student, studentSheet],
+  );
+
+  async function ensureStudentSheetLoaded() {
+    if (studentSheet || sheetLoading) {
+      return;
+    }
+
+    setSheetLoading(true);
+    setSheetError(null);
+
+    try {
+      const response = await fetch(`/api/manager/students/${student.id}`, {
+        method: "GET",
+        credentials: "same-origin",
+      });
+
+      const body = (await response.json().catch(() => null)) as
+        | { sheet?: ManagerStudentSheet; error?: string }
+        | null;
+
+      if (!response.ok || !body?.sheet) {
+        throw new Error(body?.error ?? "Ogrenci detayi alinamadi.");
+      }
+
+      setStudentSheet(body.sheet);
+    } catch (error) {
+      setSheetError(error instanceof Error ? error.message : "Ogrenci detayi alinamadi.");
+    } finally {
+      setSheetLoading(false);
+    }
+  }
 
   return (
     <div className="flex flex-wrap justify-end gap-2">
-      <Dialog>
+      <Dialog
+        open={detailDialogOpen}
+        onOpenChange={(nextOpen) => {
+          setDetailDialogOpen(nextOpen);
+          if (nextOpen) {
+            void ensureStudentSheetLoaded();
+          }
+        }}
+      >
         <DialogTrigger asChild>
           <Button type="button" variant="outline" size="sm">
             Detay
@@ -97,10 +173,67 @@ export function StudentActions({
               Bu form dinamik soru sablonundan beslenir. Kayit tamamlandiginda karne ayni veriden guncellenir.
             </DialogDescription>
           </DialogHeader>
+          <div className="grid gap-4 rounded-[1.35rem] border border-slate-200 bg-white p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Ogrenci operasyon ozeti
+            </div>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <InfoChip label="Yasam dongusu" value={runtimeStudent.status} />
+              <InfoChip label="Odeme durumu" value={runtimeStudent.lastChargeStatusLabel ?? "Tahakkuk yok"} />
+              <InfoChip label="Kalan hak" value={String(runtimeStudent.remainingLessons ?? 0)} />
+              <InfoChip label="Siradaki seans" value={formatAllocationDate(runtimeStudent.nextAllocatedSessionAt)} />
+            </div>
+          </div>
+          {sheetLoading && !studentSheet ? (
+            <div className="rounded-[1.25rem] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+              Ogrenci detaylari yukleniyor...
+            </div>
+          ) : sheetError && !studentSheet ? (
+            <div className="rounded-[1.25rem] border border-rose-200 bg-rose-50 px-4 py-6 text-sm text-rose-700">
+              {sheetError}
+            </div>
+          ) : (
+            <div className="grid gap-4 rounded-[1.35rem] border border-slate-200 bg-slate-50 p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                CRM zamani
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <InfoChip label="Kayit kaynagi" value={runtimeStudent.registrationSourceLabel ?? "Kaynak yok"} />
+                <InfoChip label="Bagli veli" value={runtimeStudent.parentName ?? "Henuz baglanmadi"} />
+                <InfoChip label="Son tahakkuk" value={runtimeStudent.lastChargeLabel ?? "Tahakkuk yok"} />
+                <InfoChip label="Son iletisim" value={runtimeStudent.lastCommunicationLabel ?? "Iletisim yok"} />
+              </div>
+              <div className="grid gap-2">
+                {(runtimeStudent.crmTimeline ?? []).length ? (
+                  runtimeStudent.crmTimeline?.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-start justify-between gap-3 rounded-[1rem] border border-slate-200 bg-white px-4 py-3"
+                    >
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">{item.title}</div>
+                        <div className="mt-1 text-sm text-slate-600">{item.detail}</div>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-600">
+                        {item.createdAt}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div
+                    className="text-sm text-slate-500"
+                  >
+                    Bu ogrenci icin okunacak CRM akisi henuz olusmadi.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           <StudentDetailForm
-            studentId={student.id}
+            key={`${runtimeStudent.id}-${runtimeStudent.reportCard?.id ?? "detail"}-${runtimeStudent.detailEntries?.length ?? 0}`}
+            studentId={runtimeStudent.id}
             questions={questions}
-            initialAnswers={student.detailEntries ?? []}
+            initialAnswers={runtimeStudent.detailEntries ?? []}
             action={saveStudentDetailAction}
             submitLabel="Detayi kaydet ve karneyi olustur"
             pendingLabel="Detay kaydediliyor..."
@@ -108,9 +241,127 @@ export function StudentActions({
         </DialogContent>
       </Dialog>
 
-      <Dialog>
+      <Sheet
+        open={operationsOpen}
+        onOpenChange={(nextOpen) => {
+          setOperationsOpen(nextOpen);
+          if (nextOpen) {
+            void ensureStudentSheetLoaded();
+          }
+        }}
+      >
+        <SheetTrigger asChild>
+          <Button type="button" variant="outline" size="sm">
+            Operasyon
+          </Button>
+        </SheetTrigger>
+        <SheetContent
+          side="right"
+          className="w-[min(100vw,1180px)] max-w-[min(100vw,1180px)] overflow-y-auto rounded-none md:rounded-l-[1.9rem] px-6 md:px-8"
+        >
+          <SheetHeader className="pt-4">
+            <SheetTitle>{student.name} · Ogrenci CRM Merkezi</SheetTitle>
+            <SheetDescription>
+              Finans, iletisim, destek ve seans sinyalleri tek calisma yuzeyinde okunur.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-6 grid gap-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <InfoChip label="Yasam dongusu" value={runtimeStudent.status} />
+              <InfoChip label="Kayit kaynagi" value={runtimeStudent.registrationSourceLabel ?? "Kaynak yok"} />
+              <InfoChip label="Bagli veli" value={runtimeStudent.parentName ?? "Veli baglanmadi"} />
+              <InfoChip label="WhatsApp" value={runtimeStudent.parentWhatsapp ?? "Numara yok"} />
+            </div>
+
+            <div className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Finans ozeti
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <InfoChip label="Son tahakkuk" value={runtimeStudent.lastChargeLabel ?? "Tahakkuk yok"} />
+                <InfoChip label="Odeme durumu" value={runtimeStudent.lastChargeStatusLabel ?? "Durum yok"} />
+                <InfoChip label="Bakiye" value={runtimeStudent.balance} />
+                <InfoChip label="Kalan hak" value={String(runtimeStudent.remainingLessons ?? 0)} />
+              </div>
+            </div>
+
+            <div className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Iletisim ozeti
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <InfoChip label="Son destek" value={runtimeStudent.lastCommunicationLabel ?? "Kayit yok"} />
+                <InfoChip label="Son WhatsApp" value={runtimeStudent.lastWhatsAppStatusLabel ?? "Kayit yok"} />
+                <InfoChip label="Siradaki seans" value={formatAllocationDate(runtimeStudent.nextAllocatedSessionAt)} />
+                <InfoChip label="Son atanan seans" value={formatAllocationDate(runtimeStudent.lastAllocatedSessionAt)} />
+              </div>
+              <div className="mt-3 grid gap-3">
+                <InfoLine
+                  label="Son destek konusu"
+                  value={runtimeStudent.lastSupportSubject ?? "Kayitli destek konusu yok"}
+                />
+                <InfoLine
+                  label="Son kampanya temasi"
+                  value={runtimeStudent.lastCampaignLabel ?? "Kampanya gecmisi yok"}
+                />
+              </div>
+            </div>
+
+            <div className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Son odeme izi
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <InfoChip label="Son tahakkuk" value={student.lastChargeLabel ?? "Tahakkuk yok"} />
+                <InfoChip label="Odeme durumu" value={student.lastChargeStatusLabel ?? "Durum yok"} />
+              </div>
+              <div className="mt-3">
+                <InfoLine
+                  label="Son odeme notu"
+                  value={runtimeStudent.lastPaymentNote ?? "Kayitli odeme notu yok"}
+                />
+              </div>
+            </div>
+
+            <div className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                CRM zamani
+              </div>
+              <div className="mt-3 grid gap-2">
+                {sheetLoading && !studentSheet ? (
+                  <div className="text-sm text-slate-500">Operasyon ozeti yukleniyor...</div>
+                ) : (runtimeStudent.crmTimeline ?? []).length ? (
+                  runtimeStudent.crmTimeline?.map((item) => (
+                    <div key={item.id} className="rounded-[1rem] border border-slate-200 bg-white px-4 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm font-semibold text-slate-900">{item.title}</div>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                          {item.createdAt}
+                        </div>
+                      </div>
+                      <div className="mt-2 text-sm leading-6 text-slate-600">{item.detail}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-sm text-slate-500">Henuz okunacak operasyon zamani yok.</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Dialog
+        open={reportCardOpen}
+        onOpenChange={(nextOpen) => {
+          setReportCardOpen(nextOpen);
+          if (nextOpen) {
+            void ensureStudentSheetLoaded();
+          }
+        }}
+      >
         <DialogTrigger asChild>
-          <Button type="button" variant="outline" size="sm" disabled={!student.reportCard}>
+          <Button type="button" variant="outline" size="sm" disabled={!student.detailSaved}>
             <FileText className="h-4 w-4" />
             Karne
           </Button>
@@ -122,11 +373,23 @@ export function StudentActions({
               Detay kaydi girilip kaydedildikten sonra olusan karnenin ozet gorunumu.
             </DialogDescription>
           </DialogHeader>
-          <StudentReportCardView reportCard={student.reportCard} />
+          {sheetLoading && !studentSheet ? (
+            <div className="text-sm text-slate-500">Karne yukleniyor...</div>
+          ) : (
+            <StudentReportCardView reportCard={runtimeStudent.reportCard} />
+          )}
         </DialogContent>
       </Dialog>
 
-      <Dialog>
+      <Dialog
+        open={paymentOpen}
+        onOpenChange={(nextOpen) => {
+          setPaymentOpen(nextOpen);
+          if (nextOpen) {
+            void ensureStudentSheetLoaded();
+          }
+        }}
+      >
         <DialogTrigger asChild>
           <Button type="button" variant="outline" size="sm">
             <ReceiptText className="h-4 w-4" />
@@ -140,8 +403,10 @@ export function StudentActions({
               Secili ogrencinin acik tahakkuklarina manuel tahsilat kaydi eklenir.
             </DialogDescription>
           </DialogHeader>
-          {student.chargeOptions?.length ? (
-            <ManualPaymentForm charges={student.chargeOptions} />
+          {sheetLoading && !studentSheet ? (
+            <p className="text-sm text-muted-foreground">Tahakkuklar yukleniyor...</p>
+          ) : runtimeStudent.chargeOptions?.length ? (
+            <ManualPaymentForm charges={runtimeStudent.chargeOptions} />
           ) : (
             <p className="text-sm text-muted-foreground">Bu ogrenci icin acik tahakkuk bulunmuyor.</p>
           )}
@@ -284,28 +549,38 @@ export function StudentActions({
       <Dialog>
         <DialogTrigger asChild>
           <Button type="button" variant="outline" size="sm">
-            Paketi Yenile
+            Paketi yenile
           </Button>
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Paketi Yenile</DialogTitle>
+            <DialogTitle>Yeni 8 hakli paket ac</DialogTitle>
             <DialogDescription>
-              Uyenin yeni paket (kayit) baslangic tarihini sec. Secilen tarihten itibaren mevcut programa gore yeni paket olusturulacaktir.
+              Secilen kayit tarihinden sonraki ilk uygun 8 seans atanir. Yeterli seans yoksa sistem
+              program veya grup bitis tarihini uzatman gerektigini soyler.
             </DialogDescription>
           </DialogHeader>
           <form action={rebuildAction} className="grid gap-4">
             <input type="hidden" name="studentId" value={student.id} />
+            <div className="rounded-[1.15rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              Mevcut kalan hak: <span className="font-semibold text-slate-900">{student.remainingLessons ?? 0}</span>
+            </div>
             <div className="grid gap-2">
               <label className="text-sm font-medium text-foreground" htmlFor={`student-rebuild-${student.id}`}>
-                Kayıt Tarihi
+                Yeni paket kayit tarihi
               </label>
-              <Input id={`student-rebuild-${student.id}`} name="startsOn" type="date" required />
+              <Input
+                id={`student-rebuild-${student.id}`}
+                name="startsOn"
+                type="date"
+                required
+                defaultValue={student.nextAllocatedSessionAt ? student.nextAllocatedSessionAt.slice(0, 10) : new Date().toISOString().slice(0, 10)}
+              />
             </div>
             {rebuildState.error ? <p className="text-sm text-destructive">{rebuildState.error}</p> : null}
             {rebuildState.success ? <p className="text-sm text-success">{rebuildState.success}</p> : null}
-            <FormSubmitButton className="w-full" pendingLabel="Yenileniyor...">
-              Kaydet ve Yeni Paket Olustur
+            <FormSubmitButton className="w-full" pendingLabel="Paket aciliyor...">
+              8 hakli paketi olustur
             </FormSubmitButton>
           </form>
         </DialogContent>
@@ -313,6 +588,24 @@ export function StudentActions({
 
       {deactivateState.error ? <p className="w-full text-right text-sm text-destructive">{deactivateState.error}</p> : null}
       {deactivateState.success ? <p className="w-full text-right text-sm text-success">{deactivateState.success}</p> : null}
+    </div>
+  );
+}
+
+function InfoChip({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[1rem] border border-slate-200 bg-white px-4 py-3">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</div>
+      <div className="mt-2 text-sm font-medium text-slate-900">{value}</div>
+    </div>
+  );
+}
+
+function InfoLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[1rem] border border-slate-200 bg-white px-4 py-3">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</div>
+      <div className="mt-2 text-sm leading-6 text-slate-700">{value}</div>
     </div>
   );
 }

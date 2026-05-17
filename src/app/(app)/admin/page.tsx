@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/app-shell";
-import { getAdminMetrics, getAdminNotifications } from "@/lib/dashboard-data";
+import { getAdminOverviewSummary } from "@/lib/dashboard/admin-data";
 import { 
   ArrowUpRight, 
   ShieldCheck, 
@@ -15,21 +15,18 @@ import Link from "next/link";
 const accessMatrix = [
   { scope: "Rol matrisleri", owner: "Admin", status: "Aktif" },
   { scope: "Supabase RLS politikasi", owner: "Admin", status: "Aktif" },
-  { scope: "Landing page editörü", owner: "Admin", status: "Canlı" },
+  { scope: "Public Site CMS", owner: "Admin", status: "Canlı" },
 ];
 
 export default async function AdminPage() {
-  const [metrics, notifications] = await Promise.all([
-    getAdminMetrics(),
-    getAdminNotifications(),
-  ]);
+  const { metrics, notifications } = await getAdminOverviewSummary();
 
   return (
     <AppShell
       role="admin"
       eyebrow="Sistem Yöneticisi"
       title="Yönetim Merkezi"
-      primaryAction={{ href: "/admin/landing", label: "Landing Editörünü Aç" }}
+      primaryAction={{ href: "/admin/public-site", label: "Public Site CMS'i Aç" }}
       contextCard={{
         eyebrow: "Güvenlik Düzeyi",
         title: "Tüm RLS politikaları ve veri yolları güvende",
@@ -105,10 +102,10 @@ export default async function AdminPage() {
           
           <div className="relative z-10 flex flex-col gap-4 mt-8">
              <Link
-               href="/admin/landing"
+               href="/admin/public-site"
                className="group/link flex items-center justify-between rounded-[1.25rem] bg-slate-900 p-5 shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition-all hover:-translate-y-1"
              >
-               <div className="font-bold text-white text-lg">Landing Editor</div>
+               <div className="font-bold text-white text-lg">Public Site CMS</div>
                <div className="bg-white/10 p-2 rounded-full group-hover/link:bg-sky-500 group-hover/link:text-white text-slate-300 transition-colors">
                   <ArrowRight className="w-5 h-5" />
                </div>

@@ -1,8 +1,22 @@
+/* eslint-disable @next/next/no-img-element */
+
 "use client";
 
 import Link from "next/link";
 import { useActionState, useEffect, useMemo, useState } from "react";
-import { ExternalLink, ImagePlus, LoaderCircle, RefreshCw, Upload } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  ExternalLink,
+  Eye,
+  ImagePlus,
+  LoaderCircle,
+  Plus,
+  RefreshCw,
+  Trash2,
+  Upload,
+} from "lucide-react";
 
 import {
   updateLandingContentAction,
@@ -44,6 +58,10 @@ function cloneLandingContent(content: LandingContent) {
   return JSON.parse(JSON.stringify(content)) as LandingContent;
 }
 
+function createEditorId(prefix: string) {
+  return `${prefix}-${globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2, 10)}`;
+}
+
 function formatUpdatedAt(value: string | null) {
   if (!value) {
     return "Henuz kayit yok";
@@ -59,19 +77,26 @@ type AdminLandingEditorProps = {
   initialContent: LandingContent;
   updatedAt: string | null;
   storageError: string | null;
+  initialTab?: string;
 };
 
 export function AdminLandingEditor({
   initialContent,
   updatedAt,
   storageError,
+  initialTab = "brand",
 }: AdminLandingEditorProps) {
   const [state, formAction] = useActionState(updateLandingContentAction, initialState);
   const [content, setContent] = useState(() => cloneLandingContent(initialContent));
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   useEffect(() => {
     setContent(cloneLandingContent(initialContent));
   }, [initialContent]);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   const serializedContent = useMemo(() => JSON.stringify(content), [content]);
 
@@ -102,6 +127,16 @@ export function AdminLandingEditor({
   function updateNavbar(field: keyof LandingContent["navbar"], value: string) {
     updateRoot("navbar", {
       ...content.navbar,
+      [field]: value,
+    });
+  }
+
+  function updateHomepageMediaRail(
+    field: keyof LandingContent["homepageMediaRail"],
+    value: string,
+  ) {
+    updateRoot("homepageMediaRail", {
+      ...content.homepageMediaRail,
       [field]: value,
     });
   }
@@ -273,6 +308,185 @@ export function AdminLandingEditor({
     });
   }
 
+  function updateLocalProof(field: keyof LandingContent["localProof"], value: string) {
+    updateRoot("localProof", {
+      ...content.localProof,
+      [field]: value,
+    });
+  }
+
+  function updateLocalProofItem(
+    index: number,
+    field: "title" | "description" | "icon",
+    value: string,
+  ) {
+    updateRoot("localProof", {
+      ...content.localProof,
+      items: content.localProof.items.map((item, itemIndex) =>
+        itemIndex === index
+          ? {
+              ...item,
+              [field]: field === "icon" ? (value as IconKey) : value,
+            }
+          : item,
+      ),
+    });
+  }
+
+  function updateProcess(field: keyof LandingContent["process"], value: string) {
+    updateRoot("process", {
+      ...content.process,
+      [field]: value,
+    });
+  }
+
+  function updateProcessStep(index: number, field: "title" | "description", value: string) {
+    updateRoot("process", {
+      ...content.process,
+      steps: content.process.steps.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item,
+      ),
+    });
+  }
+
+  function updateTestimonials(field: keyof LandingContent["testimonials"], value: string) {
+    updateRoot("testimonials", {
+      ...content.testimonials,
+      [field]: value,
+    });
+  }
+
+  function updateTestimonialItem(
+    index: number,
+    field:
+      | "quote"
+      | "parentDisplayName"
+      | "context"
+      | "branch"
+      | "childAgeGroup"
+      | "approved"
+      | "featured",
+    value: string | boolean,
+  ) {
+    updateRoot("testimonials", {
+      ...content.testimonials,
+      items: content.testimonials.items.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item,
+      ),
+    });
+  }
+
+  function addTestimonialItem() {
+    updateRoot("testimonials", {
+      ...content.testimonials,
+      items: [
+        ...content.testimonials.items,
+        {
+          id: createEditorId("testimonial"),
+          quote: "",
+          parentDisplayName: "",
+          context: "",
+          branch: "Genel",
+          childAgeGroup: "",
+          approved: false,
+          featured: false,
+          sortOrder: content.testimonials.items.length + 1,
+        },
+      ],
+    });
+  }
+
+  function removeTestimonialItem(index: number) {
+    updateRoot("testimonials", {
+      ...content.testimonials,
+      items: content.testimonials.items
+        .filter((_, itemIndex) => itemIndex !== index)
+        .map((item, itemIndex) => ({ ...item, sortOrder: itemIndex + 1 })),
+    });
+  }
+
+  function moveTestimonialItem(index: number, direction: -1 | 1) {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= content.testimonials.items.length) {
+      return;
+    }
+
+    const nextItems = [...content.testimonials.items];
+    const [current] = nextItems.splice(index, 1);
+    nextItems.splice(nextIndex, 0, current);
+
+    updateRoot("testimonials", {
+      ...content.testimonials,
+      items: nextItems.map((item, itemIndex) => ({ ...item, sortOrder: itemIndex + 1 })),
+    });
+  }
+
+  function updateGalleryPage(field: keyof LandingContent["galleryPage"], value: string) {
+    updateRoot("galleryPage", {
+      ...content.galleryPage,
+      [field]: value,
+    });
+  }
+
+  function updateGalleryItem(
+    index: number,
+    field:
+      | "title"
+      | "description"
+      | "image"
+      | "category"
+      | "featured"
+      | "published",
+    value: string | boolean,
+  ) {
+    updateRoot(
+      "galleryItems",
+      content.galleryItems.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item,
+      ),
+    );
+  }
+
+  function addGalleryItem() {
+    updateRoot("galleryItems", [
+      ...content.galleryItems,
+      {
+        id: createEditorId("gallery"),
+        image: "",
+        title: "",
+        description: "",
+        category: "genel",
+        featured: false,
+        sortOrder: content.galleryItems.length + 1,
+        published: false,
+      },
+    ]);
+  }
+
+  function removeGalleryItem(index: number) {
+    updateRoot(
+      "galleryItems",
+      content.galleryItems
+        .filter((_, itemIndex) => itemIndex !== index)
+        .map((item, itemIndex) => ({ ...item, sortOrder: itemIndex + 1 })),
+    );
+  }
+
+  function moveGalleryItem(index: number, direction: -1 | 1) {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= content.galleryItems.length) {
+      return;
+    }
+
+    const nextItems = [...content.galleryItems];
+    const [current] = nextItems.splice(index, 1);
+    nextItems.splice(nextIndex, 0, current);
+    updateRoot(
+      "galleryItems",
+      nextItems.map((item, itemIndex) => ({ ...item, sortOrder: itemIndex + 1 })),
+    );
+  }
+
   function updateCta(field: keyof LandingContent["cta"], value: string) {
     updateRoot("cta", {
       ...content.cta,
@@ -383,7 +597,7 @@ export function AdminLandingEditor({
         <Panel className="bg-[#0b162b]">
           <div className="grid gap-4 md:grid-cols-2">
             <StatTile label="Son kayit" value={formatUpdatedAt(updatedAt)} />
-            <StatTile label="Kontrol edilen alan" value="11 ana section" />
+            <StatTile label="Kontrol edilen alan" value="14 ana section" />
           </div>
           <div className="mt-5 rounded-[1.4rem] border border-sky-400/18 bg-sky-400/8 px-4 py-4">
             <div className="text-sm font-semibold text-sky-200">Yazma yetkisi sadece admin</div>
@@ -405,15 +619,19 @@ export function AdminLandingEditor({
         </Panel>
       </section>
 
-      <Tabs defaultValue="brand" className="grid gap-5">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="grid gap-5">
         <TabsList className="w-full justify-start bg-[#0d182d]">
           <TabsTrigger value="brand">Marka</TabsTrigger>
           <TabsTrigger value="hero">Hero</TabsTrigger>
+          <TabsTrigger value="gallery">Galeri</TabsTrigger>
           <TabsTrigger value="stats">Stats</TabsTrigger>
           <TabsTrigger value="system">4G Sistem</TabsTrigger>
           <TabsTrigger value="programs">Programlar</TabsTrigger>
           <TabsTrigger value="coaches">Egitmenler</TabsTrigger>
           <TabsTrigger value="why-us">Why Us</TabsTrigger>
+          <TabsTrigger value="local-proof">Lokal Kanit</TabsTrigger>
+          <TabsTrigger value="process">Surec</TabsTrigger>
+          <TabsTrigger value="testimonials">Yorumlar</TabsTrigger>
           <TabsTrigger value="faq">SSS</TabsTrigger>
           <TabsTrigger value="guide">Rehber</TabsTrigger>
           <TabsTrigger value="cta">CTA</TabsTrigger>
@@ -522,67 +740,215 @@ export function AdminLandingEditor({
         </TabsContent>
 
         <TabsContent value="hero">
-          <Panel>
-            <SectionHeading
-              title="Hero composition"
-              description="Ana baslik, mavi vurgu, CTA butonlari ve iki editorial gorsel."
-            />
-            <FieldGrid>
-              <TextField
-                label="Hero badge"
-                value={content.hero.eyebrow}
-                onChange={(value) => updateHero("eyebrow", value)}
+          <SectionGrid>
+            <Panel>
+              <SectionHeading
+                title="Hero composition"
+                description="Ana baslik, mavi vurgu, CTA butonlari ve iki editorial gorsel."
               />
-              <TextAreaField
-                label="Baslik"
-                value={content.hero.title}
-                onChange={(value) => updateHero("title", value)}
+              <FieldGrid>
+                <TextField
+                  label="Hero badge"
+                  value={content.hero.eyebrow}
+                  onChange={(value) => updateHero("eyebrow", value)}
+                />
+                <TextAreaField
+                  label="Baslik"
+                  value={content.hero.title}
+                  onChange={(value) => updateHero("title", value)}
+                />
+                <TextAreaField
+                  label="Vurgulu metin"
+                  value={content.hero.highlight}
+                  onChange={(value) => updateHero("highlight", value)}
+                />
+                <TextAreaField
+                  label="Aciklama"
+                  value={content.hero.description}
+                  onChange={(value) => updateHero("description", value)}
+                  className="md:col-span-2"
+                />
+                <TextField
+                  label="Primary CTA"
+                  value={content.hero.primaryCtaLabel}
+                  onChange={(value) => updateHero("primaryCtaLabel", value)}
+                />
+                <TextField
+                  label="Primary href"
+                  value={content.hero.primaryCtaHref}
+                  onChange={(value) => updateHero("primaryCtaHref", value)}
+                />
+                <TextField
+                  label="Secondary CTA"
+                  value={content.hero.secondaryCtaLabel}
+                  onChange={(value) => updateHero("secondaryCtaLabel", value)}
+                />
+                <TextField
+                  label="Secondary href"
+                  value={content.hero.secondaryCtaHref}
+                  onChange={(value) => updateHero("secondaryCtaHref", value)}
+                />
+                <AssetField
+                  label="Hero gorseli 1"
+                  value={content.hero.visualPrimaryImage}
+                  onChange={(value) => updateHero("visualPrimaryImage", value)}
+                  uploadKey="hero-primary"
+                />
+                <AssetField
+                  label="Hero gorseli 2"
+                  value={content.hero.visualSecondaryImage}
+                  onChange={(value) => updateHero("visualSecondaryImage", value)}
+                  uploadKey="hero-secondary"
+                />
+              </FieldGrid>
+            </Panel>
+
+            <Panel>
+              <SectionHeading
+                title="Homepage medya bandi"
+                description="Hero altinda 4G sisteminden once gorunen yatay galeri bandinin copy ve link alani."
               />
-              <TextAreaField
-                label="Vurgulu metin"
-                value={content.hero.highlight}
-                onChange={(value) => updateHero("highlight", value)}
+              <FieldGrid>
+                <TextField
+                  label="Eyebrow"
+                  value={content.homepageMediaRail.eyebrow}
+                  onChange={(value) => updateHomepageMediaRail("eyebrow", value)}
+                />
+                <TextField
+                  label="Baslik"
+                  value={content.homepageMediaRail.title}
+                  onChange={(value) => updateHomepageMediaRail("title", value)}
+                  className="md:col-span-2"
+                />
+                <TextAreaField
+                  label="Aciklama"
+                  value={content.homepageMediaRail.description}
+                  onChange={(value) => updateHomepageMediaRail("description", value)}
+                  className="md:col-span-2"
+                />
+                <TextField
+                  label="CTA etiketi"
+                  value={content.homepageMediaRail.ctaLabel}
+                  onChange={(value) => updateHomepageMediaRail("ctaLabel", value)}
+                />
+                <TextField
+                  label="CTA href"
+                  value={content.homepageMediaRail.ctaHref}
+                  onChange={(value) => updateHomepageMediaRail("ctaHref", value)}
+                />
+              </FieldGrid>
+            </Panel>
+          </SectionGrid>
+        </TabsContent>
+
+        <TabsContent value="gallery">
+          <SectionGrid>
+            <Panel>
+              <SectionHeading
+                title="Galeri sayfasi"
+                description="Public /galeri sayfasinin intro copy alani ve homepage medya bandinin kaynagi."
               />
-              <TextAreaField
-                label="Aciklama"
-                value={content.hero.description}
-                onChange={(value) => updateHero("description", value)}
-                className="md:col-span-2"
+              <FieldGrid>
+                <TextField
+                  label="Eyebrow"
+                  value={content.galleryPage.eyebrow}
+                  onChange={(value) => updateGalleryPage("eyebrow", value)}
+                />
+                <TextField
+                  label="Baslik"
+                  value={content.galleryPage.title}
+                  onChange={(value) => updateGalleryPage("title", value)}
+                  className="md:col-span-2"
+                />
+                <TextAreaField
+                  label="Aciklama"
+                  value={content.galleryPage.description}
+                  onChange={(value) => updateGalleryPage("description", value)}
+                  className="md:col-span-2"
+                />
+              </FieldGrid>
+            </Panel>
+
+            <Panel>
+              <SectionHeading
+                title="Galeri yonetimi"
+                description="Kategori, yayin durumu, one cikarma ve siralama aksiyonlariyla tesis ve branş gorsellerini yonetin."
               />
-              <TextField
-                label="Primary CTA"
-                value={content.hero.primaryCtaLabel}
-                onChange={(value) => updateHero("primaryCtaLabel", value)}
-              />
-              <TextField
-                label="Primary href"
-                value={content.hero.primaryCtaHref}
-                onChange={(value) => updateHero("primaryCtaHref", value)}
-              />
-              <TextField
-                label="Secondary CTA"
-                value={content.hero.secondaryCtaLabel}
-                onChange={(value) => updateHero("secondaryCtaLabel", value)}
-              />
-              <TextField
-                label="Secondary href"
-                value={content.hero.secondaryCtaHref}
-                onChange={(value) => updateHero("secondaryCtaHref", value)}
-              />
-              <AssetField
-                label="Hero gorseli 1"
-                value={content.hero.visualPrimaryImage}
-                onChange={(value) => updateHero("visualPrimaryImage", value)}
-                uploadKey="hero-primary"
-              />
-              <AssetField
-                label="Hero gorseli 2"
-                value={content.hero.visualSecondaryImage}
-                onChange={(value) => updateHero("visualSecondaryImage", value)}
-                uploadKey="hero-secondary"
-              />
-            </FieldGrid>
-          </Panel>
+              <div className="mt-5 flex justify-end">
+                <Button type="button" onClick={addGalleryItem} className="bg-sky-400 text-slate-950 hover:bg-sky-300">
+                  <Plus className="h-4 w-4" />
+                  Gorsel ekle
+                </Button>
+              </div>
+              <div className="mt-5 grid gap-4">
+                {content.galleryItems.map((item, index) => (
+                  <SubPanel
+                    key={item.id}
+                    title={item.title.trim() || `Galeri gorseli ${index + 1}`}
+                    description="Homepage featured bandinda yalniz featured+yayinda gorseller gorunur."
+                    actions={
+                      <ItemToolbar
+                        onMoveUp={index === 0 ? undefined : () => moveGalleryItem(index, -1)}
+                        onMoveDown={
+                          index === content.galleryItems.length - 1
+                            ? undefined
+                            : () => moveGalleryItem(index, 1)
+                        }
+                        onRemove={() => removeGalleryItem(index)}
+                      />
+                    }
+                  >
+                    <FieldGrid>
+                      <TextField
+                        label="Baslik"
+                        value={item.title}
+                        onChange={(value) => updateGalleryItem(index, "title", value)}
+                      />
+                      <SelectField
+                        label="Kategori"
+                        value={item.category}
+                        onChange={(value) => updateGalleryItem(index, "category", value)}
+                        options={[
+                          { value: "tesis", label: "Tesis" },
+                          { value: "yuzme", label: "Yuzme" },
+                          { value: "cimnastik", label: "Cimnastik" },
+                          { value: "tenis", label: "Tenis" },
+                          { value: "genel", label: "Genel" },
+                        ]}
+                      />
+                      <TextAreaField
+                        label="Aciklama"
+                        value={item.description}
+                        onChange={(value) => updateGalleryItem(index, "description", value)}
+                        className="md:col-span-2"
+                      />
+                      <AssetField
+                        label="Gorsel"
+                        value={item.image}
+                        onChange={(value) => updateGalleryItem(index, "image", value)}
+                        uploadKey={`gallery-${item.id}`}
+                        className="md:col-span-2"
+                      />
+                    </FieldGrid>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <ToggleTile
+                        active={item.featured}
+                        label="One cikar"
+                        description="Homepage medya bandinda goster."
+                        onToggle={() => updateGalleryItem(index, "featured", !item.featured)}
+                      />
+                      <ToggleTile
+                        active={item.published}
+                        label="Yayinda"
+                        description="/galeri sayfasinda yayina ac."
+                        onToggle={() => updateGalleryItem(index, "published", !item.published)}
+                      />
+                    </div>
+                  </SubPanel>
+                ))}
+              </div>
+            </Panel>
+          </SectionGrid>
         </TabsContent>
 
         <TabsContent value="stats">
@@ -842,6 +1208,252 @@ export function AdminLandingEditor({
           </SectionGrid>
         </TabsContent>
 
+        <TabsContent value="local-proof">
+          <SectionGrid>
+            <Panel>
+              <SectionHeading
+                title="Lokal guven section"
+                description="Silivri lokasyonu, veli gorunurlugu ve tesis duzeni gibi karar kolaylastiran blok."
+              />
+              <FieldGrid>
+                <TextField
+                  label="Eyebrow"
+                  value={content.localProof.eyebrow}
+                  onChange={(value) => updateLocalProof("eyebrow", value)}
+                />
+                <TextField
+                  label="Baslik"
+                  value={content.localProof.title}
+                  onChange={(value) => updateLocalProof("title", value)}
+                  className="md:col-span-2"
+                />
+                <TextAreaField
+                  label="Aciklama"
+                  value={content.localProof.description}
+                  onChange={(value) => updateLocalProof("description", value)}
+                  className="md:col-span-2"
+                />
+              </FieldGrid>
+            </Panel>
+
+            <Panel>
+              <SectionHeading
+                title="Proof kartlari"
+                description="Lokal guven ve karar kolayligi veren 3 kart."
+              />
+              <div className="mt-5 grid gap-4">
+                {content.localProof.items.map((item, index) => (
+                  <SubPanel
+                    key={`${item.title}-${index}`}
+                    title={`Proof karti ${index + 1}`}
+                    description="Ikon, baslik ve aciklama."
+                  >
+                    <FieldGrid>
+                      <TextField
+                        label="Baslik"
+                        value={item.title}
+                        onChange={(value) => updateLocalProofItem(index, "title", value)}
+                      />
+                      <SelectField
+                        label="Ikon"
+                        value={item.icon}
+                        onChange={(value) => updateLocalProofItem(index, "icon", value)}
+                        options={iconOptions}
+                      />
+                      <TextAreaField
+                        label="Aciklama"
+                        value={item.description}
+                        onChange={(value) => updateLocalProofItem(index, "description", value)}
+                        className="md:col-span-2"
+                      />
+                    </FieldGrid>
+                  </SubPanel>
+                ))}
+              </div>
+            </Panel>
+          </SectionGrid>
+        </TabsContent>
+
+        <TabsContent value="process">
+          <SectionGrid>
+            <Panel>
+              <SectionHeading
+                title="Kayit ve ilk ders sureci"
+                description="Bilgi alma, grup secimi ve ilk ders akisini anlatan blok."
+              />
+              <FieldGrid>
+                <TextField
+                  label="Eyebrow"
+                  value={content.process.eyebrow}
+                  onChange={(value) => updateProcess("eyebrow", value)}
+                />
+                <TextField
+                  label="Baslik"
+                  value={content.process.title}
+                  onChange={(value) => updateProcess("title", value)}
+                  className="md:col-span-2"
+                />
+                <TextAreaField
+                  label="Aciklama"
+                  value={content.process.description}
+                  onChange={(value) => updateProcess("description", value)}
+                  className="md:col-span-2"
+                />
+              </FieldGrid>
+            </Panel>
+
+            <Panel>
+              <SectionHeading
+                title="Surec adimlari"
+                description="Landing icindeki 3 adimli akıs."
+              />
+              <div className="mt-5 grid gap-4">
+                {content.process.steps.map((item, index) => (
+                  <SubPanel
+                    key={`${item.title}-${index}`}
+                    title={`Adim ${index + 1}`}
+                    description="Baslik ve aciklama."
+                  >
+                    <FieldGrid>
+                      <TextField
+                        label="Baslik"
+                        value={item.title}
+                        onChange={(value) => updateProcessStep(index, "title", value)}
+                      />
+                      <TextAreaField
+                        label="Aciklama"
+                        value={item.description}
+                        onChange={(value) => updateProcessStep(index, "description", value)}
+                        className="md:col-span-2"
+                      />
+                    </FieldGrid>
+                  </SubPanel>
+                ))}
+              </div>
+            </Panel>
+          </SectionGrid>
+        </TabsContent>
+
+        <TabsContent value="testimonials">
+          <SectionGrid>
+            <Panel>
+              <SectionHeading
+                title="Yorumlar section"
+                description="SEO ve guven odakli veli yorum alanlari."
+              />
+              <FieldGrid>
+                <TextField
+                  label="Eyebrow"
+                  value={content.testimonials.eyebrow}
+                  onChange={(value) => updateTestimonials("eyebrow", value)}
+                />
+                <TextField
+                  label="Baslik"
+                  value={content.testimonials.title}
+                  onChange={(value) => updateTestimonials("title", value)}
+                  className="md:col-span-2"
+                />
+                <TextAreaField
+                  label="Aciklama"
+                  value={content.testimonials.description}
+                  onChange={(value) => updateTestimonials("description", value)}
+                  className="md:col-span-2"
+                />
+              </FieldGrid>
+            </Panel>
+
+            <Panel>
+              <SectionHeading
+                title="Veli yorumlari"
+                description="Yalniz approved yorumlar public tarafta gorunur. Kimlik Ad + soyad bas harfi olarak render edilir."
+              />
+              <div className="mt-5 flex justify-end">
+                <Button type="button" onClick={addTestimonialItem} className="bg-sky-400 text-slate-950 hover:bg-sky-300">
+                  <Plus className="h-4 w-4" />
+                  Yorum ekle
+                </Button>
+              </div>
+              <div className="mt-5 grid gap-4">
+                {content.testimonials.items.map((item, index) => (
+                  <SubPanel
+                    key={item.id}
+                    title={item.parentDisplayName.trim() || `Yorum ${index + 1}`}
+                    description="Admin onayli manuel veli yorumu."
+                    actions={
+                      <ItemToolbar
+                        onMoveUp={index === 0 ? undefined : () => moveTestimonialItem(index, -1)}
+                        onMoveDown={
+                          index === content.testimonials.items.length - 1
+                            ? undefined
+                            : () => moveTestimonialItem(index, 1)
+                        }
+                        onRemove={() => removeTestimonialItem(index)}
+                      />
+                    }
+                  >
+                    <FieldGrid>
+                      <TextAreaField
+                        label="Yorum"
+                        value={item.quote}
+                        onChange={(value) => updateTestimonialItem(index, "quote", value)}
+                        className="md:col-span-2"
+                      />
+                      <TextField
+                        label="Veli adi"
+                        value={item.parentDisplayName}
+                        onChange={(value) => updateTestimonialItem(index, "parentDisplayName", value)}
+                      />
+                      <TextField
+                        label="Baglam"
+                        value={item.context}
+                        onChange={(value) => updateTestimonialItem(index, "context", value)}
+                      />
+                      <TextField
+                        label="Brans"
+                        value={item.branch}
+                        onChange={(value) => updateTestimonialItem(index, "branch", value)}
+                      />
+                      <TextField
+                        label="Yas grubu"
+                        value={item.childAgeGroup}
+                        onChange={(value) => updateTestimonialItem(index, "childAgeGroup", value)}
+                      />
+                    </FieldGrid>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <ToggleTile
+                        active={item.approved}
+                        label="Onayli"
+                        description="Public sayfada gosterilebilir."
+                        onToggle={() => updateTestimonialItem(index, "approved", !item.approved)}
+                      />
+                      <ToggleTile
+                        active={item.featured}
+                        label="One cikar"
+                        description="Homepage yorum alaninda ust siralarda dursun."
+                        onToggle={() => updateTestimonialItem(index, "featured", !item.featured)}
+                      />
+                    </div>
+                    <div className="mt-4 rounded-[1.2rem] border border-white/8 bg-white/[0.03] px-4 py-4">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                        Public onizleme
+                      </div>
+                      <div className="mt-3 text-sm leading-7 text-white">
+                        {item.quote || "Yorum metni buraya dusuyor."}
+                      </div>
+                      <div className="mt-4 text-sm font-semibold text-white">
+                        {item.parentDisplayName || "Veli"}
+                      </div>
+                      <div className="mt-1 text-[11px] uppercase tracking-[0.22em] text-slate-500">
+                        {[item.context, item.branch, item.childAgeGroup].filter(Boolean).join(" · ") || "Baglam"}
+                      </div>
+                    </div>
+                  </SubPanel>
+                ))}
+              </div>
+            </Panel>
+          </SectionGrid>
+        </TabsContent>
+
         <TabsContent value="coaches">
           <Panel>
             <SectionHeading
@@ -925,6 +1537,32 @@ export function AdminLandingEditor({
                 className="md:col-span-2"
               />
               <TextField
+                label="Mobil sticky ust etiket"
+                value={content.cta.mobileStickyEyebrow}
+                onChange={(value) => updateCta("mobileStickyEyebrow", value)}
+              />
+              <TextAreaField
+                label="Mobil sticky baslik"
+                value={content.cta.mobileStickyTitle}
+                onChange={(value) => updateCta("mobileStickyTitle", value)}
+                className="md:col-span-2"
+              />
+              <TextField
+                label="Mobil sticky WhatsApp etiketi"
+                value={content.cta.mobileStickyWhatsAppLabel}
+                onChange={(value) => updateCta("mobileStickyWhatsAppLabel", value)}
+              />
+              <TextField
+                label="Mobil sticky Telefon etiketi"
+                value={content.cta.mobileStickyPhoneLabel}
+                onChange={(value) => updateCta("mobileStickyPhoneLabel", value)}
+              />
+              <TextField
+                label="Mobil sticky primary etiketi"
+                value={content.cta.mobileStickyPrimaryLabel}
+                onChange={(value) => updateCta("mobileStickyPrimaryLabel", value)}
+              />
+              <TextField
                 label="Ad soyad etiketi"
                 value={content.cta.fullNameLabel}
                 onChange={(value) => updateCta("fullNameLabel", value)}
@@ -984,6 +1622,16 @@ export function AdminLandingEditor({
                 label="Telefon buton etiketi"
                 value={content.cta.phoneCtaLabel}
                 onChange={(value) => updateCta("phoneCtaLabel", value)}
+              />
+              <TextField
+                label="Program onerisi etiketi"
+                value={content.cta.recommendationLabel}
+                onChange={(value) => updateCta("recommendationLabel", value)}
+              />
+              <TextField
+                label="Program onerisi href"
+                value={content.cta.recommendationHref}
+                onChange={(value) => updateCta("recommendationHref", value)}
               />
               <TextField
                 label="CTA telefon numarasi"
@@ -1271,20 +1919,96 @@ function SectionHeading({
 function SubPanel({
   title,
   description,
+  actions,
   children,
 }: {
   title: string;
   description: string;
+  actions?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div className="rounded-[1.35rem] border border-white/8 bg-white/[0.03] p-4">
-      <div className="space-y-1">
-        <div className="text-sm font-semibold text-white">{title}</div>
-        <div className="text-sm leading-6 text-slate-400">{description}</div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <div className="text-sm font-semibold text-white">{title}</div>
+          <div className="text-sm leading-6 text-slate-400">{description}</div>
+        </div>
+        {actions}
       </div>
       <div className="mt-4">{children}</div>
     </div>
+  );
+}
+
+function ItemToolbar({
+  onMoveUp,
+  onMoveDown,
+  onRemove,
+}: {
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <Button type="button" size="sm" variant="outline" className="h-9 px-3" onClick={onMoveUp} disabled={!onMoveUp}>
+        <ArrowUp className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="h-9 px-3"
+        onClick={onMoveDown}
+        disabled={!onMoveDown}
+      >
+        <ArrowDown className="h-4 w-4" />
+      </Button>
+      <Button type="button" size="sm" variant="outline" className="h-9 px-3 text-rose-300" onClick={onRemove}>
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
+function ToggleTile({
+  active,
+  label,
+  description,
+  onToggle,
+}: {
+  active: boolean;
+  label: string;
+  description: string;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={cn(
+        "rounded-[1.2rem] border px-4 py-4 text-left transition",
+        active
+          ? "border-emerald-400/30 bg-emerald-400/10"
+          : "border-white/8 bg-white/[0.02] hover:bg-white/[0.05]",
+      )}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-white">{label}</div>
+          <div className="mt-1 text-sm leading-6 text-slate-400">{description}</div>
+        </div>
+        <div
+          className={cn(
+            "flex h-10 w-10 items-center justify-center rounded-full",
+            active ? "bg-emerald-400 text-[#071223]" : "bg-white/[0.05] text-slate-400",
+          )}
+        >
+          {active ? <Check className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+        </div>
+      </div>
+    </button>
   );
 }
 

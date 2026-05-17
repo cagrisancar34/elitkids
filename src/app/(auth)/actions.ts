@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { logFailedAuthEvent } from "@/lib/audit";
 import { getRoleHome, isAppRole, resolveUserRole } from "@/lib/auth";
+import { resolveTrustedAuthRedirectOrigin } from "@/lib/auth-redirect";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { extractClientSecurityContextFromHeaders } from "@/lib/request-security";
 import { emailOnlySchema, passwordResetSchema } from "@/lib/schemas/auth";
@@ -15,14 +16,6 @@ export type AuthFlowState = {
   error: string | null;
   success: string | null;
 };
-
-function getOriginFromHeaders(value: string | null) {
-  if (!value) {
-    return "http://localhost:3000";
-  }
-
-  return value;
-}
 
 export async function requestMagicLinkAction(
   _previousState: AuthFlowState,
@@ -72,7 +65,7 @@ export async function requestMagicLinkAction(
     return { error: "Supabase baglantisi kurulamadi.", success: null };
   }
 
-  const origin = getOriginFromHeaders(headerStore.get("origin"));
+  const origin = resolveTrustedAuthRedirectOrigin(headerStore.get("origin"));
 
   const { error } = await supabase.auth.signInWithOtp({
     email: parsed.data.email,
@@ -149,7 +142,7 @@ export async function requestPasswordResetAction(
     return { error: "Supabase baglantisi kurulamadi.", success: null };
   }
 
-  const origin = getOriginFromHeaders(headerStore.get("origin"));
+  const origin = resolveTrustedAuthRedirectOrigin(headerStore.get("origin"));
 
   const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
     redirectTo: `${origin}/reset-password`,

@@ -85,8 +85,10 @@ export async function updateLandingContentAction(
   });
 
   revalidatePath("/");
+  revalidatePath("/galeri");
   revalidatePath("/admin");
   revalidatePath("/admin/landing");
+  revalidatePath("/sitemap.xml");
 
   return {
     error: null,

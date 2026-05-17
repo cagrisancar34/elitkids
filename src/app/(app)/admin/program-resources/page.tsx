@@ -1,6 +1,6 @@
 import { AdminProgramResourcesPanel } from "@/components/admin-program-resources-panel";
 import { AppShell } from "@/components/app-shell";
-import { getProgramResourceAdminData } from "@/lib/dashboard-data";
+import { getProgramResourceAdminData } from "@/lib/dashboard/admin-data";
 import { Library, Shapes, Activity, Map, Database, ArrowRight } from "lucide-react";
 
 export default async function AdminProgramResourcesPage() {

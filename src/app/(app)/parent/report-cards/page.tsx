@@ -1,6 +1,6 @@
 import { DashboardPage } from "@/components/dashboard-page";
 import { ParentReportCardsPanel } from "@/components/parent-report-cards-panel";
-import { getParentReportCards } from "@/lib/dashboard-data";
+import { getParentReportCards } from "@/lib/dashboard/parent-data";
 
 export default async function ParentReportCardsPage() {
   const reportCards = await getParentReportCards();

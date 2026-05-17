@@ -8,6 +8,8 @@ type RouteAuthState = {
   appRole: "admin" | "manager" | "coach" | "parent" | null;
 };
 
+const DEMO_ROLE_COOKIE = "elitsanatvesporkulubu-preview-role";
+
 function isAppRole(value: string | null | undefined): value is RouteAuthState["appRole"] {
   return value === "admin" || value === "manager" || value === "coach" || value === "parent";
 }
@@ -82,9 +84,11 @@ async function resolveSessionRole(request: NextRequest) {
   const { url, publishableKey } = getSupabaseConfig();
 
   if (!url || !publishableKey) {
+    const demoRole = request.cookies.get(DEMO_ROLE_COOKIE)?.value;
+
     return {
       response: NextResponse.next({ request }),
-      role: null,
+      role: isAppRole(demoRole) ? demoRole : null,
     };
   }
 
@@ -119,6 +123,14 @@ async function resolveSessionRole(request: NextRequest) {
   if (!role) {
     const { data: userData } = await supabase.auth.getUser();
     role = resolveAppRoleFromClaims(userData.user);
+  }
+
+  if (!role) {
+    const demoRole = request.cookies.get(DEMO_ROLE_COOKIE)?.value;
+
+    if (isAppRole(demoRole)) {
+      role = demoRole;
+    }
   }
 
   return {

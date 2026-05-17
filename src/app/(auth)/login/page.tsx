@@ -4,7 +4,6 @@ import Link from "next/link";
 import { BrandMark } from "@/components/brand-mark";
 import { LoginForm } from "@/components/login-form";
 import { buttonVariants } from "@/components/ui/button";
-import { academyProfile } from "@/lib/mock-data";
 import { redirectIfAuthenticated } from "@/lib/auth";
 import { getSupabaseConfig, isDemoAuthEnabled } from "@/lib/supabase/config";
 import { cn } from "@/lib/utils";
@@ -31,7 +30,7 @@ export default async function LoginPage() {
                 Admin, yonetici, koc ve veli ayni urunde ama kendi ritminde calisir.
               </h1>
               <p className="mt-6 max-w-xl text-lg leading-8 text-white/74">
-                {academyProfile.name} icin hazirlanan bu iskelet, Supabase auth ve RLS ile role-based deneyimi guvenli sekilde buyutmek uzere tasarlandi.
+                Elit Sanat ve Spor Kulubu icin kurulan bu panel, Supabase auth ve rol bazli yetki modeliyle gunluk operasyonu guvenli sekilde yonetmek uzere tasarlandi.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Link href="/" className={cn(buttonVariants({ variant: "secondary" }))}>
@@ -39,7 +38,7 @@ export default async function LoginPage() {
                 </Link>
                 {demoEnabled ? (
                   <Link href="/manager" className={cn(buttonVariants({ variant: "ghost" }), "border border-white/14 bg-white/8 text-white hover:bg-white/14")}>
-                    Yonetici arayuzune bak
+                    Yonetici panelini onizle
                     <ArrowRight className="h-4 w-4" />
                   </Link>
                 ) : null}

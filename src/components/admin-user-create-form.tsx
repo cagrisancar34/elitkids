@@ -30,13 +30,13 @@ export function AdminUserCreateForm({ adminEnabled }: { adminEnabled: boolean })
         <label className="text-sm font-medium text-foreground" htmlFor="email">
           E-posta
         </label>
-        <Input id="email" name="email" type="email" placeholder="kullanici@elitkids.com" />
+        <Input id="email" name="email" type="email" placeholder="kullanici@elitsanatvesporkulubu.com" />
       </div>
       <div className="grid gap-2">
         <label className="text-sm font-medium text-foreground" htmlFor="password">
           Gecici sifre
         </label>
-        <Input id="password" name="password" type="password" placeholder="ElitKids123" />
+        <Input id="password" name="password" type="password" placeholder="ElitSpor2026" />
       </div>
       <div className="grid gap-2">
         <label className="text-sm font-medium text-foreground" htmlFor="phone">

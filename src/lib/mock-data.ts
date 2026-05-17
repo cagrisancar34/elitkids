@@ -204,19 +204,22 @@ export const chargeRecords: ChargeRecord[] = [
     item: "Nisan donemi taksidi",
     dueDate: "12 Nisan 2026",
     amount: "₺3.250",
-    status: "Bekliyor",
+    status: "Odeme Bekleniyor",
+    paymentStatus: "pending",
   },
   {
     item: "Ekipman katkisi",
     dueDate: "18 Nisan 2026",
     amount: "₺850",
-    status: "Planlandi",
+    status: "Odeme Yapilmadi",
+    paymentStatus: "overdue",
   },
   {
     item: "Mart dengeleme odemesi",
     dueDate: "Tamamlandi",
     amount: "₺1.200",
-    status: "Odendi",
+    status: "Odeme Tamamlandi",
+    paymentStatus: "completed",
   },
 ];
 

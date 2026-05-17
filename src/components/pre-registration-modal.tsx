@@ -1,3 +1,5 @@
+/* eslint-disable @next/next/no-img-element */
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -15,7 +17,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { defaultPreRegistrationFields } from "@/lib/pre-registration";
 import type {
+  PreRegistrationFieldRecord,
   PreRegistrationOption,
   PreRegistrationSettings,
 } from "@/lib/types";
@@ -24,6 +28,7 @@ import { cn } from "@/lib/utils";
 
 type PublicPayload = {
   settings: PreRegistrationSettings;
+  fields: PreRegistrationFieldRecord[];
   options: {
     branches: PreRegistrationOption[];
     seasons: PreRegistrationOption[];
@@ -46,6 +51,12 @@ type UploadState = {
 const defaultPayload: PublicPayload = {
   settings: {
     formEnabled: true,
+    formEyebrow: "Hemen Kayit",
+    formTitle: "Cocugunuz icin ilk adimi burada atiyoruz.",
+    formDescription:
+      "Hemen Kayit Ol butonuna bastiginizda acilan bu modal uzerinden basvurunuzu iletebilirsiniz. Form kesin kayit degildir; once incelenir, sonra uygun programa aktivasyon yapilir.",
+    formLogoUrl: "",
+    formLogoPath: "",
     kvkkTitle: "KVKK Aydinlatma Metni",
     kvkkBody: "",
     kvkkCheckboxLabel: "KVKK aydinlatma metnini okudum ve kabul ediyorum.",
@@ -60,12 +71,14 @@ const defaultPayload: PublicPayload = {
     seasons: [],
     programs: [],
   },
+  fields: defaultPreRegistrationFields,
 };
 
 const initialFormState = {
   studentTcIdentityNo: "",
   studentFullName: "",
   studentBirthDate: "",
+  studentGender: "",
   note: "",
   motherName: "",
   motherPhone: "",
@@ -80,6 +93,7 @@ const initialFormState = {
   branchId: "",
   seasonId: "",
   programId: "",
+  customAnswers: {} as Record<string, string>,
   kvkkAccepted: false,
   parentPermissionAccepted: false,
 };
@@ -134,12 +148,6 @@ export function PreRegistrationModal({ open, onOpenChange }: PreRegistrationModa
 
         if (!cancelled) {
           setPayload(nextPayload);
-          setFormState((current) => ({
-            ...current,
-            branchId: current.branchId || nextPayload.options.branches[0]?.id || "",
-            seasonId: current.seasonId || nextPayload.options.seasons[0]?.id || "",
-            programId: current.programId || nextPayload.options.programs[0]?.id || "",
-          }));
         }
       } catch {
         // fallback payload remains
@@ -159,6 +167,33 @@ export function PreRegistrationModal({ open, onOpenChange }: PreRegistrationModa
 
   const isFormDisabled = isLoading || !payload.settings.formEnabled;
   const photoPreview = uploadState.url;
+  const activeFields = payload.fields
+    .filter((field) => field.active)
+    .sort((left, right) => left.sortOrder - right.sortOrder);
+  const studentFields = activeFields.filter((field) => field.section === "student");
+  const parentFields = activeFields.filter((field) => field.section === "parent");
+
+  function setCoreFieldValue(fieldKey: string, value: string) {
+    setFormState((current) => ({ ...current, [fieldKey]: value }));
+  }
+
+  function setCustomAnswer(fieldKey: string, value: string) {
+    setFormState((current) => ({
+      ...current,
+      customAnswers: {
+        ...current.customAnswers,
+        [fieldKey]: value,
+      },
+    }));
+  }
+
+  function getFieldValue(fieldKey: string) {
+    if (fieldKey in formState) {
+      return String((formState as Record<string, unknown>)[fieldKey] ?? "");
+    }
+
+    return formState.customAnswers[fieldKey] ?? "";
+  }
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -231,6 +266,7 @@ export function PreRegistrationModal({ open, onOpenChange }: PreRegistrationModa
           ...formState,
           studentPhotoUrl: uploadState.url,
           studentPhotoPath: uploadState.path,
+          customAnswers: formState.customAnswers,
         }),
       });
 
@@ -272,14 +308,23 @@ export function PreRegistrationModal({ open, onOpenChange }: PreRegistrationModa
       <DialogContent className="h-[100svh] w-screen max-w-none overflow-hidden rounded-none !border-0 !bg-[#091224] !text-white p-0 shadow-none sm:h-auto sm:max-h-[92vh] sm:w-[min(96vw,860px)] sm:max-w-[860px] sm:rounded-[2rem] sm:!border sm:!border-white/10 sm:shadow-[0_32px_90px_rgba(0,0,0,0.45)]">
         <div className="max-h-[100svh] overflow-y-auto bg-[radial-gradient(circle_at_top_left,rgba(40,120,255,0.18),transparent_38%),linear-gradient(180deg,#091224_0%,#0b1529_100%)] px-4 py-6 sm:max-h-[92vh] sm:px-6 sm:py-7 lg:px-8 lg:py-8">
           <DialogHeader className="border-b border-white/8 pb-5 text-left sm:pb-6">
+            {payload.settings.formLogoUrl ? (
+              <div className="mb-5">
+                <img
+                  src={payload.settings.formLogoUrl}
+                  alt="On kayit form logosu"
+                  className="max-h-16 w-auto rounded-2xl object-contain"
+                />
+              </div>
+            ) : null}
             <div className="inline-flex w-fit rounded-full border border-sky-300/20 bg-sky-300/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-sky-200">
-              Hemen kayit
+              {payload.settings.formEyebrow}
             </div>
             <DialogTitle className="mt-4 max-w-[14ch] text-[2rem] font-black leading-[0.94] tracking-[-0.06em] text-white sm:text-[2.35rem]">
-              Cocugunuz icin ilk adimi burada atiyoruz.
+              {payload.settings.formTitle}
             </DialogTitle>
             <DialogDescription className="mt-3 max-w-[48ch] text-sm leading-7 text-slate-300 sm:text-[15px]">
-              Hemen Kayit Ol butonuna bastiginizda acilan bu modal uzerinden basvurunuzu iletebilirsiniz. Form kesin kayit degildir; once incelenir, sonra uygun programa aktivasyon yapilir.
+              {payload.settings.formDescription}
             </DialogDescription>
             <div className="mt-4 rounded-[1.2rem] border border-white/8 bg-white/[0.04] px-4 py-4 text-sm leading-7 text-slate-300">
               {payload.settings.helperNote}
@@ -288,218 +333,45 @@ export function PreRegistrationModal({ open, onOpenChange }: PreRegistrationModa
 
           <form className="grid gap-7 pt-6 sm:gap-8 sm:pt-7" onSubmit={handleSubmit}>
               <Section title="Ogrenci Bilgileri">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="TC Kimlik No" helper="Opsiyonel · 11 haneli">
-                    <Input
-                      value={formState.studentTcIdentityNo}
-                      onChange={(event) =>
-                        setFormState((current) => ({
-                          ...current,
-                          studentTcIdentityNo: event.target.value,
-                        }))
+                <DynamicFieldGrid>
+                  {studentFields.map((field) => (
+                    <DynamicPreRegistrationField
+                      key={field.id}
+                      field={field}
+                      value={getFieldValue(field.fieldKey)}
+                      onValueChange={(value) =>
+                        field.fieldKey in formState
+                          ? setCoreFieldValue(field.fieldKey, value)
+                          : setCustomAnswer(field.fieldKey, value)
                       }
-                      placeholder="11 haneli TC Kimlik No"
-                      className={lightFieldClassName}
+                      payload={payload}
+                      photoPreview={photoPreview}
+                      uploadState={uploadState}
+                      onFileChange={handleFileChange}
                     />
-                  </Field>
-                  <Field label="Ad Soyad *">
-                    <Input
-                      value={formState.studentFullName}
-                      onChange={(event) =>
-                        setFormState((current) => ({
-                          ...current,
-                          studentFullName: event.target.value,
-                        }))
-                      }
-                      placeholder="Ogrencinin adi ve soyadi"
-                      className={lightFieldClassName}
-                    />
-                  </Field>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-[0.72fr_1fr]">
-                  <Field label="Dogum Tarihi *" helper="2 - 18 yas arasi">
-                    <Input
-                      type="date"
-                      value={formState.studentBirthDate}
-                      onChange={(event) =>
-                        setFormState((current) => ({
-                          ...current,
-                          studentBirthDate: event.target.value,
-                        }))
-                      }
-                      className={cn(lightFieldClassName, "[color-scheme:light]")}
-                    />
-                  </Field>
-                  <Field label="Fotograf">
-                    <label className="flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-[1.4rem] border border-dashed border-white/12 bg-[#12192b] px-5 py-6 text-center sm:min-h-40">
-                      {photoPreview ? (
-                        <img
-                          src={photoPreview}
-                          alt="Yuklenen ogrenci fotografi"
-                          className="h-20 w-20 rounded-full object-cover shadow-[0_14px_28px_rgba(0,0,0,0.22)]"
-                        />
-                      ) : (
-                        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-400/20 text-sky-200">
-                          {uploadState.pending ? <LoaderCircle className="h-7 w-7 animate-spin" /> : <UploadCloud className="h-7 w-7" />}
-                        </div>
-                      )}
-                      <div className="mt-4 text-base font-semibold text-white">
-                        Fotograf yuklemek icin tiklayin
-                      </div>
-                      <div className="mt-1 text-sm text-slate-400">JPG, PNG, WebP · Max 5MB</div>
-                      <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={handleFileChange} />
-                    </label>
-                    {uploadState.error ? <p className="mt-2 text-sm text-rose-300">{uploadState.error}</p> : null}
-                  </Field>
-                </div>
-
-                <Field label="Aciklama">
-                  <Textarea
-                    value={formState.note}
-                    onChange={(event) =>
-                      setFormState((current) => ({
-                        ...current,
-                        note: event.target.value,
-                      }))
-                    }
-                    placeholder="Varsa belirtmek istediginiz notlar..."
-                    className={lightTextareaClassName}
-                  />
-                </Field>
+                  ))}
+                </DynamicFieldGrid>
               </Section>
 
               <Section title="Veli Bilgileri">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="Baba Ad Soyad">
-                    <Input
-                      value={formState.fatherName}
-                      onChange={(event) => setFormState((current) => ({ ...current, fatherName: event.target.value }))}
-                      placeholder="Baba ad soyad"
-                      className={lightFieldClassName}
-                    />
-                  </Field>
-                  <Field label="Baba Telefon">
-                    <Input
-                      value={formState.fatherPhone}
-                      onChange={(event) => setFormState((current) => ({ ...current, fatherPhone: event.target.value }))}
-                      placeholder="05XX XXX XX XX"
-                      className={lightFieldClassName}
-                    />
-                  </Field>
-                  <Field label="Baba Meslek">
-                    <Input
-                      value={formState.fatherOccupation}
-                      onChange={(event) => setFormState((current) => ({ ...current, fatherOccupation: event.target.value }))}
-                      placeholder="Baba meslek"
-                      className={lightFieldClassName}
-                    />
-                  </Field>
-                  <Field label="Anne Ad Soyad">
-                    <Input
-                      value={formState.motherName}
-                      onChange={(event) => setFormState((current) => ({ ...current, motherName: event.target.value }))}
-                      placeholder="Anne ad soyad"
-                      className={lightFieldClassName}
-                    />
-                  </Field>
-                  <Field label="Anne Telefon">
-                    <Input
-                      value={formState.motherPhone}
-                      onChange={(event) => setFormState((current) => ({ ...current, motherPhone: event.target.value }))}
-                      placeholder="05XX XXX XX XX"
-                      className={lightFieldClassName}
-                    />
-                  </Field>
-                  <Field label="Anne Meslek">
-                    <Input
-                      value={formState.motherOccupation}
-                      onChange={(event) => setFormState((current) => ({ ...current, motherOccupation: event.target.value }))}
-                      placeholder="Anne meslek"
-                      className={lightFieldClassName}
-                    />
-                  </Field>
-                  <Field label="E-posta *">
-                    <Input
-                      type="email"
-                      value={formState.parentEmail}
-                      onChange={(event) => setFormState((current) => ({ ...current, parentEmail: event.target.value }))}
-                      placeholder="veli@eposta.com"
-                      className={lightFieldClassName}
-                    />
-                  </Field>
-                  <Field label="WhatsApp / Telefon *">
-                    <Input
-                      value={formState.parentWhatsapp}
-                      onChange={(event) =>
-                        setFormState((current) => ({ ...current, parentWhatsapp: event.target.value }))
+                <DynamicFieldGrid>
+                  {parentFields.map((field) => (
+                    <DynamicPreRegistrationField
+                      key={field.id}
+                      field={field}
+                      value={getFieldValue(field.fieldKey)}
+                      onValueChange={(value) =>
+                        field.fieldKey in formState
+                          ? setCoreFieldValue(field.fieldKey, value)
+                          : setCustomAnswer(field.fieldKey, value)
                       }
-                      placeholder="05XX XXX XX XX"
-                      className={lightFieldClassName}
+                      payload={payload}
+                      photoPreview={photoPreview}
+                      uploadState={uploadState}
+                      onFileChange={handleFileChange}
                     />
-                  </Field>
-                </div>
-
-                <Field label="Ikametgah Adresi">
-                  <Textarea
-                    value={formState.address}
-                    onChange={(event) => setFormState((current) => ({ ...current, address: event.target.value }))}
-                    placeholder="Ikametgah adresi"
-                    className={lightTextareaClassName}
-                  />
-                </Field>
-
-                <Field label="Acil Durumda Aranacak Kisi *">
-                  <Input
-                    value={formState.emergencyContact}
-                    onChange={(event) =>
-                      setFormState((current) => ({ ...current, emergencyContact: event.target.value }))
-                    }
-                    placeholder="Acil durumda aranacak kisi"
-                    className={lightFieldClassName}
-                  />
-                </Field>
-              </Section>
-
-              <Section title="Basvuru Bilgileri">
-                <div className="grid gap-4 md:grid-cols-3">
-                  <Field label="Ilgilenilen Sube *">
-                    <Select
-                      value={formState.branchId}
-                      onChange={(event) => setFormState((current) => ({ ...current, branchId: event.target.value }))}
-                      className={lightFieldClassName}
-                    >
-                      <option value="" disabled>Sube sec</option>
-                      {payload.options.branches.map((option) => (
-                        <option key={option.id} value={option.id}>{option.label}</option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <Field label="Sezon *">
-                    <Select
-                      value={formState.seasonId}
-                      onChange={(event) => setFormState((current) => ({ ...current, seasonId: event.target.value }))}
-                      className={lightFieldClassName}
-                    >
-                      <option value="" disabled>Sezon sec</option>
-                      {payload.options.seasons.map((option) => (
-                        <option key={option.id} value={option.id}>{option.label}</option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <Field label="Program *">
-                    <Select
-                      value={formState.programId}
-                      onChange={(event) => setFormState((current) => ({ ...current, programId: event.target.value }))}
-                      className={lightFieldClassName}
-                    >
-                      <option value="" disabled>Program sec</option>
-                      {payload.options.programs.map((option) => (
-                        <option key={option.id} value={option.id}>{option.label}</option>
-                      ))}
-                    </Select>
-                  </Field>
-                </div>
+                  ))}
+                </DynamicFieldGrid>
               </Section>
 
               <Section title="Yasal Onaylar">
@@ -581,6 +453,142 @@ function Section({
       <div className="text-[13px] font-semibold uppercase tracking-[0.18em] text-slate-300">{title}</div>
       {children}
     </section>
+  );
+}
+
+function DynamicFieldGrid({
+  children,
+  application = false,
+}: {
+  children: ReactNode;
+  application?: boolean;
+}) {
+  return <div className={cn("grid gap-4 md:grid-cols-2", application && "xl:grid-cols-3")}>{children}</div>;
+}
+
+function DynamicPreRegistrationField({
+  field,
+  value,
+  onValueChange,
+  payload,
+  photoPreview,
+  uploadState,
+  onFileChange,
+}: {
+  field: PreRegistrationFieldRecord;
+  value: string;
+  onValueChange: (value: string) => void;
+  payload: PublicPayload;
+  photoPreview: string;
+  uploadState: UploadState;
+  onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
+}) {
+  const label = `${field.label}${field.required ? " *" : ""}`;
+
+  if (field.fieldKey === "studentPhoto" || field.inputType === "file") {
+    return (
+      <Field label={label} helper={field.helperText}>
+        <label className="flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-[1.4rem] border border-dashed border-white/12 bg-[#12192b] px-5 py-6 text-center sm:min-h-40">
+          {photoPreview ? (
+            <img
+              src={photoPreview}
+              alt="Yuklenen ogrenci fotografi"
+              className="h-20 w-20 rounded-full object-cover shadow-[0_14px_28px_rgba(0,0,0,0.22)]"
+            />
+          ) : (
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-400/20 text-sky-200">
+              {uploadState.pending ? <LoaderCircle className="h-7 w-7 animate-spin" /> : <UploadCloud className="h-7 w-7" />}
+            </div>
+          )}
+          <div className="mt-4 text-base font-semibold text-white">
+            {field.placeholder || "Fotograf yuklemek icin tiklayin"}
+          </div>
+          <div className="mt-1 text-sm text-slate-400">{field.helperText || "JPG, PNG, WebP · Max 5MB"}</div>
+          <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={onFileChange} />
+        </label>
+        {uploadState.error ? <p className="mt-2 text-sm text-rose-300">{uploadState.error}</p> : null}
+      </Field>
+    );
+  }
+
+  if (field.fieldKey === "studentGender") {
+    return (
+      <Field label={label} helper={field.helperText}>
+        <Select value={value} onChange={(event) => onValueChange(event.target.value)} className={lightFieldClassName}>
+          <option value="" disabled>
+            {field.placeholder || "Cinsiyet secin"}
+          </option>
+          <option value="male">Erkek</option>
+          <option value="female">Kadin</option>
+        </Select>
+      </Field>
+    );
+  }
+
+  if (field.fieldKey === "branchId" || field.fieldKey === "seasonId" || field.fieldKey === "programId") {
+    const options =
+      field.fieldKey === "branchId"
+        ? payload.options.branches
+        : field.fieldKey === "seasonId"
+          ? payload.options.seasons
+          : payload.options.programs;
+
+    return (
+      <Field label={label} helper={field.helperText}>
+        <Select value={value} onChange={(event) => onValueChange(event.target.value)} className={lightFieldClassName}>
+          <option value="" disabled>
+            {field.placeholder || `${field.label} sec`}
+          </option>
+          {options.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
+      </Field>
+    );
+  }
+
+  if (field.inputType === "select") {
+    return (
+      <Field label={label} helper={field.helperText}>
+        <Select value={value} onChange={(event) => onValueChange(event.target.value)} className={lightFieldClassName}>
+          <option value="" disabled>
+            {field.placeholder || `${field.label} sec`}
+          </option>
+          {field.options.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </Select>
+      </Field>
+    );
+  }
+
+  if (field.inputType === "textarea") {
+    return (
+      <Field label={label} helper={field.helperText}>
+        <Textarea
+          value={value}
+          onChange={(event) => onValueChange(event.target.value)}
+          placeholder={field.placeholder}
+          className={lightTextareaClassName}
+        />
+      </Field>
+    );
+  }
+
+  return (
+    <Field label={label} helper={field.helperText}>
+      <Input
+        type={field.inputType === "email" ? "email" : field.inputType === "date" ? "date" : "text"}
+        value={value}
+        onChange={(event) => onValueChange(event.target.value)}
+        placeholder={field.placeholder}
+        className={cn(lightFieldClassName, field.inputType === "date" && "[color-scheme:light]")}
+      />
+    </Field>
   );
 }
 

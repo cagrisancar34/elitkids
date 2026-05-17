@@ -34,14 +34,9 @@ export const navigationByRole: Record<AppRole, RoleNavItem[]> = {
       description: "Kurum, entegrasyon ve guvenlik tercihleri",
     },
     {
-      href: "/admin/landing",
-      label: "Sayfa Yonetimi / Landing Page",
-      description: "Anasayfa icerigi, vitrin akisi ve CTA alanlari",
-    },
-    {
-      href: "/admin/seo-pages",
-      label: "Sayfa Yonetimi / SEO Sayfalari",
-      description: "Silivri lokal landing sayfalarini ve metadata akisini yonet",
+      href: "/admin/public-site",
+      label: "Public Site CMS",
+      description: "Anasayfa, galeri, SEO ve ozel public sayfalari tek merkezden yonet",
     },
     {
       href: "/admin/pre-registration-settings",

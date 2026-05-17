@@ -16,9 +16,11 @@ import {
   updateBranchSchema,
   updateOrganizationSettingsSchema,
   updateSeasonSchema,
+  updateMessageTopicSchema,
   updateWhatsAppTemplateSchema,
 } from "@/lib/schemas/app-forms";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { updateMessageTopicForOrganization } from "@/lib/message-topics-server";
 import {
   ensureWhatsAppTemplates,
   processDueWhatsAppDispatches,
@@ -754,6 +756,73 @@ export async function updateWhatsAppTemplateAction(
   };
 }
 
+export async function updateMessageTopicAction(
+  _previousState: SettingsActionState,
+  formData: FormData,
+): Promise<SettingsActionState> {
+  const context = await requireAdminSettingsContext();
+
+  if (!context.supabase || !context.organizationId) {
+    return { error: context.error, success: null };
+  }
+
+  const parsed = updateMessageTopicSchema.safeParse({
+    topicId: formData.get("topicId"),
+    title: formData.get("title"),
+    description: formData.get("description"),
+    channel: formData.get("channel"),
+    bodyTemplate: formData.get("bodyTemplate"),
+    active: formData.get("active"),
+  });
+
+  if (!parsed.success) {
+    return {
+      error: parsed.error.issues[0]?.message ?? "Mesaj konusu formu gecersiz.",
+      success: null,
+    };
+  }
+
+  try {
+    await updateMessageTopicForOrganization({
+      organizationId: context.organizationId,
+      topicId: parsed.data.topicId,
+      title: parsed.data.title,
+      description: parsed.data.description,
+      channel: parsed.data.channel,
+      bodyTemplate: parsed.data.bodyTemplate,
+      active: parsed.data.active === "yes",
+    });
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Mesaj konusu guncellenemedi.",
+      success: null,
+    };
+  }
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/manager/communication");
+
+  await logAuditEvent({
+    organizationId: context.organizationId,
+    actorProfileId: context.auth?.userId,
+    actorRole: context.auth?.role,
+    eventType: "Mesaj konusu guncellendi",
+    scope: "WhatsApp",
+    entityType: "message_topics",
+    entityId: parsed.data.topicId,
+    payload: {
+      channel: parsed.data.channel,
+      active: parsed.data.active === "yes",
+      title: parsed.data.title,
+    },
+  });
+
+  return {
+    error: null,
+    success: "Mesaj konusu guncellendi.",
+  };
+}
+
 export async function sendWhatsAppTestAction(
   _previousState: SettingsActionState,
   formData: FormData,
@@ -780,17 +849,17 @@ export async function sendWhatsAppTestAction(
   const fallbackVariablesByEvent: Record<WhatsAppTemplateEventKey, string[]> = {
     registration_completed: [
       "https://elitsanatvesporkulubu.com/login",
-      "demo@elitkids.com",
+      "veli@elitsanatvesporkulubu.com",
       "https://elitsanatvesporkulubu.com/login?setup=1",
     ],
-    attendance_absent_manual: ["Demo Sporcu", "Mini Akademi Seansi", "09 Nisan 2026 18:00"],
+    attendance_absent_manual: ["Test Sporcu", "Yuzme Elite Seansi", "09 Nisan 2026 18:00"],
     payment_reminder_manual: [
-      "Demo Sporcu",
+      "Test Sporcu",
       "3250 TL",
       "12.04.2026",
       "https://elitsanatvesporkulubu.com/login",
     ],
-    report_card_updated: ["Demo Sporcu", "https://elitsanatvesporkulubu.com/login"],
+    report_card_updated: ["Test Sporcu", "https://elitsanatvesporkulubu.com/login"],
     bulk_broadcast: [parsed.data.message || "Bu bir test WhatsApp gonderimidir."],
   };
 

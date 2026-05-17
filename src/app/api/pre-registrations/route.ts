@@ -61,12 +61,13 @@ export async function POST(request: Request) {
     .from("pre_registrations")
     .insert({
       organization_id: organization.id,
-      branch_id: parsed.data.branchId,
-      season_id: parsed.data.seasonId,
-      program_id: parsed.data.programId,
+      branch_id: parsed.data.branchId || null,
+      season_id: parsed.data.seasonId || null,
+      program_id: parsed.data.programId || null,
       student_tc_identity_no: parsed.data.studentTcIdentityNo || null,
       student_full_name: parsed.data.studentFullName,
       student_birth_date: parsed.data.studentBirthDate,
+      student_gender: parsed.data.studentGender,
       note: parsed.data.note,
       mother_name: parsed.data.motherName,
       mother_phone: parsed.data.motherPhone,
@@ -78,6 +79,7 @@ export async function POST(request: Request) {
       parent_whatsapp: parsed.data.parentWhatsapp,
       address: parsed.data.address,
       emergency_contact: parsed.data.emergencyContact,
+      custom_answers: parsed.data.customAnswers,
       kvkk_accepted_at: now,
       parent_permission_accepted_at: now,
       submitted_ip: securityContext.submittedIp,
@@ -146,9 +148,10 @@ export async function POST(request: Request) {
     entityId: preRegistration.id,
     payload: {
       studentFullName: parsed.data.studentFullName,
+      studentGender: parsed.data.studentGender,
       parentEmail: parsed.data.parentEmail,
-      programId: parsed.data.programId,
-      branchId: parsed.data.branchId,
+      programId: parsed.data.programId || null,
+      branchId: parsed.data.branchId || null,
       security: {
         submittedIp: securityContext.submittedIp,
         forwardedIp: securityContext.forwardedIp,

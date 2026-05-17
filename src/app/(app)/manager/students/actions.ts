@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getActorOrganizationId, logAuditEvent } from "@/lib/audit";
 import { getCurrentAuthContext } from "@/lib/auth";
 import { getOrCreateOrganizationContext } from "@/lib/organization-context";
+import { ensureMonthlyChargeForEnrollment } from "@/lib/billing";
 import {
   createStudentSchema,
   deactivateStudentSchema,
@@ -20,20 +21,40 @@ import {
   parseQuestionOptions,
   getQuestionValueName,
 } from "@/lib/student-reporting";
+import {
+  createRoleScopedTopicNotifications,
+  renderMessageTopicForOrganization,
+} from "@/lib/message-topics-server";
 import { buildMonthlyLessonCycle } from "@/lib/program-workspace";
 import {
   ensureEnrollmentSessionAllocations,
+  getFirstAllocatedSessionForEnrollment,
   grantBonusLessonAllocations,
   rebuildUpcomingEnrollmentAllocations,
   renewEnrollmentLessonPackage,
 } from "@/lib/session-allocations";
 import type { DetailAnswerRecord, DetailQuestionRecord } from "@/lib/types";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { queueReportCardUpdatedDispatch } from "@/lib/whatsapp-server";
+import {
+  buildWebWhatsAppHref,
+  formatLessonLabelForWhatsApp,
+  generateTemporaryPassword,
+  queueRegistrationCompletedDispatch,
+  queueReportCardUpdatedDispatch,
+} from "@/lib/whatsapp-server";
 
 export type ActionState = {
   error: string | null;
   success: string | null;
+  registrationResult?: {
+    firstLessonLabel: string | null;
+    temporaryPassword: string | null;
+    loginUrl: string;
+    messagePreview: string | null;
+    webWhatsAppHref: string | null;
+    warning: string | null;
+    autoDispatchStatus: "queued" | "failed" | "skipped";
+  } | null;
 };
 
 async function getStudentDetailQuestionsForOrganization(
@@ -223,10 +244,12 @@ export async function createStudentAction(
   const parsed = createStudentSchema.safeParse({
     fullName: formData.get("fullName"),
     birthDate: formData.get("birthDate"),
+    gender: formData.get("gender"),
     programId: formData.get("programId"),
     sessionSeriesId: formData.get("sessionSeriesId"),
     startsOn: formData.get("startsOn"),
     parentEmail: formData.get("parentEmail"),
+    parentWhatsapp: formData.get("parentWhatsapp"),
   });
 
   if (!parsed.success) {
@@ -270,20 +293,13 @@ export async function createStudentAction(
 
   const program = validated.program;
 
-  const { data: feePlan } = await adminClient
-    .from("fee_plans")
-    .select("id")
-    .eq("organization_id", organizationContext.organizationId)
-    .eq("amount", program.monthly_price)
-    .limit(1)
-    .maybeSingle();
-
   const { data: insertedStudent, error: studentError } = await adminClient
     .from("students")
     .insert({
       organization_id: organizationContext.organizationId,
       full_name: parsed.data.fullName,
       birth_date: parsed.data.birthDate,
+      gender: parsed.data.gender,
       active: true,
       source: "manual",
     })
@@ -318,20 +334,12 @@ export async function createStudentAction(
     };
   }
 
-  const { error: chargeError } = await adminClient.from("charges").insert({
-    enrollment_id: enrollment.id,
-    fee_plan_id: feePlan?.id ?? null,
-    amount: program.monthly_price,
-    due_date: startsOn,
-    status: "pending",
+  await ensureMonthlyChargeForEnrollment({
+    organizationId: organizationContext.organizationId,
+    enrollmentId: enrollment.id,
+    startsOn,
+    amount: Number(program.monthly_price ?? 0),
   });
-
-  if (chargeError) {
-    return {
-      error: chargeError.message,
-      success: null,
-    };
-  }
 
   if ((program.monthly_lesson_quota ?? 0) > 0) {
     await adminClient.from("student_package_cycles").insert(
@@ -358,21 +366,99 @@ export async function createStudentAction(
   }
 
   const parentEmail = parsed.data.parentEmail.trim();
+  const parentWhatsapp = parsed.data.parentWhatsapp.trim();
+  const firstAllocatedSession = await getFirstAllocatedSessionForEnrollment(adminClient, enrollment.id);
+  const firstLessonLabel = formatLessonLabelForWhatsApp(firstAllocatedSession?.startsAt ?? null);
+  const loginUrl = "https://elitsanatvesporkulubu.com/login";
+  let temporaryPassword: string | null = null;
+  let accessNote: string | null = null;
+  let parentAccessWarning: string | null = null;
+  let whatsAppDispatchStatus: "queued" | "failed" | "skipped" = "skipped";
+  let messagePreview: string | null = null;
+  let webWhatsAppHref: string | null = null;
 
   if (parentEmail) {
-    const adminClient = createSupabaseAdminClient();
+    const authAdminClient = createSupabaseAdminClient();
 
-    if (adminClient) {
-      const { data: listedUsers } = await adminClient.auth.admin.listUsers({
+    if (authAdminClient) {
+      const { data: listedUsers } = await authAdminClient.auth.admin.listUsers({
         page: 1,
-        perPage: 200,
+        perPage: 500,
       });
-      const parentUser = listedUsers.users.find(
+      let parentUser = listedUsers.users.find(
         (user) => user.email?.toLowerCase() === parentEmail.toLowerCase(),
       );
 
+      if (!parentUser) {
+        const generatedPassword = generateTemporaryPassword();
+        const createdParent = await authAdminClient.auth.admin.createUser({
+          email: parentEmail,
+          password: generatedPassword,
+          email_confirm: true,
+          app_metadata: {
+            app_role: "parent",
+            organization_id: organizationContext.organizationId,
+            organization_slug: organizationContext.organizationSlug,
+          },
+          user_metadata: {
+            full_name: "Veli",
+          },
+        });
+
+        if (createdParent.error || !createdParent.data.user?.id) {
+          parentAccessWarning =
+            createdParent.error?.message ?? "Veli hesabi acilamadi. Gecici sifre uretilemedi.";
+        } else {
+          parentUser = createdParent.data.user;
+          temporaryPassword = generatedPassword;
+        }
+      }
+
       if (parentUser) {
-        await adminClient.from("parent_student_links").upsert(
+        await authAdminClient.auth.admin.updateUserById(parentUser.id, {
+          app_metadata: {
+            ...(typeof parentUser.app_metadata === "object" && parentUser.app_metadata ? parentUser.app_metadata : {}),
+            app_role: "parent",
+            organization_id: organizationContext.organizationId,
+            organization_slug: organizationContext.organizationSlug,
+          },
+        });
+
+        const { data: existingParentProfile } = await authAdminClient
+          .from("profiles")
+          .select("id")
+          .eq("id", parentUser.id)
+          .maybeSingle();
+
+        if (!existingParentProfile?.id) {
+          await authAdminClient.from("profiles").insert({
+            id: parentUser.id,
+            organization_id: organizationContext.organizationId,
+            full_name:
+              typeof parentUser.user_metadata?.full_name === "string"
+                ? parentUser.user_metadata.full_name
+                : "Veli",
+            phone: parentWhatsapp || null,
+          });
+        } else if (parentWhatsapp) {
+          await authAdminClient.from("profiles").update({ phone: parentWhatsapp }).eq("id", parentUser.id);
+        }
+
+        const { data: existingParentRole } = await authAdminClient
+          .from("user_roles")
+          .select("profile_id")
+          .eq("profile_id", parentUser.id)
+          .eq("role", "parent")
+          .maybeSingle();
+
+        if (!existingParentRole?.profile_id) {
+          await authAdminClient.from("user_roles").insert({
+            profile_id: parentUser.id,
+            role: "parent",
+          });
+        }
+
+        await authAdminClient.from("parent_student_links").upsert(
           {
             parent_profile_id: parentUser.id,
             student_id: insertedStudent.id,
@@ -380,6 +466,60 @@ export async function createStudentAction(
           },
           { onConflict: "parent_profile_id,student_id" },
         );
+
+        if (!temporaryPassword) {
+          accessNote = "Mevcut sifrenizle giris yapabilirsiniz.";
+        }
+
+        const accessMessage = temporaryPassword
+          ? `Gecici sifreniz: ${temporaryPassword}`
+          : accessNote;
+
+        if (firstLessonLabel) {
+          const renderedMessage = await renderMessageTopicForOrganization({
+            organizationId: organizationContext.organizationId,
+            topicKey: "student_created_manual",
+            variables: {
+              student_name: parsed.data.fullName,
+              program_name: program.title,
+              first_lesson: firstLessonLabel,
+              login_url: loginUrl,
+              email: parentEmail,
+              access_note: accessMessage,
+            },
+          });
+
+          if (renderedMessage.topic.active) {
+            messagePreview = renderedMessage.body;
+          }
+        }
+
+        if (parentWhatsapp && messagePreview) {
+          webWhatsAppHref = buildWebWhatsAppHref({
+            phone: parentWhatsapp,
+            message: messagePreview,
+          });
+
+          try {
+            await queueRegistrationCompletedDispatch({
+              organizationId: organizationContext.organizationId,
+              recipientName:
+                typeof parentUser.user_metadata?.full_name === "string"
+                  ? parentUser.user_metadata.full_name
+                  : "Veli",
+              recipientPhone: parentWhatsapp,
+              recipientEmail: parentEmail,
+              setupLink: null,
+              temporaryPassword,
+              accessNote: accessMessage,
+              firstLessonLabel,
+              profileId: parentUser.id,
+            });
+            whatsAppDispatchStatus = "queued";
+          } catch {
+            whatsAppDispatchStatus = "failed";
+          }
+        }
       }
     }
   }
@@ -400,12 +540,55 @@ export async function createStudentAction(
       fullName: parsed.data.fullName,
       programTitle: program.title,
       parentEmail: parentEmail || null,
+      parentWhatsapp: parentWhatsapp || null,
+      firstLessonLabel,
+      whatsAppDispatchStatus,
     },
   });
 
+  await createRoleScopedTopicNotifications({
+    organizationId: organizationContext.organizationId,
+    topicKey: "panel_notice_registration_completed",
+    channelKey: `message_topic:panel_notice_registration_completed:student:${insertedStudent.id}`,
+    variables: {
+      student_name: parsed.data.fullName,
+      program_name: program.title,
+      first_lesson: firstLessonLabel ?? "-",
+      login_url: loginUrl,
+      email: parentEmail || "-",
+      temporary_password: temporaryPassword ?? "-",
+      access_note:
+        (temporaryPassword ? `Gecici sifreniz: ${temporaryPassword}` : accessNote) ??
+        "Mevcut sifre korunuyor.",
+    },
+  });
+
+  const successParts = [`${parsed.data.fullName} kaydi olusturuldu.`];
+
+  if (parentWhatsapp && whatsAppDispatchStatus === "queued") {
+    successParts.push("Veliye WhatsApp bilgilendirmesi kuyruga alindi.");
+  } else if (parentWhatsapp && whatsAppDispatchStatus === "failed") {
+    successParts.push("WhatsApp bildirimi hazirlandi ama gonderim basarisiz oldu.");
+  } else if (parentWhatsapp && messagePreview) {
+    successParts.push("Istersen asagidan manuel WhatsApp gonderimini tamamlayabilirsin.");
+  } else if (parentWhatsapp && !parentEmail) {
+    successParts.push("WhatsApp numarasi var ama veli e-postasi olmadigi icin giris bilgisi mesaji olusturulmadi.");
+  } else if (parentAccessWarning) {
+    successParts.push(parentAccessWarning);
+  }
+
   return {
     error: null,
-      success: `${parsed.data.fullName} kaydi olusturuldu.`,
+    success: successParts.join(" "),
+    registrationResult: {
+      firstLessonLabel,
+      temporaryPassword,
+      loginUrl,
+      messagePreview,
+      webWhatsAppHref,
+      warning: parentAccessWarning,
+      autoDispatchStatus: whatsAppDispatchStatus,
+    },
   };
 }
 

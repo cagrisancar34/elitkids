@@ -32,7 +32,7 @@ export function AuthEmailActionForm({
         <label className="text-sm font-medium text-foreground" htmlFor="email">
           E-posta
         </label>
-        <Input id="email" name="email" type="email" placeholder="ornek@elitkids.com" required />
+        <Input id="email" name="email" type="email" placeholder="ornek@elitsanatvesporkulubu.com" required />
       </div>
       {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
       {state.success ? <p className="text-sm text-success">{state.success}</p> : null}

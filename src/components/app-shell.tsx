@@ -44,15 +44,20 @@ type AppShellProps = {
   eyebrow?: string;
   contextCard?: DashboardContextCard;
   primaryAction?: DashboardPrimaryAction;
+  headerActionSlot?: React.ReactNode;
+  hidePrimaryAction?: boolean;
   children: React.ReactNode;
 };
 
 export function AppShell({
   role,
   title,
+  description,
   eyebrow,
   contextCard,
   primaryAction,
+  headerActionSlot,
+  hidePrimaryAction = false,
   children,
 }: AppShellProps) {
   const pathname = usePathname();
@@ -266,17 +271,19 @@ export function AppShell({
                             );
                           })}
                         </div>
-                        <div className="mt-auto space-y-3 pt-5">
-                          <SheetClose asChild>
-                            <Link
-                              href={headerAction.href}
-                              prefetch
-                              className="flex items-center justify-center gap-2 rounded-[1rem] bg-[linear-gradient(135deg,#0253cd,#0048b5)] px-4 py-3.5 text-sm font-semibold text-white shadow-[0_18px_30px_rgba(2,83,205,0.22)]"
-                            >
-                              {headerAction.label}
-                            </Link>
-                          </SheetClose>
-                        </div>
+                        {!hidePrimaryAction ? (
+                          <div className="mt-auto space-y-3 pt-5">
+                            <SheetClose asChild>
+                              <Link
+                                href={headerAction.href}
+                                prefetch
+                                className="flex items-center justify-center gap-2 rounded-[1rem] bg-[linear-gradient(135deg,#0253cd,#0048b5)] px-4 py-3.5 text-sm font-semibold text-white shadow-[0_18px_30px_rgba(2,83,205,0.22)]"
+                              >
+                                {headerAction.label}
+                              </Link>
+                            </SheetClose>
+                          </div>
+                        ) : null}
                       </div>
                     </SheetContent>
                   </Sheet>
@@ -293,16 +300,20 @@ export function AppShell({
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2.5 md:gap-3">
-                <Link
-                  href={headerAction.href}
-                  prefetch
-                  className={cn(
-                    buttonVariants({ size: "sm" }),
-                    "h-11 rounded-full px-5 shadow-[0_14px_28px_rgba(20,86,215,0.2)]",
-                  )}
-                >
-                  {headerAction.label}
-                </Link>
+                {headerActionSlot ? (
+                  headerActionSlot
+                ) : !hidePrimaryAction ? (
+                  <Link
+                    href={headerAction.href}
+                    prefetch
+                    className={cn(
+                      buttonVariants({ size: "sm" }),
+                      "h-11 rounded-full px-5 shadow-[0_14px_28px_rgba(20,86,215,0.2)]",
+                    )}
+                  >
+                    {headerAction.label}
+                  </Link>
+                ) : null}
                 {useLeadNotifications ? (
                   <LeadNotificationsBell role={role} />
                 ) : (
@@ -331,34 +342,45 @@ export function AppShell({
                 heroContext ? "xl:grid-cols-[minmax(0,1fr)_320px]" : "xl:grid-cols-1",
               )}
             >
-              <div className="panel-soft relative overflow-hidden rounded-[2.3rem] px-6 py-7 md:px-8 md:py-8">
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(20,86,215,0.13),transparent_28%),linear-gradient(135deg,rgba(255,255,255,0.22),transparent_44%)]" />
-                <div className="relative">
+              <div className="page-hero-shell rounded-[2.5rem] px-6 py-7 text-white md:px-8 md:py-8">
+                <div className="relative z-10">
                   {eyebrow ? (
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
+                    <div className="page-hero-kicker">
                       {eyebrow}
                     </div>
                   ) : null}
                   <div className="mt-5 max-w-4xl space-y-4">
-                    <h1 className="max-w-4xl text-balance font-display text-[2.85rem] font-semibold leading-[0.94] tracking-[-0.06em] text-[#182131] md:text-[4.15rem]">
+                    <h1 className="max-w-4xl text-balance font-display text-[2.85rem] font-semibold leading-[0.94] tracking-[-0.06em] text-white md:text-[4.15rem]">
                       {title}
                     </h1>
+                    {description ? (
+                      <p className="max-w-2xl text-base leading-7 text-white/70 md:text-lg">
+                        {description}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               </div>
               {heroContext ? (
-                <div className="workspace-panel-dark rounded-[2.3rem] p-6 md:p-7">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/46">
+                <div className="page-utility-rail rounded-[2.5rem] p-6 md:p-7">
+                  <div className="pl-5">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-primary/70">
                     {heroContext.eyebrow}
                   </div>
-                  <div className="mt-4 font-display text-[2rem] font-semibold leading-[0.98] tracking-[-0.05em] text-white">
+                  <div className="mt-4 font-display text-[2rem] font-semibold leading-[0.98] tracking-[-0.05em] text-[#172133]">
                     {heroContext.title}
                   </div>
+                  {heroContext.description ? (
+                    <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                      {heroContext.description}
+                    </p>
+                  ) : null}
                   {heroContext.badge ? (
-                    <div className="mt-6 inline-flex items-center rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-white/74">
+                    <div className="mt-6 inline-flex items-center rounded-full border border-primary/10 bg-primary/8 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary/80">
                       {heroContext.badge}
                     </div>
                   ) : null}
+                  </div>
                 </div>
               ) : null}
             </section>

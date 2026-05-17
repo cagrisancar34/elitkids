@@ -54,7 +54,7 @@ async function main() {
       for (const pattern of suspiciousPatterns) {
         const matches = content.match(pattern);
         if (matches?.length) {
-          hits.push({ file, marker: matches[0] });
+          hits.push({ file, marker: "<suspicious-secret-pattern>" });
         }
       }
     }

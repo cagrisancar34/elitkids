@@ -2,9 +2,9 @@ import { AdminRoleForm } from "@/components/admin-role-form";
 import { AdminUserCreateForm } from "@/components/admin-user-create-form";
 import { AdminUsersPanel } from "@/components/admin-users-panel";
 import { AppShell } from "@/components/app-shell";
-import { getAdminUsers } from "@/lib/dashboard-data";
+import { getAdminUsers } from "@/lib/dashboard/admin-data";
 import { getSupabaseServerConfig } from "@/lib/supabase/server-config";
-import { ShieldCheck, UserPlus, ShieldAlert, RefreshCw, Users, KeyRound } from "lucide-react";
+import { ShieldCheck, UserPlus, RefreshCw, Users, KeyRound } from "lucide-react";
 
 export default async function AdminUsersPage() {
   const userRows = await getAdminUsers();

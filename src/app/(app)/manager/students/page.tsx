@@ -3,30 +3,31 @@ import { AppShell } from "@/components/app-shell";
 import { ManagerStudentsPanel } from "@/components/manager-students-panel";
 import { StudentCreateForm } from "@/components/student-create-form";
 import {
-  getManagerStudents,
+  getManagerStudentListRows,
   getProgramsData,
   getSessionSeriesOptions,
   getStudentDetailQuestions,
-} from "@/lib/dashboard-data";
+} from "@/lib/dashboard/manager-data";
 import { Users, UserCheck, AlertTriangle, Sparkles, Timer, ArrowRight, UserPlus, Inbox } from "lucide-react";
 
 export default async function ManagerStudentsPage() {
   const [studentRows, programs, sessionSeriesOptions, questions] = await Promise.all([
-    getManagerStudents(),
+    getManagerStudentListRows(),
     getProgramsData(),
     getSessionSeriesOptions(),
     getStudentDetailQuestions(),
   ]);
 
   const activeStudents = studentRows.filter((student) => student.status.toLocaleLowerCase("tr-TR").includes("aktif"));
+  const inactiveStudents = studentRows.filter((student) => student.status.toLocaleLowerCase("tr-TR").includes("pasif"));
   const followStudents = studentRows.filter(
     (student) =>
-      student.balance.toLocaleLowerCase("tr-TR") !== "odendi" ||
-      student.status.toLocaleLowerCase("tr-TR").includes("takip"),
+      !student.status.toLocaleLowerCase("tr-TR").includes("pasif") &&
+      student.paymentStatus !== "completed",
   );
-  const detailReady = studentRows.filter((student) => student.detailSaved).length;
-  const expiringStudents = studentRows.filter((student) => (student.remainingLessons ?? 0) === 1);
-  const exhaustedStudents = studentRows.filter((student) => (student.remainingLessons ?? 0) === 0);
+  const detailReady = activeStudents.filter((student) => student.detailSaved).length;
+  const expiringStudents = activeStudents.filter((student) => (student.remainingLessons ?? 0) === 1);
+  const exhaustedStudents = activeStudents.filter((student) => (student.remainingLessons ?? 0) === 0);
 
   return (
     <AppShell
@@ -37,7 +38,7 @@ export default async function ManagerStudentsPage() {
       contextCard={{
         eyebrow: "Sinyal Hattı",
         title: `${activeStudents.length} Aktif Öğrenci`,
-        badge: `${followStudents.length} Takip`,
+        badge: `${followStudents.length} Açık ödeme`,
       }}
     >
       {/* KPI METRICS ROW */}
@@ -48,6 +49,9 @@ export default async function ManagerStudentsPage() {
             <div className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Tüm Kayıtlar</div>
           </div>
           <div className="text-4xl font-black text-slate-800">{studentRows.length}</div>
+          <div className="mt-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            {inactiveStudents.length} pasif kayit
+          </div>
         </div>
 
         <div className="bg-emerald-50 rounded-[2rem] p-6 shadow-sm border border-emerald-100 relative overflow-hidden group">
@@ -61,7 +65,7 @@ export default async function ManagerStudentsPage() {
         <div className="bg-amber-50 rounded-[2rem] p-6 shadow-sm border border-amber-100 relative overflow-hidden group">
           <div className="flex justify-between items-start mb-6">
             <div className="bg-amber-100 p-2.5 rounded-xl"><AlertTriangle className="w-5 h-5 text-amber-600" /></div>
-            <div className="text-[10px] uppercase tracking-widest font-bold text-amber-600">Takip & Risk</div>
+            <div className="text-[10px] uppercase tracking-widest font-bold text-amber-600">Açık Ödeme</div>
           </div>
           <div className="text-4xl font-black text-amber-950">{followStudents.length}</div>
         </div>

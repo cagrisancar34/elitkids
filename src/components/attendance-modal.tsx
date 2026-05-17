@@ -19,7 +19,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import type { AttendanceStudent } from "@/lib/types";
+import { Textarea } from "@/components/ui/textarea";
+import type { AttendanceStudent, CoachSessionDetail } from "@/lib/types";
 
 const initialState: AttendanceActionState = {
   error: null,
@@ -35,33 +36,68 @@ const statusOptions = [
 export function AttendanceModal({
   sessionId,
   sessionTitle,
-  students,
+  students = [],
+  fetchPath,
   triggerLabel = "Yoklama",
   triggerVariant = "default",
+  triggerClassName,
 }: {
   sessionId: string;
   sessionTitle: string;
-  students: AttendanceStudent[];
+  students?: AttendanceStudent[];
+  fetchPath?: string;
   triggerLabel?: string;
   triggerVariant?: "default" | "outline" | "ghost" | "secondary";
+  triggerClassName?: string;
 }) {
   const [state, formAction] = useActionState(saveAttendanceAction, initialState);
+  const [open, setOpen] = useState(false);
+  const [roster, setRoster] = useState<AttendanceStudent[]>(students);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [statusMap, setStatusMap] = useState<Record<string, string>>(() =>
     Object.fromEntries(students.map((student) => [student.studentId, student.status])),
   );
   const effectiveStatusMap = useMemo(
     () =>
-      students.reduce<Record<string, string>>((accumulator, student) => {
+      roster.reduce<Record<string, string>>((accumulator, student) => {
         accumulator[student.studentId] = statusMap[student.studentId] ?? student.status;
         return accumulator;
       }, {}),
-    [statusMap, students],
+    [roster, statusMap],
   );
 
+  async function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen);
+
+    if (!nextOpen || roster.length || !fetchPath) {
+      return;
+    }
+
+    setLoading(true);
+    setLoadError(null);
+
+    try {
+      const response = await fetch(fetchPath, { method: "GET", cache: "no-store" });
+      const body = (await response.json().catch(() => null)) as { session?: CoachSessionDetail; error?: string } | null;
+
+      if (!response.ok || !body?.session) {
+        throw new Error(body?.error ?? "Seans roster detayi yuklenemedi.");
+      }
+
+      setRoster(body.session.students);
+      setStatusMap(Object.fromEntries(body.session.students.map((student) => [student.studentId, student.status])));
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Seans roster detayi yuklenemedi.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button type="button" size="sm" variant={triggerVariant}>
+        <Button type="button" size="sm" variant={triggerVariant} className={triggerClassName}>
           {triggerLabel}
         </Button>
       </DialogTrigger>
@@ -78,11 +114,16 @@ export function AttendanceModal({
 
         <form action={formAction} className="grid gap-5">
           <input type="hidden" name="sessionId" value={sessionId} />
+          {loading ? (
+            <div className="text-sm text-muted-foreground">Roster yukleniyor...</div>
+          ) : loadError ? (
+            <div className="text-sm text-destructive">{loadError}</div>
+          ) : (
           <div className="grid gap-4">
-            {students.map((student) => (
+            {roster.map((student) => (
               <div
                 key={student.studentId}
-                className="surface-muted grid gap-3 rounded-[1.35rem] border border-white/50 p-4 md:grid-cols-[1.2fr_280px_280px]"
+                className="surface-muted grid gap-3 rounded-[1.35rem] border border-white/50 p-4 md:grid-cols-[1.2fr_220px_320px]"
               >
                 <div>
                   <div className="text-xl font-semibold tracking-[-0.03em] text-foreground">{student.name}</div>
@@ -116,10 +157,29 @@ export function AttendanceModal({
                   id={`note-${student.studentId}`}
                   name={`note:${student.studentId}`}
                   defaultValue={student.note ?? ""}
-                  placeholder="Not"
+                  placeholder={
+                    effectiveStatusMap[student.studentId] === "absent"
+                      ? "Devamsizlik nedeni"
+                      : effectiveStatusMap[student.studentId] === "excused"
+                        ? "Izin / istisna nedeni"
+                        : "Kisa gozlem / not"
+                  }
                 />
               </div>
             ))}
+          </div>
+          )}
+
+          <div className="grid gap-2">
+            <label className="text-sm font-medium text-foreground" htmlFor={`session-closing-${sessionId}`}>
+              Seans sonrasi hizli degerlendirme
+            </label>
+            <Textarea
+              id={`session-closing-${sessionId}`}
+              name="sessionClosingNote"
+              placeholder="Bugunku akistan kisa not dus: tempo, dikkat edilmesi gereken ogrenci, ekip icin kapanis notu..."
+              className="min-h-24"
+            />
           </div>
 
           {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}

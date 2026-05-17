@@ -29,6 +29,7 @@ export async function POST(request: Request) {
     phone: body?.phone,
     branchInterest: body?.branchInterest,
     message: body?.message,
+    source: body?.source,
   });
 
   if (!parsed.success) {
@@ -65,6 +66,7 @@ export async function POST(request: Request) {
       phone: parsed.data.phone,
       branch_interest: parsed.data.branchInterest || null,
       message: parsed.data.message || null,
+      source: parsed.data.source,
       status: "new",
     })
     .select("id, organization_id")
@@ -96,7 +98,7 @@ export async function POST(request: Request) {
           recipientIds.map((profileId) => ({
             profile_id: profileId,
             title: parsed.data.fullName,
-            body: `${parsed.data.branchInterest || "Yeni landing basvurusu"} · ${parsed.data.phone} · ${parsed.data.email}`,
+            body: `${parsed.data.branchInterest || "Yeni landing basvurusu"} · ${parsed.data.phone} · ${parsed.data.email} · ${parsed.data.source}`,
             channel: `landing_lead:${leadRow.id}`,
           })),
         );

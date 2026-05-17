@@ -3,9 +3,12 @@
 ## Public
 - `/`
 - `/api/leads`
+- `/api/landing-content`
 - `/api/pre-registration-settings`
 - `/api/pre-registrations`
 - `/api/pre-registration-assets`
+- `/api/whatsapp/webhook`
+  - Meta webhook `GET` verify token ile, `POST` `x-hub-signature-256` + `WHATSAPP_APP_SECRET` ile dogrulanir
 
 ## Auth
 - `/login`

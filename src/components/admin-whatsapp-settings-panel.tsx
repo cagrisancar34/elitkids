@@ -6,6 +6,7 @@ import {
   processWhatsAppQueueAction,
   sendWhatsAppTestAction,
   type SettingsActionState,
+  updateMessageTopicAction,
   updateWhatsAppTemplateAction,
 } from "@/app/(app)/admin/settings/actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
@@ -13,6 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type { WhatsAppSettingsOverview } from "@/lib/types";
+import { getMessageTopicLabel } from "@/lib/message-topics";
 import { WHATSAPP_EVENT_KEYS, WHATSAPP_STATUS_LABELS } from "@/lib/whatsapp";
 
 const initialState: SettingsActionState = {
@@ -60,6 +62,60 @@ function TemplateForm({
       {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
       {state.success ? <p className="text-sm text-success">{state.success}</p> : null}
       <FormSubmitButton pendingLabel="Kaydediliyor...">Template ayarini kaydet</FormSubmitButton>
+    </form>
+  );
+}
+
+function TopicForm({
+  topicId,
+  title,
+  description,
+  channel,
+  bodyTemplate,
+  active,
+  availableVariables,
+}: {
+  topicId: string;
+  title: string;
+  description: string;
+  channel: "whatsapp" | "panel" | "both";
+  bodyTemplate: string;
+  active: boolean;
+  availableVariables: string[];
+}) {
+  const [state, formAction] = useActionState(updateMessageTopicAction, initialState);
+
+  return (
+    <form action={formAction} className="surface-muted grid gap-3 rounded-[1.25rem] border border-white/50 p-4">
+      <input type="hidden" name="topicId" value={topicId} />
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-sm font-semibold text-foreground">{title}</div>
+        <div className="inline-flex rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
+          {active ? "Etkin" : "Kapali"}
+        </div>
+      </div>
+      <Input name="title" defaultValue={title} placeholder="Konu basligi" />
+      <Input name="description" defaultValue={description} placeholder="Kisa aciklama" />
+      <Select name="channel" defaultValue={channel}>
+        <option value="whatsapp">WhatsApp</option>
+        <option value="panel">Panel</option>
+        <option value="both">Her ikisi</option>
+      </Select>
+      <textarea
+        name="bodyTemplate"
+        defaultValue={bodyTemplate}
+        className="min-h-32 rounded-[1.1rem] border border-input bg-background px-4 py-3 text-sm outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
+      />
+      <Select name="active" defaultValue={active ? "yes" : "no"}>
+        <option value="yes">Etkin</option>
+        <option value="no">Kapali</option>
+      </Select>
+      <div className="rounded-[1rem] bg-white/80 px-3 py-2 text-xs text-muted-foreground">
+        Degiskenler: {availableVariables.length ? availableVariables.map((item) => `{{${item}}}`).join(", ") : "-"}
+      </div>
+      {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
+      {state.success ? <p className="text-sm text-success">{state.success}</p> : null}
+      <FormSubmitButton pendingLabel="Kaydediliyor...">Mesaj konusunu kaydet</FormSubmitButton>
     </form>
   );
 }
@@ -133,6 +189,29 @@ export function AdminWhatsAppSettingsPanel({
               eventKey={template.eventKey}
               metaTemplateName={template.metaTemplateName}
               enabled={template.enabled}
+            />
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Mesaj konu sablonlari</CardTitle>
+          <CardDescription>
+            Sistemdeki veli mesaji ve panel bildirimi copy&apos;leri bu merkezden yonetilir.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 lg:grid-cols-2">
+          {(overview?.messageTopics ?? []).map((topic) => (
+            <TopicForm
+              key={topic.id}
+              topicId={topic.id}
+              title={topic.title || getMessageTopicLabel(topic.topicKey)}
+              description={topic.description}
+              channel={topic.channel}
+              bodyTemplate={topic.bodyTemplate}
+              active={topic.active}
+              availableVariables={topic.availableVariables}
             />
           ))}
         </CardContent>

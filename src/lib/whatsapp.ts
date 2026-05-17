@@ -13,11 +13,13 @@ export const WHATSAPP_EVENT_KEYS = [
 ] as const satisfies WhatsAppTemplateEventKey[];
 
 export const WHATSAPP_SEGMENTS = [
-  { value: "all_parents", label: "Tum veliler" },
+  { value: "all_parents", label: "Tum uyeler" },
   { value: "all_users", label: "Tum kullanicilar" },
   { value: "debt_parents", label: "Borclu veliler" },
   { value: "program_parents", label: "Belirli program velileri" },
   { value: "branch_parents", label: "Belirli sube velileri" },
+  { value: "session_series_members", label: "Belirli grup uyeleri" },
+  { value: "specific_students", label: "Ozel secili uyeler" },
   { value: "all_staff", label: "Tum personel" },
   { value: "coaches", label: "Yalniz koclar" },
   { value: "managers", label: "Yalniz yoneticiler" },
@@ -39,7 +41,7 @@ export const DEFAULT_WHATSAPP_TEMPLATE_DEFINITIONS = [
     locale: "tr",
     metaTemplateName: "registration_completed",
     enabled: false,
-    variableSchema: ["login_url", "email", "setup_link"],
+    variableSchema: ["first_lesson", "login_url", "email", "access_note"],
   },
   {
     eventKey: "attendance_absent_manual",

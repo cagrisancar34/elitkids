@@ -6,27 +6,17 @@ import { DataTable } from "@/components/data-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import type { ChargeRecord } from "@/lib/types";
+import type { ChargeRecord, PaymentLifecycleStatus } from "@/lib/types";
 
-type ChargeFilter = "all" | "pending" | "paid" | "follow";
+type ChargeFilter = "all" | PaymentLifecycleStatus;
 type ChargeSort = "due" | "amount-desc" | "amount-asc" | "item-asc";
 
 function amountValue(value: string) {
   return Number(value.replace(/[^\d]/g, "") || 0);
 }
 
-function chargeKey(status: string) {
-  const lower = status.toLocaleLowerCase("tr-TR");
-
-  if (lower.includes("odendi")) {
-    return "paid";
-  }
-
-  if (lower.includes("takip") || lower.includes("plan")) {
-    return "follow";
-  }
-
-  return "pending";
+function chargeKey(charge: ChargeRecord): PaymentLifecycleStatus {
+  return charge.paymentStatus ?? "pending";
 }
 
 export function FinanceChargesPanel({
@@ -43,9 +33,9 @@ export function FinanceChargesPanel({
   const counts = useMemo(
     () => ({
       all: charges.length,
-      pending: charges.filter((charge) => chargeKey(charge.status) === "pending").length,
-      paid: charges.filter((charge) => chargeKey(charge.status) === "paid").length,
-      follow: charges.filter((charge) => chargeKey(charge.status) === "follow").length,
+      pending: charges.filter((charge) => chargeKey(charge) === "pending").length,
+      completed: charges.filter((charge) => chargeKey(charge) === "completed").length,
+      overdue: charges.filter((charge) => chargeKey(charge) === "overdue").length,
     }),
     [charges],
   );
@@ -53,14 +43,14 @@ export function FinanceChargesPanel({
   const totals = useMemo(
     () => ({
       pending: charges
-        .filter((charge) => chargeKey(charge.status) === "pending")
-        .reduce((sum, charge) => sum + amountValue(charge.amount), 0),
-      paid: charges
-        .filter((charge) => chargeKey(charge.status) === "paid")
-        .reduce((sum, charge) => sum + amountValue(charge.amount), 0),
-      follow: charges
-        .filter((charge) => chargeKey(charge.status) === "follow")
-        .reduce((sum, charge) => sum + amountValue(charge.amount), 0),
+        .filter((charge) => chargeKey(charge) === "pending")
+        .reduce((sum, charge) => sum + (charge.remainingAmountValue ?? amountValue(charge.amount)), 0),
+      completed: charges
+        .filter((charge) => chargeKey(charge) === "completed")
+        .reduce((sum, charge) => sum + (charge.paidAmountValue ?? charge.totalAmountValue ?? amountValue(charge.amount)), 0),
+      overdue: charges
+        .filter((charge) => chargeKey(charge) === "overdue")
+        .reduce((sum, charge) => sum + (charge.remainingAmountValue ?? amountValue(charge.amount)), 0),
     }),
     [charges],
   );
@@ -69,22 +59,22 @@ export function FinanceChargesPanel({
 
   const filteredCharges = useMemo(() => {
     return charges
-      .filter((charge) => (filter === "all" ? true : chargeKey(charge.status) === filter))
+      .filter((charge) => (filter === "all" ? true : chargeKey(charge) === filter))
       .filter((charge) => {
         if (!normalizedSearch) {
           return true;
         }
 
-        const haystack = `${charge.item} ${charge.dueDate} ${charge.amount} ${charge.status}`.toLocaleLowerCase("tr-TR");
+        const haystack = `${charge.item} ${charge.dueDate} ${charge.remainingAmount ?? charge.amount} ${charge.status}`.toLocaleLowerCase("tr-TR");
         return haystack.includes(normalizedSearch);
       })
       .sort((left, right) => {
         if (sort === "amount-desc") {
-          return amountValue(right.amount) - amountValue(left.amount);
+          return (right.remainingAmountValue ?? amountValue(right.amount)) - (left.remainingAmountValue ?? amountValue(left.amount));
         }
 
         if (sort === "amount-asc") {
-          return amountValue(left.amount) - amountValue(right.amount);
+          return (left.remainingAmountValue ?? amountValue(left.amount)) - (right.remainingAmountValue ?? amountValue(right.amount));
         }
 
         if (sort === "item-asc") {
@@ -112,15 +102,15 @@ export function FinanceChargesPanel({
             </div>
           </div>
           <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Takipteki hacim</div>
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Ödeme yapılmadı</div>
             <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">
-              ₺{totals.follow.toLocaleString("tr-TR")}
+              ₺{totals.overdue.toLocaleString("tr-TR")}
             </div>
           </div>
           <div className="surface-panel rounded-[1.35rem] border border-white/40 px-5 py-5">
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Kapanan tahsilat</div>
             <div className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-foreground">
-              ₺{totals.paid.toLocaleString("tr-TR")}
+              ₺{totals.completed.toLocaleString("tr-TR")}
             </div>
           </div>
         </section>
@@ -130,9 +120,9 @@ export function FinanceChargesPanel({
         <div className="surface-muted flex flex-wrap gap-2 rounded-full px-3 py-2">
           {[
             ["all", "Tum tahakkuklar", counts.all],
-            ["pending", "Bekleyen", counts.pending],
-            ["follow", "Takipte", counts.follow],
-            ["paid", "Kapandi", counts.paid],
+            ["pending", "Odeme bekleniyor", counts.pending],
+            ["overdue", "Odeme yapilmadi", counts.overdue],
+            ["completed", "Odeme tamamlandi", counts.completed],
           ].map(([key, label, count]) => (
             <button
               key={key}
@@ -189,7 +179,7 @@ export function FinanceChargesPanel({
           columns={[
             { key: "item", label: "Kalem" },
             { key: "dueDate", label: "Son tarih" },
-            { key: "amount", label: "Tutar" },
+            { key: "remainingAmount", label: "Kalan" },
             { key: "status", label: "Durum" },
           ]}
           rows={filteredCharges}

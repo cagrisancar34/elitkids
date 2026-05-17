@@ -13,22 +13,18 @@ export function MetricCard({ metric }: { metric: Metric }) {
   const icon = getMetricIcon(metric.label);
 
   return (
-    <div className="group relative flex min-h-[208px] flex-col justify-between overflow-hidden rounded-[2rem] border border-white/80 bg-white/40 p-6 shadow-sm backdrop-blur-xl transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-[0_20px_40px_-15px_rgba(20,86,215,0.15)] md:p-7">
-      {/* Subtle shine effect on hover */}
-      <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/50 to-white/0 opacity-0 transition-opacity duration-500 ease-in-out group-hover:opacity-100" />
-      
+    <div className="page-surface group relative flex min-h-[192px] flex-col justify-between rounded-[2rem] p-6 transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-[0_20px_40px_-15px_rgba(20,86,215,0.12)] md:p-7">
       <div className="relative z-10 flex items-start justify-between gap-4">
-        {/* Deep, glowing icon container */}
-        <div className="flex h-14 w-14 items-center justify-center rounded-[1.25rem] bg-gradient-to-b from-primary/10 to-primary/5 text-primary shadow-[inset_0_1px_1px_rgba(255,255,255,1)] ring-1 ring-primary/10 transition-transform duration-500 cubic-bezier(0.19, 1, 0.22, 1) group-hover:scale-110 group-hover:from-primary/20 group-hover:to-primary/10">
+        <div className="flex h-14 w-14 items-center justify-center rounded-[1.25rem] bg-[linear-gradient(180deg,rgba(20,86,215,0.12),rgba(20,86,215,0.04))] text-primary shadow-[inset_0_1px_1px_rgba(255,255,255,1)] ring-1 ring-primary/10 transition-transform duration-300 group-hover:scale-[1.04]">
           {icon}
         </div>
-        <div className="inline-flex max-h-7 items-center gap-1.5 rounded-full border border-white/80 bg-white/70 px-3.5 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-cyan-800 shadow-sm backdrop-blur-md">
-          <ArrowUpRight className="h-3.5 w-3.5 text-cyan-600" strokeWidth={3} />
+        <div className="inline-flex max-h-7 items-center gap-1.5 rounded-full border border-primary/10 bg-primary/8 px-3.5 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-primary/80 shadow-sm backdrop-blur-md">
+          <ArrowUpRight className="h-3.5 w-3.5 text-primary" strokeWidth={3} />
           {metric.delta}
         </div>
       </div>
       <div className="relative z-10 mt-8">
-        <div className="font-display text-[3.6rem] font-semibold leading-[0.9] tracking-[-0.05em] text-slate-800 drop-shadow-sm transition-colors group-hover:text-black">
+        <div className="font-display text-[3.4rem] font-semibold leading-[0.9] tracking-[-0.05em] text-slate-800 transition-colors group-hover:text-black">
           {metric.value}
         </div>
         <div className="mt-3.5 text-[11px] font-bold uppercase tracking-[0.24em] text-slate-500">
