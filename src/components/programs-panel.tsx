@@ -4,10 +4,12 @@ import { useMemo, useState } from "react";
 import { CalendarDays, UsersRound } from "lucide-react";
 
 import { DataTable } from "@/components/data-table";
+import { PaginationControls } from "@/components/pagination-controls";
 import { ProgramActions } from "@/components/program-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { useListPagination } from "@/components/use-list-pagination";
 import type { ProgramFormOptions, ProgramRecord } from "@/lib/types";
 
 type ProgramSort = "title-asc" | "students-desc" | "groups-desc" | "price-desc";
@@ -87,6 +89,11 @@ export function ProgramsPanel({
   }, [category, normalizedSearch, programs, sort]);
 
   const hasCustomView = search.length > 0 || sort !== "title-asc" || category !== "all";
+  const paginatedPrograms = useListPagination({
+    items: filteredPrograms,
+    pageSize: 6,
+    resetKey: `${search}:${sort}:${category}:${view}`,
+  });
   const totalGroups = programs.reduce((sum, program) => sum + (program.sessionSeriesCount ?? 0), 0);
   const totalStudents = programs.reduce((sum, program) => sum + (program.enrolledCount ?? 0), 0);
   const highestPrice = Math.max(0, ...programs.map((program) => program.monthlyPrice));
@@ -196,7 +203,7 @@ export function ProgramsPanel({
               { key: "price", label: "Aylik" },
               { key: "status", label: "Durum" },
             ]}
-            rows={filteredPrograms.map((program) => {
+            rows={paginatedPrograms.pageItems.map((program) => {
               const categoryLabel = getProgramCategory(program.title);
               const groups = program.sessionSeriesCount ?? 0;
               const students = program.enrolledCount ?? 0;
@@ -216,7 +223,7 @@ export function ProgramsPanel({
         ) : (
           <div className="grid gap-6 xl:grid-cols-2">
             {filteredPrograms.length ? (
-              filteredPrograms.map((program) => {
+              paginatedPrograms.pageItems.map((program) => {
                 const detailParts = program.detail.split("·").map((item) => item.trim()).filter(Boolean);
                 const categoryLabel = getProgramCategory(program.title);
                 const students = program.enrolledCount ?? 0;
@@ -298,6 +305,16 @@ export function ProgramsPanel({
             )}
           </div>
         )}
+        {filteredPrograms.length ? (
+          <PaginationControls
+            itemLabel="program"
+            onPageChange={paginatedPrograms.setPage}
+            page={paginatedPrograms.page}
+            pageCount={paginatedPrograms.pageCount}
+            pageSize={paginatedPrograms.pageSize}
+            totalItems={paginatedPrograms.totalItems}
+          />
+        ) : null}
       </section>
     </div>
   );

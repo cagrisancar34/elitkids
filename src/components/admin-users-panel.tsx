@@ -3,9 +3,11 @@
 import { useMemo, useState } from "react";
 
 import { DataTable } from "@/components/data-table";
+import { PaginationControls } from "@/components/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { useListPagination } from "@/components/use-list-pagination";
 import type { AdminUserRow } from "@/lib/types";
 
 type UserFilter = "all" | "admin" | "manager" | "coach" | "parent";
@@ -102,6 +104,11 @@ export function AdminUsersPanel({ users }: { users: AdminUserRow[] }) {
   }, [filter, normalizedSearch, sort, users]);
 
   const hasCustomView = filter !== "all" || search.length > 0 || sort !== "role";
+  const paginatedUsers = useListPagination({
+    items: filteredUsers,
+    pageSize: 10,
+    resetKey: `${filter}:${search}:${sort}`,
+  });
 
   return (
     <div className="grid gap-6">
@@ -157,7 +164,9 @@ export function AdminUsersPanel({ users }: { users: AdminUserRow[] }) {
 
         <div className="surface-muted flex items-center justify-between gap-3 rounded-[1.15rem] px-4 py-3 text-sm text-muted-foreground">
           <span>{roleLabels[filter]} gorunumu</span>
-          <span>{filteredUsers.length} kayit</span>
+          <span>
+            {filteredUsers.length} kayit · sayfa {paginatedUsers.page}/{paginatedUsers.pageCount}
+          </span>
         </div>
 
         {hasCustomView ? (
@@ -185,8 +194,18 @@ export function AdminUsersPanel({ users }: { users: AdminUserRow[] }) {
             { key: "scope", label: "Kapsam" },
             { key: "status", label: "Durum" },
           ]}
-          rows={filteredUsers}
+          rows={paginatedUsers.pageItems}
         />
+        {filteredUsers.length ? (
+          <PaginationControls
+            itemLabel="kullanici"
+            onPageChange={paginatedUsers.setPage}
+            page={paginatedUsers.page}
+            pageCount={paginatedUsers.pageCount}
+            pageSize={paginatedUsers.pageSize}
+            totalItems={paginatedUsers.totalItems}
+          />
+        ) : null}
       </section>
     </div>
   );

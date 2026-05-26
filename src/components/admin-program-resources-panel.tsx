@@ -12,9 +12,11 @@ import {
   type ProgramResourceActionState,
 } from "@/app/(app)/admin/program-resources/actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { PaginationControls } from "@/components/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { useListPagination } from "@/components/use-list-pagination";
 import type { Area, Category, ProgramType, SportsBranch } from "@/lib/types";
 
 type BranchOption = {
@@ -68,6 +70,11 @@ function ResourceSection({
           ? createSportsBranchAction
           : createAreaAction;
   const [state, action] = useActionState<ProgramResourceActionState, FormData>(createAction, initialProgramResourceActionState);
+  const paginatedItems = useListPagination({
+    items,
+    pageSize: 6,
+    resetKey: `${resourceType}:${items.length}`,
+  });
 
   return (
     <div className="grid gap-5 rounded-[1.7rem] border border-white/50 bg-white/92 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
@@ -112,7 +119,7 @@ function ResourceSection({
 
       <div className="grid gap-3">
         {items.length ? (
-          items.map((item) => {
+          paginatedItems.pageItems.map((item) => {
             const areaItem = resourceType === "area" ? (item as Area) : null;
 
             return (
@@ -139,6 +146,16 @@ function ResourceSection({
           </div>
         )}
       </div>
+      {items.length ? (
+        <PaginationControls
+          itemLabel="kaynak"
+          onPageChange={paginatedItems.setPage}
+          page={paginatedItems.page}
+          pageCount={paginatedItems.pageCount}
+          pageSize={paginatedItems.pageSize}
+          totalItems={paginatedItems.totalItems}
+        />
+      ) : null}
     </div>
   );
 }

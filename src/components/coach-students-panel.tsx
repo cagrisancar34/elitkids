@@ -3,8 +3,10 @@
 import { useMemo, useState } from "react";
 
 import { CoachStudentActions } from "@/components/coach-student-actions";
+import { PaginationControls } from "@/components/pagination-controls";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { useListPagination } from "@/components/use-list-pagination";
 import type { CoachStudentRecord, DetailQuestionRecord } from "@/lib/types";
 
 type CoachFilter = "all" | "active" | "risk";
@@ -73,6 +75,11 @@ export function CoachStudentsPanel({
   }, [filter, normalizedSearch, sort, students]);
 
   const hasCustomView = filter !== "all" || search.length > 0 || sort !== "name-asc";
+  const paginatedStudents = useListPagination({
+    items: filteredStudents,
+    pageSize: 10,
+    resetKey: `${filter}:${search}:${sort}`,
+  });
 
   return (
     <div className="grid gap-6">
@@ -167,7 +174,7 @@ export function CoachStudentsPanel({
               </thead>
               <tbody>
                 {filteredStudents.length ? (
-                  filteredStudents.map((student) => (
+                  paginatedStudents.pageItems.map((student) => (
                     <tr key={student.id} className="border-b border-slate-100 align-top last:border-b-0">
                       <td className="px-6 py-6">
                         <div className="flex items-center gap-4">
@@ -228,6 +235,16 @@ export function CoachStudentsPanel({
             </table>
           </div>
         </div>
+        {filteredStudents.length ? (
+          <PaginationControls
+            itemLabel="ogrenci"
+            onPageChange={paginatedStudents.setPage}
+            page={paginatedStudents.page}
+            pageCount={paginatedStudents.pageCount}
+            pageSize={paginatedStudents.pageSize}
+            totalItems={paginatedStudents.totalItems}
+          />
+        ) : null}
       </section>
     </div>
   );

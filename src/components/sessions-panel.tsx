@@ -14,9 +14,11 @@ import {
 import { tr } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
+import { PaginationControls } from "@/components/pagination-controls";
 import { SessionActions } from "@/components/session-actions";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { useListPagination } from "@/components/use-list-pagination";
 import type { Area, AttendanceStudent, CoachOption, ProgramOption, SessionRecord } from "@/lib/types";
 
 type SessionView = "calendar" | "list";
@@ -109,6 +111,11 @@ export function SessionsPanel({
       return true;
     });
   }, [areaFilter, coachFilter, search, sessions, sportsBranchFilter]);
+  const paginatedSessions = useListPagination({
+    items: filteredSessions,
+    pageSize: 8,
+    resetKey: `${search}:${sportsBranchFilter}:${coachFilter}:${areaFilter}`,
+  });
 
   const calendarSessions = useMemo(() => {
     const weekEnd = addDays(weekStart, 6);
@@ -356,7 +363,7 @@ export function SessionsPanel({
       ) : (
         <div className="grid gap-4 px-6 py-7">
           {filteredSessions.length ? (
-            filteredSessions.map((session) => (
+            paginatedSessions.pageItems.map((session) => (
               <article
                 key={session.id}
                 className="surface-panel rounded-[1.8rem] border border-white/50 px-6 py-5"
@@ -401,6 +408,16 @@ export function SessionsPanel({
               Bu filtrelerle gosterilecek seans bulunmuyor.
             </div>
           )}
+          {filteredSessions.length ? (
+            <PaginationControls
+              itemLabel="seans"
+              onPageChange={paginatedSessions.setPage}
+              page={paginatedSessions.page}
+              pageCount={paginatedSessions.pageCount}
+              pageSize={paginatedSessions.pageSize}
+              totalItems={paginatedSessions.totalItems}
+            />
+          ) : null}
         </div>
       )}
       </section>

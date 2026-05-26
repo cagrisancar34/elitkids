@@ -77,5 +77,8 @@
 ## Not
 - `current_role()` uygulama rolu icin kullanilmaya devam eder.
 - `current_security_role()` ek enterprise rol katmanidir.
+- Yazma yetkileri `FOR ALL` policy yerine `INSERT`/`UPDATE`/`DELETE`
+  policy'lerine bolunur; bu, okuma policy'leriyle ayni role/action uzerinde
+  birden fazla permissive policy olusmasini azaltir.
 - Uretim oncesi SQL migration:
   - `/Users/spor/Local Sites/elitkids/supabase/migrations/0015_enterprise_security_hardening.sql`

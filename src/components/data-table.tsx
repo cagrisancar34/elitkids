@@ -18,6 +18,7 @@ type CellValue = string | number | null | undefined;
 
 type DataTableProps<T extends Record<string, CellValue>> = {
   columns: Column<T>[];
+  emptyMessage?: string;
   rows: T[];
   rowKey?: (row: T, index: number) => string;
   rowClassName?: (row: T, index: number) => string;
@@ -51,6 +52,7 @@ function statusToVariant(status: string): "neutral" | "success" | "warning" | "d
 
 export function DataTable<T extends Record<string, CellValue>>({
   columns,
+  emptyMessage = "Gosterilecek kayit yok.",
   rows,
   rowKey,
   rowClassName,
@@ -67,31 +69,39 @@ export function DataTable<T extends Record<string, CellValue>>({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((row, index) => (
-              <TableRow
-                key={rowKey?.(row, index) ?? index}
-                className={cn(
-                  "border-b-slate-100 transition-colors duration-200 hover:bg-white/60",
-                  rowClassName?.(row, index)
-                )}
-              >
-                {columns.map((column) => {
-                  const value = row[column.key];
-                  const isStatusColumn =
-                    String(column.key).includes("status") || column.key === "status";
+            {rows.length ? (
+              rows.map((row, index) => (
+                <TableRow
+                  key={rowKey?.(row, index) ?? index}
+                  className={cn(
+                    "border-b-slate-100 transition-colors duration-200 hover:bg-white/60",
+                    rowClassName?.(row, index)
+                  )}
+                >
+                  {columns.map((column) => {
+                    const value = row[column.key];
+                    const isStatusColumn =
+                      String(column.key).includes("status") || column.key === "status";
 
-                  return (
-                    <TableCell key={String(column.key)}>
-                      {isStatusColumn ? (
-                        <Badge variant={statusToVariant(String(value ?? ""))}>{String(value ?? "--")}</Badge>
-                      ) : (
-                        value ?? "--"
-                      )}
-                    </TableCell>
-                  );
-                })}
+                    return (
+                      <TableCell key={String(column.key)}>
+                        {isStatusColumn ? (
+                          <Badge variant={statusToVariant(String(value ?? ""))}>{String(value ?? "--")}</Badge>
+                        ) : (
+                          value ?? "--"
+                        )}
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="py-10 text-center text-sm font-medium text-slate-500">
+                  {emptyMessage}
+                </TableCell>
               </TableRow>
-            ))}
+            )}
           </TableBody>
         </Table>
       </div>

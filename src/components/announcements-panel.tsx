@@ -2,9 +2,11 @@
 
 import { useMemo, useState } from "react";
 
+import { PaginationControls } from "@/components/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { useListPagination } from "@/components/use-list-pagination";
 import type { AnnouncementRecord } from "@/lib/types";
 
 type AnnouncementFilter = "all" | "all-users" | "manager" | "coach" | "parent";
@@ -87,6 +89,11 @@ export function AnnouncementsPanel({
   }, [announcements, filter, normalizedSearch, sort]);
 
   const hasCustomView = filter !== "all" || search.length > 0 || sort !== "latest";
+  const paginatedAnnouncements = useListPagination({
+    items: filteredAnnouncements,
+    pageSize: 8,
+    resetKey: `${filter}:${search}:${sort}`,
+  });
 
   return (
     <div className="grid gap-4">
@@ -141,7 +148,7 @@ export function AnnouncementsPanel({
       ) : null}
       <div className="grid gap-4">
         {filteredAnnouncements.length ? (
-          filteredAnnouncements.map((announcement) => (
+          paginatedAnnouncements.pageItems.map((announcement) => (
             <article key={`${announcement.title}-${announcement.time}`} className="surface-muted rounded-[1.3rem] p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -162,6 +169,16 @@ export function AnnouncementsPanel({
           </div>
         )}
       </div>
+      {filteredAnnouncements.length ? (
+        <PaginationControls
+          itemLabel="duyuru"
+          onPageChange={paginatedAnnouncements.setPage}
+          page={paginatedAnnouncements.page}
+          pageCount={paginatedAnnouncements.pageCount}
+          pageSize={paginatedAnnouncements.pageSize}
+          totalItems={paginatedAnnouncements.totalItems}
+        />
+      ) : null}
     </div>
   );
 }

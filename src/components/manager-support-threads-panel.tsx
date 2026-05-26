@@ -7,6 +7,7 @@ import {
   type CommunicationActionState,
   updateManagerSupportThreadStatusAction,
 } from "@/app/(app)/manager/communication/actions";
+import { PaginationControls } from "@/components/pagination-controls";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,6 +18,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { useListPagination } from "@/components/use-list-pagination";
 import type { SupportThread, SupportThreadMessage, SupportThreadStatusKey } from "@/lib/types";
 
 const initialState: CommunicationActionState = {
@@ -40,6 +42,15 @@ export function ManagerSupportThreadsPanel({
       threads.filter((thread) => statusFilter === "all" || thread.statusKey === statusFilter),
     [statusFilter, threads],
   );
+  const focusedThreadIndex = focusThreadId
+    ? filteredThreads.findIndex((thread) => thread.id === focusThreadId)
+    : -1;
+  const paginatedThreads = useListPagination({
+    items: filteredThreads,
+    pageSize: 6,
+    resetKey: `${statusFilter}:${focusThreadId ?? ""}`,
+    resetPage: focusedThreadIndex >= 0 ? Math.floor(focusedThreadIndex / 6) + 1 : 1,
+  });
 
   if (!threads.length) {
     return <div className="text-sm font-medium text-slate-500 py-4 text-center">Açık destek talebi bulunmuyor.</div>;
@@ -68,7 +79,7 @@ export function ManagerSupportThreadsPanel({
           </button>
         ))}
       </div>
-      {filteredThreads.map((thread) => (
+      {paginatedThreads.pageItems.map((thread) => (
         <div
           key={thread.id ?? `${thread.subject}-${thread.updatedAt}`}
           id={thread.id ? `support-thread-${thread.id}` : undefined}
@@ -100,6 +111,16 @@ export function ManagerSupportThreadsPanel({
           ) : null}
         </div>
       ))}
+      {filteredThreads.length ? (
+        <PaginationControls
+          itemLabel="talep"
+          onPageChange={paginatedThreads.setPage}
+          page={paginatedThreads.page}
+          pageCount={paginatedThreads.pageCount}
+          pageSize={paginatedThreads.pageSize}
+          totalItems={paginatedThreads.totalItems}
+        />
+      ) : null}
       {!filteredThreads.length ? (
         <div className="rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
           Bu filtrede gosterilecek destek threadi bulunmuyor.

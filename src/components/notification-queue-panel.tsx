@@ -2,9 +2,11 @@
 
 import { useMemo, useState } from "react";
 
+import { PaginationControls } from "@/components/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { useListPagination } from "@/components/use-list-pagination";
 import type { NotificationRecord } from "@/lib/types";
 
 type NotificationFilter = "all" | "queued" | "read";
@@ -71,6 +73,11 @@ export function NotificationQueuePanel({
   }, [filter, normalizedSearch, notifications, sort]);
 
   const hasCustomView = filter !== "all" || search.length > 0 || sort !== "status";
+  const paginatedNotifications = useListPagination({
+    items: filteredNotifications,
+    pageSize: 8,
+    resetKey: `${filter}:${search}:${sort}`,
+  });
 
   return (
     <div className="grid gap-4">
@@ -128,7 +135,7 @@ export function NotificationQueuePanel({
       ) : null}
       <div className="grid gap-4">
         {filteredNotifications.length ? (
-          filteredNotifications.map((notification) => (
+          paginatedNotifications.pageItems.map((notification) => (
             <div key={`${notification.title}-${notification.status}`} className="surface-panel rounded-[1.3rem] border border-white/40 p-5">
               <div className="font-display text-[1.2rem] font-semibold tracking-[-0.03em] text-foreground">
                 {notification.title}
@@ -144,6 +151,16 @@ export function NotificationQueuePanel({
           </div>
         )}
       </div>
+      {filteredNotifications.length ? (
+        <PaginationControls
+          itemLabel="bildirim"
+          onPageChange={paginatedNotifications.setPage}
+          page={paginatedNotifications.page}
+          pageCount={paginatedNotifications.pageCount}
+          pageSize={paginatedNotifications.pageSize}
+          totalItems={paginatedNotifications.totalItems}
+        />
+      ) : null}
     </div>
   );
 }

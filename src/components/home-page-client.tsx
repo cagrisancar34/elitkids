@@ -279,9 +279,9 @@ export function HomePageClient({ initialContent }: { initialContent: LandingCont
                   {content.hero.eyebrow}
                 </div>
 
-                <h1 className="mt-10 max-w-[9ch] whitespace-pre-line font-display text-[3.6rem] font-black leading-[0.9] tracking-[-0.065em] text-white sm:text-[4.3rem] lg:text-[5.7rem] xl:text-[6.2rem]">
-                  {content.hero.title}
-                  <span className="mt-1 block whitespace-pre-line bg-gradient-to-b from-sky-300 via-[#44c5ff] to-[#1b98ff] bg-clip-text text-transparent">
+                <h1 className="mt-10 font-display text-[3.6rem] font-black leading-[0.9] tracking-[-0.065em] text-white sm:text-[4.3rem] lg:text-[5.7rem] xl:text-[6.2rem]">
+                  <span className="block max-w-[9ch] whitespace-pre-line">{content.hero.title}</span>
+                  <span className="mt-1 block max-w-[10ch] whitespace-pre-line bg-gradient-to-b from-sky-300 via-[#44c5ff] to-[#1b98ff] bg-clip-text text-transparent">
                     {content.hero.highlight}
                   </span>
                 </h1>

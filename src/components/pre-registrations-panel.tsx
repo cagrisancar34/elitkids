@@ -22,6 +22,7 @@ import {
   type PreRegistrationActionState,
 } from "@/app/(app)/manager/pre-registrations/actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { PaginationControls } from "@/components/pagination-controls";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -33,6 +34,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useListPagination } from "@/components/use-list-pagination";
 import type {
   PreRegistrationOption,
   PreRegistrationRecord,
@@ -90,10 +92,15 @@ export function PreRegistrationsPanel({
       return matchesQuery && matchesStatus;
     });
   }, [query, records, statusFilter]);
+  const paginatedRecords = useListPagination({
+    items: filteredRecords,
+    pageSize: 10,
+    resetKey: `${query}:${statusFilter}`,
+  });
 
   const selectedRecord =
-    filteredRecords.find((record) => record.id === selectedRecordId) ??
-    filteredRecords[0] ??
+    paginatedRecords.pageItems.find((record) => record.id === selectedRecordId) ??
+    paginatedRecords.pageItems[0] ??
     null;
 
   return (
@@ -136,7 +143,7 @@ export function PreRegistrationsPanel({
               </thead>
               <tbody>
                 {filteredRecords.length ? (
-                  filteredRecords.map((record) => (
+                  paginatedRecords.pageItems.map((record) => (
                     <tr key={record.id} className="border-b border-border/70 last:border-b-0">
                       <td className="px-5 py-4 align-top">
                         <button
@@ -180,6 +187,17 @@ export function PreRegistrationsPanel({
               </tbody>
             </table>
           </div>
+          {filteredRecords.length ? (
+            <PaginationControls
+              className="rounded-none border-t border-border bg-secondary/20"
+              itemLabel="basvuru"
+              onPageChange={paginatedRecords.setPage}
+              page={paginatedRecords.page}
+              pageCount={paginatedRecords.pageCount}
+              pageSize={paginatedRecords.pageSize}
+              totalItems={paginatedRecords.totalItems}
+            />
+          ) : null}
         </div>
 
         <div className="rounded-[1.6rem] border border-border bg-card p-5 shadow-[0_18px_44px_rgba(18,43,84,0.08)]">

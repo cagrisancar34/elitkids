@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 
+import { PaginationControls } from "@/components/pagination-controls";
 import { SeasonSettingsCard } from "@/components/season-settings-card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { useListPagination } from "@/components/use-list-pagination";
 import { cn } from "@/lib/utils";
 import type { SeasonSetting } from "@/lib/types";
 
@@ -74,6 +76,11 @@ export function SeasonSettingsPanel({ seasons }: { seasons: SeasonSetting[] }) {
     });
 
   const hasCustomView = filter !== "all" || search.length > 0 || sort !== "latest";
+  const paginatedSeasons = useListPagination({
+    items: filteredSeasons,
+    pageSize: 6,
+    resetKey: `${filter}:${search}:${sort}`,
+  });
 
   return (
     <div className="grid gap-4">
@@ -99,7 +106,9 @@ export function SeasonSettingsPanel({ seasons }: { seasons: SeasonSetting[] }) {
       </div>
       <div className="surface-muted flex items-center justify-between gap-3 rounded-[1.15rem] px-4 py-3 text-sm text-muted-foreground">
         <span>{filterLabels[filter]} gorunumu</span>
-        <span>{filteredSeasons.length} kayit</span>
+        <span>
+          {filteredSeasons.length} kayit · sayfa {paginatedSeasons.page}/{paginatedSeasons.pageCount}
+        </span>
       </div>
       <div className="grid gap-3 md:grid-cols-[1fr_220px]">
         <Input
@@ -137,13 +146,23 @@ export function SeasonSettingsPanel({ seasons }: { seasons: SeasonSetting[] }) {
       ) : null}
       <div className="grid gap-3 transition-all duration-200">
         {filteredSeasons.length ? (
-          filteredSeasons.map((season) => <SeasonSettingsCard key={season.id} season={season} />)
+          paginatedSeasons.pageItems.map((season) => <SeasonSettingsCard key={season.id} season={season} />)
         ) : (
           <div className="rounded-[1.25rem] bg-accent p-4 text-sm leading-6 text-muted-foreground">
             Bu filtre ve arama sonucunda gosterilecek sezon yok.
           </div>
         )}
       </div>
+      {filteredSeasons.length ? (
+        <PaginationControls
+          itemLabel="sezon"
+          onPageChange={paginatedSeasons.setPage}
+          page={paginatedSeasons.page}
+          pageCount={paginatedSeasons.pageCount}
+          pageSize={paginatedSeasons.pageSize}
+          totalItems={paginatedSeasons.totalItems}
+        />
+      ) : null}
     </div>
   );
 }

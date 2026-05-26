@@ -4,9 +4,11 @@ import Image from "next/image";
 import { useMemo, useState } from "react";
 import { Download, Funnel, Search, Sparkles } from "lucide-react";
 
+import { PaginationControls } from "@/components/pagination-controls";
 import { StudentActions } from "@/components/student-actions";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { useListPagination } from "@/components/use-list-pagination";
 import type {
   DetailQuestionRecord,
   ManagerStudentListRow,
@@ -201,6 +203,11 @@ export function ManagerStudentsPanel({
       return haystack.includes(normalizedSearch);
     });
   }, [ageBand, normalizedSearch, payment, program, sourceStudents]);
+  const paginatedStudents = useListPagination({
+    items: filteredStudents,
+    pageSize: 12,
+    resetKey: `${view}:${search}:${ageBand}:${program}:${payment}`,
+  });
 
   return (
     <div className="grid gap-8">
@@ -325,7 +332,7 @@ export function ManagerStudentsPanel({
             </thead>
             <tbody>
               {filteredStudents.length ? (
-                filteredStudents.map((student) => (
+                paginatedStudents.pageItems.map((student) => (
                   <tr key={student.id} className="border-b border-slate-50 align-middle hover:bg-slate-50/80 transition-colors last:border-b-0 group">
                     <td className="px-6 py-5">
                       <div className="flex items-center gap-4">
@@ -414,8 +421,8 @@ export function ManagerStudentsPanel({
 
         <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-6 py-4 text-xs font-bold uppercase tracking-widest text-slate-400">
           <p>
-            {sourceStudents.length} SPORCU ARASINDAN {filteredStudents.length === 0 ? 0 : 1}-
-            {filteredStudents.length} LİSTELENİYOR
+            {sourceStudents.length} SPORCU ARASINDAN {filteredStudents.length === 0 ? 0 : paginatedStudents.startIndex + 1}-
+            {paginatedStudents.endIndex} LİSTELENİYOR
           </p>
         </div>
       </div>
@@ -423,7 +430,7 @@ export function ManagerStudentsPanel({
       {/* MOBILE LIST */}
       <div className="grid gap-4 lg:hidden">
         {filteredStudents.length ? (
-          filteredStudents.map((student) => {
+          paginatedStudents.pageItems.map((student) => {
             const derivedAge = resolveAge(student.birthDate);
             const derivedBand = getAgeBand(derivedAge);
             const paymentState = getPaymentState(student);
@@ -505,6 +512,16 @@ export function ManagerStudentsPanel({
           </div>
         )}
       </div>
+      {filteredStudents.length ? (
+        <PaginationControls
+          itemLabel="sporcu"
+          onPageChange={paginatedStudents.setPage}
+          page={paginatedStudents.page}
+          pageCount={paginatedStudents.pageCount}
+          pageSize={paginatedStudents.pageSize}
+          totalItems={paginatedStudents.totalItems}
+        />
+      ) : null}
     </div>
   );
 }

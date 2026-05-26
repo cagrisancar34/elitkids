@@ -9,9 +9,11 @@ import {
   updateManagerMessageTopicAction,
 } from "@/app/(app)/manager/communication/actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { PaginationControls } from "@/components/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { useListPagination } from "@/components/use-list-pagination";
 import type {
   MessageTopic,
   ProgramOption,
@@ -125,8 +127,10 @@ export function WhatsAppCampaignPanel({
   const [sendMode, setSendMode] = useState<"meta" | "web">("meta");
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [messageDraft, setMessageDraft] = useState(editableTopics[0]?.bodyTemplate ?? "");
+  const campaignRows = useMemo(() => overview?.campaigns ?? [], [overview?.campaigns]);
+  const dispatchRows = useMemo(() => overview?.dispatches ?? [], [overview?.dispatches]);
   const dispatchSummary = useMemo(() => {
-    const dispatches = overview?.dispatches ?? [];
+    const dispatches = dispatchRows;
     return {
       total: dispatches.length,
       sent: dispatches.filter((item) => item.status === "sent" || item.status === "delivered" || item.status === "read").length,
@@ -134,16 +138,26 @@ export function WhatsAppCampaignPanel({
       failed: dispatches.filter((item) => item.status === "failed" || item.status === "blocked").length,
       queued: dispatches.filter((item) => item.status === "queued" || item.status === "processing").length,
     };
-  }, [overview?.dispatches]);
+  }, [dispatchRows]);
   const campaignSummary = useMemo(() => {
-    const campaigns = overview?.campaigns ?? [];
+    const campaigns = campaignRows;
     return {
       total: campaigns.length,
       completed: campaigns.filter((item) => item.status === "completed").length,
       queued: campaigns.filter((item) => item.status === "queued" || item.status === "processing").length,
       failed: campaigns.filter((item) => item.status === "failed").length,
     };
-  }, [overview?.campaigns]);
+  }, [campaignRows]);
+  const paginatedCampaigns = useListPagination({
+    items: campaignRows,
+    pageSize: 6,
+    resetKey: `campaigns:${campaignRows.length}`,
+  });
+  const paginatedDispatches = useListPagination({
+    items: dispatchRows,
+    pageSize: 6,
+    resetKey: `dispatches:${dispatchRows.length}`,
+  });
 
   const selectedTopic = useMemo(
     () => (overview?.messageTopics ?? []).find((topic) => topic.topicKey === topicKey) ?? null,
@@ -435,23 +449,33 @@ export function WhatsAppCampaignPanel({
       <div className="grid gap-4 xl:grid-cols-2">
         <div className="grid gap-3">
           <div className="text-sm font-semibold text-foreground">Kampanya gecmisi</div>
-          {(overview?.campaigns ?? []).length ? (
-            overview?.campaigns.map((campaign) => (
-              <div key={campaign.id} className="surface-muted rounded-[1.2rem] border border-white/50 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold text-foreground">{campaign.title}</div>
-                    <div className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                      {campaign.topicKey ? getMessageTopicLabel(campaign.topicKey) : "Konu yok"}
+          {campaignRows.length ? (
+            <>
+              {paginatedCampaigns.pageItems.map((campaign) => (
+                <div key={campaign.id} className="surface-muted rounded-[1.2rem] border border-white/50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-foreground">{campaign.title}</div>
+                      <div className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                        {campaign.topicKey ? getMessageTopicLabel(campaign.topicKey) : "Konu yok"}
+                      </div>
+                    </div>
+                    <div className="inline-flex rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
+                      {formatCampaignStatus(campaign.status)}
                     </div>
                   </div>
-                  <div className="inline-flex rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
-                    {formatCampaignStatus(campaign.status)}
-                  </div>
+                  <div className="mt-2 text-sm text-muted-foreground">{formatSegmentLabel(campaign.audienceType)}</div>
                 </div>
-                <div className="mt-2 text-sm text-muted-foreground">{formatSegmentLabel(campaign.audienceType)}</div>
-              </div>
-            ))
+              ))}
+              <PaginationControls
+                itemLabel="kampanya"
+                onPageChange={paginatedCampaigns.setPage}
+                page={paginatedCampaigns.page}
+                pageCount={paginatedCampaigns.pageCount}
+                pageSize={paginatedCampaigns.pageSize}
+                totalItems={paginatedCampaigns.totalItems}
+              />
+            </>
           ) : (
             <div className="surface-muted rounded-[1.2rem] border border-white/50 p-4 text-sm text-muted-foreground">
               Henuz WhatsApp kampanyasi olusturulmadi.
@@ -461,23 +485,33 @@ export function WhatsAppCampaignPanel({
 
         <div className="grid gap-3">
           <div className="text-sm font-semibold text-foreground">Dispatch gecmisi</div>
-          {(overview?.dispatches ?? []).length ? (
-            overview?.dispatches.map((dispatch) => (
-              <div key={dispatch.id} className="surface-muted rounded-[1.2rem] border border-white/50 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-semibold text-foreground">{dispatch.recipientName}</div>
-                  <div className="inline-flex rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
-                    {WHATSAPP_STATUS_LABELS[dispatch.status]}
+          {dispatchRows.length ? (
+            <>
+              {paginatedDispatches.pageItems.map((dispatch) => (
+                <div key={dispatch.id} className="surface-muted rounded-[1.2rem] border border-white/50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-foreground">{dispatch.recipientName}</div>
+                    <div className="inline-flex rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
+                      {WHATSAPP_STATUS_LABELS[dispatch.status]}
+                    </div>
                   </div>
+                  <div className="mt-2 text-sm text-muted-foreground">{dispatch.recipientPhone}</div>
+                  {dispatch.lastError ? (
+                    <div className="mt-3 rounded-[1rem] bg-destructive/8 px-3 py-2 text-sm text-destructive">
+                      {dispatch.lastError}
+                    </div>
+                  ) : null}
                 </div>
-                <div className="mt-2 text-sm text-muted-foreground">{dispatch.recipientPhone}</div>
-                {dispatch.lastError ? (
-                  <div className="mt-3 rounded-[1rem] bg-destructive/8 px-3 py-2 text-sm text-destructive">
-                    {dispatch.lastError}
-                  </div>
-                ) : null}
-              </div>
-            ))
+              ))}
+              <PaginationControls
+                itemLabel="dispatch"
+                onPageChange={paginatedDispatches.setPage}
+                page={paginatedDispatches.page}
+                pageCount={paginatedDispatches.pageCount}
+                pageSize={paginatedDispatches.pageSize}
+                totalItems={paginatedDispatches.totalItems}
+              />
+            </>
           ) : (
             <div className="surface-muted rounded-[1.2rem] border border-white/50 p-4 text-sm text-muted-foreground">
               Henuz dispatch gecmisi olusmadi.

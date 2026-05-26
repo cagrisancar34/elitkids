@@ -6,6 +6,7 @@ import {
   replySupportThreadAction,
   type SupportActionState,
 } from "@/app/(app)/parent/support/actions";
+import { PaginationControls } from "@/components/pagination-controls";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useListPagination } from "@/components/use-list-pagination";
 import type { SupportThread, SupportThreadMessage } from "@/lib/types";
 
 type ThreadFilter = "all" | "open" | "closed";
@@ -66,6 +68,11 @@ export function ParentSupportPanel({ threads }: { threads: SupportThread[] }) {
   }, [filter, normalizedSearch, sort, threads]);
 
   const hasCustomView = filter !== "all" || search.length > 0 || sort !== "latest";
+  const paginatedThreads = useListPagination({
+    items: filteredThreads,
+    pageSize: 6,
+    resetKey: `${filter}:${search}:${sort}`,
+  });
 
   return (
     <div className="grid gap-6">
@@ -143,7 +150,7 @@ export function ParentSupportPanel({ threads }: { threads: SupportThread[] }) {
 
         <div className="grid gap-3">
           {filteredThreads.length ? (
-            filteredThreads.map((thread) => (
+            paginatedThreads.pageItems.map((thread) => (
               <article key={thread.id ?? `${thread.subject}-${thread.updatedAt}`} className="page-surface rounded-[1.55rem] px-5 py-5">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -172,6 +179,16 @@ export function ParentSupportPanel({ threads }: { threads: SupportThread[] }) {
             </div>
           )}
         </div>
+        {filteredThreads.length ? (
+          <PaginationControls
+            itemLabel="talep"
+            onPageChange={paginatedThreads.setPage}
+            page={paginatedThreads.page}
+            pageCount={paginatedThreads.pageCount}
+            pageSize={paginatedThreads.pageSize}
+            totalItems={paginatedThreads.totalItems}
+          />
+        ) : null}
       </section>
     </div>
   );

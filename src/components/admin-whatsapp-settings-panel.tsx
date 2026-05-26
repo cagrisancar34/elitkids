@@ -10,9 +10,11 @@ import {
   updateWhatsAppTemplateAction,
 } from "@/app/(app)/admin/settings/actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { PaginationControls } from "@/components/pagination-controls";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { useListPagination } from "@/components/use-list-pagination";
 import type { WhatsAppSettingsOverview } from "@/lib/types";
 import { getMessageTopicLabel } from "@/lib/message-topics";
 import { WHATSAPP_EVENT_KEYS, WHATSAPP_STATUS_LABELS } from "@/lib/whatsapp";
@@ -127,6 +129,12 @@ export function AdminWhatsAppSettingsPanel({
 }) {
   const [queueState, processQueueAction] = useActionState(processWhatsAppQueueAction, initialState);
   const [testState, testAction] = useActionState(sendWhatsAppTestAction, initialState);
+  const dispatchRows = overview?.dispatches ?? [];
+  const paginatedDispatches = useListPagination({
+    items: dispatchRows,
+    pageSize: 6,
+    resetKey: `dispatches:${dispatchRows.length}`,
+  });
 
   return (
     <div className="grid gap-6">
@@ -254,26 +262,36 @@ export function AdminWhatsAppSettingsPanel({
           </form>
 
           <div className="grid gap-3">
-            {(overview?.dispatches ?? []).length ? (
-              overview?.dispatches.map((dispatch) => (
-                <div key={dispatch.id} className="surface-muted rounded-[1.25rem] border border-white/50 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-foreground">{dispatch.recipientName}</div>
-                    <div className="inline-flex rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
-                      {WHATSAPP_STATUS_LABELS[dispatch.status]}
+            {dispatchRows.length ? (
+              <>
+                {paginatedDispatches.pageItems.map((dispatch) => (
+                  <div key={dispatch.id} className="surface-muted rounded-[1.25rem] border border-white/50 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-semibold text-foreground">{dispatch.recipientName}</div>
+                      <div className="inline-flex rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
+                        {WHATSAPP_STATUS_LABELS[dispatch.status]}
+                      </div>
                     </div>
-                  </div>
-                  <div className="mt-2 text-sm text-muted-foreground">{dispatch.recipientPhone}</div>
-                  <div className="mt-3 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                    {labelizeEventKey(dispatch.eventKey)}
-                  </div>
-                  {dispatch.lastError ? (
-                    <div className="mt-3 rounded-[1rem] bg-destructive/8 px-3 py-2 text-sm text-destructive">
-                      {dispatch.lastError}
+                    <div className="mt-2 text-sm text-muted-foreground">{dispatch.recipientPhone}</div>
+                    <div className="mt-3 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                      {labelizeEventKey(dispatch.eventKey)}
                     </div>
-                  ) : null}
-                </div>
-              ))
+                    {dispatch.lastError ? (
+                      <div className="mt-3 rounded-[1rem] bg-destructive/8 px-3 py-2 text-sm text-destructive">
+                        {dispatch.lastError}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+                <PaginationControls
+                  itemLabel="dispatch"
+                  onPageChange={paginatedDispatches.setPage}
+                  page={paginatedDispatches.page}
+                  pageCount={paginatedDispatches.pageCount}
+                  pageSize={paginatedDispatches.pageSize}
+                  totalItems={paginatedDispatches.totalItems}
+                />
+              </>
             ) : (
               <div className="surface-muted rounded-[1.25rem] border border-white/50 p-4 text-sm text-muted-foreground">
                 Henuz WhatsApp dispatch gecmisi yok.

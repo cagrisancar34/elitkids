@@ -3,9 +3,11 @@
 import { useMemo, useState } from "react";
 import { Clock3, MapPin, UserRound } from "lucide-react";
 
+import { PaginationControls } from "@/components/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { useListPagination } from "@/components/use-list-pagination";
 import type { SessionRecord } from "@/lib/types";
 
 type ScheduleSort = "slot-asc" | "title-asc" | "coach-asc";
@@ -41,6 +43,11 @@ export function ParentSchedulePanel({ sessions }: { sessions: SessionRecord[] })
   }, [normalizedSearch, sessions, sort]);
 
   const hasCustomView = search.length > 0 || sort !== "slot-asc";
+  const paginatedSessions = useListPagination({
+    items: filteredSessions,
+    pageSize: 6,
+    resetKey: `${search}:${sort}`,
+  });
 
   return (
     <div className="grid gap-6">
@@ -97,7 +104,7 @@ export function ParentSchedulePanel({ sessions }: { sessions: SessionRecord[] })
 
         <div className="grid gap-6 xl:grid-cols-2">
           {filteredSessions.length ? (
-            filteredSessions.map((session) => (
+            paginatedSessions.pageItems.map((session) => (
               <article key={`${session.title}-${session.slot}`} className="page-surface rounded-[1.8rem] px-6 py-6">
                 <div className="inline-flex rounded-full bg-secondary px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-secondary-foreground">
                   <Clock3 className="mr-1.5 h-3.5 w-3.5" />
@@ -124,6 +131,16 @@ export function ParentSchedulePanel({ sessions }: { sessions: SessionRecord[] })
             </div>
           )}
         </div>
+        {filteredSessions.length ? (
+          <PaginationControls
+            itemLabel="ders"
+            onPageChange={paginatedSessions.setPage}
+            page={paginatedSessions.page}
+            pageCount={paginatedSessions.pageCount}
+            pageSize={paginatedSessions.pageSize}
+            totalItems={paginatedSessions.totalItems}
+          />
+        ) : null}
       </section>
     </div>
   );

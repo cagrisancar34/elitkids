@@ -26,11 +26,13 @@ import {
   updatePublicPageAction,
 } from "@/app/(app)/admin/public-site/actions";
 import { AdminLandingEditor } from "@/components/admin-landing-editor";
+import { PaginationControls } from "@/components/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { useListPagination } from "@/components/use-list-pagination";
 import {
   buildPublicPageChecklist,
   getPublicPageStatusLabel,
@@ -216,6 +218,13 @@ export function AdminPublicSiteCms({
         .includes(query),
     );
   }, [pages, search]);
+  const activePageIndex = filteredPages.findIndex((page) => page.id === activeId);
+  const paginatedPages = useListPagination({
+    items: filteredPages,
+    pageSize: 8,
+    resetKey: search,
+    resetPage: activePageIndex >= 0 ? Math.floor(activePageIndex / 8) + 1 : 1,
+  });
 
   const activeRecord =
     pages.find((page) => page.id === activeId) ?? pages.find((page) => page.id === "home") ?? null;
@@ -656,7 +665,7 @@ export function AdminPublicSiteCms({
         </div>
 
         <div className="mt-4 grid gap-3">
-          {filteredPages.map((page) => {
+          {paginatedPages.pageItems.map((page) => {
             const isActive = activeRecord?.id === page.id;
             const mutationKind =
               page.kind === "gallery" || page.kind === "seo" || page.kind === "custom"
@@ -759,7 +768,23 @@ export function AdminPublicSiteCms({
               </article>
             );
           })}
+          {!filteredPages.length ? (
+            <div className="rounded-[1.25rem] border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+              Bu arama ile eslesen public sayfa yok.
+            </div>
+          ) : null}
         </div>
+        {filteredPages.length ? (
+          <PaginationControls
+            className="mt-4"
+            itemLabel="sayfa"
+            onPageChange={paginatedPages.setPage}
+            page={paginatedPages.page}
+            pageCount={paginatedPages.pageCount}
+            pageSize={paginatedPages.pageSize}
+            totalItems={paginatedPages.totalItems}
+          />
+        ) : null}
       </aside>
 
       <section className="page-surface rounded-[2rem] px-6 py-6">

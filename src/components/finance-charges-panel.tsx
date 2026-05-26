@@ -3,9 +3,11 @@
 import { useMemo, useState } from "react";
 
 import { DataTable } from "@/components/data-table";
+import { PaginationControls } from "@/components/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { useListPagination } from "@/components/use-list-pagination";
 import type { ChargeRecord, PaymentLifecycleStatus } from "@/lib/types";
 
 type ChargeFilter = "all" | PaymentLifecycleStatus;
@@ -86,6 +88,11 @@ export function FinanceChargesPanel({
   }, [charges, filter, normalizedSearch, sort]);
 
   const hasCustomView = filter !== "all" || search.length > 0 || sort !== "due";
+  const paginatedCharges = useListPagination({
+    items: filteredCharges,
+    pageSize: 10,
+    resetKey: `${filter}:${search}:${sort}`,
+  });
 
   return (
     <div className="grid gap-6">
@@ -182,8 +189,18 @@ export function FinanceChargesPanel({
             { key: "remainingAmount", label: "Kalan" },
             { key: "status", label: "Durum" },
           ]}
-          rows={filteredCharges}
+          rows={paginatedCharges.pageItems}
         />
+        {filteredCharges.length ? (
+          <PaginationControls
+            itemLabel="tahakkuk"
+            onPageChange={paginatedCharges.setPage}
+            page={paginatedCharges.page}
+            pageCount={paginatedCharges.pageCount}
+            pageSize={paginatedCharges.pageSize}
+            totalItems={paginatedCharges.totalItems}
+          />
+        ) : null}
       </section>
     </div>
   );
