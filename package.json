@@ -15,7 +15,16 @@
     "preview": "npm run build && wrangler dev",
     "deploy": "npm run build && opennextjs-cloudflare deploy",
     "upload": "npm run build && opennextjs-cloudflare upload",
-    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "cms:dev": "npm --prefix apps/public-cms run dev",
+    "cms:build": "npm --prefix apps/public-cms run build",
+    "cms:bootstrap": "npm --prefix apps/public-cms run db:bootstrap",
+    "cms:migrate": "npm --prefix apps/public-cms run db:migrate",
+    "cms:test": "npm --prefix apps/public-cms test",
+    "cms:deploy:cloudflare-rollback": "npm --prefix apps/public-cms run deploy",
+    "gateway:dev": "npm --prefix apps/gateway run dev",
+    "gateway:test": "npm --prefix apps/gateway test",
+    "gateway:deploy": "npm --prefix apps/gateway run deploy"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

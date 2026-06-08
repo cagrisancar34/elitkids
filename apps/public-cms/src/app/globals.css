@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fbfaf6;
+  --foreground: #1f2421;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+::selection {
+  background: #d9783d;
+  color: #ffffff;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.news-rich-text {
+  color: #44403c;
+  font-size: 1.125rem;
+  line-height: 1.9;
+}
+
+.news-rich-text > * + * {
+  margin-top: 1.5rem;
+}
+
+.news-rich-text h2,
+.news-rich-text h3,
+.news-rich-text h4 {
+  color: #1c1917;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.news-rich-text h2 {
+  margin-top: 3rem;
+  font-size: 2.25rem;
+}
+
+.news-rich-text h3 {
+  margin-top: 2.5rem;
+  font-size: 1.75rem;
+}
+
+.news-rich-text h4 {
+  margin-top: 2rem;
+  font-size: 1.35rem;
+}
+
+.news-rich-text ul,
+.news-rich-text ol {
+  padding-left: 1.5rem;
+}
+
+.news-rich-text ul {
+  list-style: disc;
+}
+
+.news-rich-text ol {
+  list-style: decimal;
+}
+
+.news-rich-text li + li {
+  margin-top: 0.55rem;
+}
+
+.news-rich-text blockquote {
+  border-left: 4px solid #d9783d;
+  padding: 0.4rem 0 0.4rem 1.4rem;
+  color: #214d3f;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.35rem;
+  line-height: 1.7;
+}
+
+.news-rich-text a {
+  color: #21624a;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}

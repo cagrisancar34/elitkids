@@ -185,7 +185,9 @@ describe("security regression guardrails", () => {
   it("keeps middleware covering panels and APIs with private no-store responses", () => {
     const source = readProjectFile("src/middleware.ts");
 
-    expect(source).toMatch(/pathname\.startsWith\("\/admin"\)/);
+    expect(source).toMatch(/pathname === "\/admin"/);
+    expect(source).toMatch(/pathname\.startsWith\("\/admin\/"\)/);
+    expect(source).not.toMatch(/pathname\.startsWith\("\/admin2"\)/);
     expect(source).toMatch(/pathname\.startsWith\("\/manager"\)/);
     expect(source).toMatch(/pathname\.startsWith\("\/coach"\)/);
     expect(source).toMatch(/pathname\.startsWith\("\/parent"\)/);
@@ -291,6 +293,33 @@ describe("security regression guardrails", () => {
     expect(missingRls).toEqual([]);
   });
 
+  it("keeps Payload CMS isolated behind its dedicated database role", () => {
+    const migration = readProjectFile("supabase/migrations/0028_public_cms_infrastructure.sql");
+    const payloadConfig = readProjectFile("apps/public-cms/src/payload.config.ts");
+
+    expect(migration).toMatch(/create role payload_cms/);
+    expect(migration).toMatch(/revoke all on schema public_cms from public, anon, authenticated, service_role/);
+    expect(migration).toMatch(/grant usage, create on schema public_cms to payload_cms/);
+    expect(payloadConfig).toMatch(/schemaName: process\.env\.PAYLOAD_DB_SCHEMA \|\| "public_cms"/);
+    expect(payloadConfig).toMatch(/clientUploads: false/);
+  });
+
+  it("keeps the external Payload origin and public application endpoint guarded", () => {
+    const proxy = readProjectFile("apps/public-cms/src/proxy.ts");
+    const applicationRoute = readProjectFile("apps/public-cms/src/app/(payload)/cms-api/basvuru/route.ts");
+    const applications = readProjectFile("apps/public-cms/src/collections/Applications.ts");
+    const gateway = readProjectFile("apps/gateway/src/index.ts");
+
+    expect(proxy).toMatch(/CMS_ORIGIN_TOKEN/);
+    expect(proxy).toMatch(/hasValidCmsOriginToken/);
+    expect(applicationRoute).toMatch(/parseApplicationSubmission/);
+    expect(applicationRoute).toMatch(/consumeApplicationRateLimit/);
+    expect(applicationRoute).toMatch(/syncLegacyLead/);
+    expect(applications).not.toMatch(/create: \(\) => true/);
+    expect(gateway).toMatch(/CMS_ORIGIN_HEADER/);
+    expect(gateway).toMatch(/CMS_ROLLBACK/);
+  });
+
   it("keeps high-risk IDOR paths scoped by organization or ownership in the data layer", () => {
     const dashboardData = readProjectFile("src/lib/dashboard-data.ts");
     const parentPayments = readProjectFile("src/app/(app)/parent/payments/actions.ts");
@@ -299,5 +328,14 @@ describe("security regression guardrails", () => {
     expect(dashboardData).toMatch(/\.eq\("organization_id", organizationContext\.organizationId\)\s+\.eq\("id", studentId\)/);
     expect(dashboardData).toMatch(/if \(auth\.role === "parent"\) \{\s+query = query\.eq\("parent_profile_id", auth\.userId\);/);
     expect(parentPayments).toMatch(/\.eq\("parent_profile_id", auth\.userId\)/);
+  });
+
+  it("keeps the public sitemap aligned with the gateway and experience routes", () => {
+    const source = readProjectFile("src/app/sitemap.ts");
+
+    expect(source).toMatch(/url: `\$\{siteUrl\}\/`/);
+    expect(source).toMatch(/\/anasayfa2/);
+    expect(source).toMatch(/\/etkinlikler/);
+    expect(source).toMatch(/\/performans-akademisi/);
   });
 });

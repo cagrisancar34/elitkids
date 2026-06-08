@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "main": "src/index.ts",
+  "name": "elitkids-gateway",
+  "compatibility_date": "2026-04-04",
+  "services": [
+    { "binding": "LEGACY", "service": "elitkids" },
+    { "binding": "CMS_ROLLBACK", "service": "elitkids-public-cms" }
+  ],
+  "vars": {
+    "CMS_USE_ROLLBACK": "false"
+  },
+  "routes": [
+    { "pattern": "elitsanatvesporkulubu.com/*", "zone_name": "elitsanatvesporkulubu.com" },
+    { "pattern": "www.elitsanatvesporkulubu.com/*", "zone_name": "elitsanatvesporkulubu.com" }
+  ]
+}

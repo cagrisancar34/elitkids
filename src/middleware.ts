@@ -63,7 +63,8 @@ function resolveAppRoleFromClaims(claims: unknown) {
 
 function canAccessAppRoute(pathname: string, role: NonNullable<RouteAuthState["appRole"]>) {
   if (role === "admin") {
-    return pathname.startsWith("/admin") ||
+    return pathname === "/admin" ||
+      pathname.startsWith("/admin/") ||
       pathname.startsWith("/manager") ||
       pathname.startsWith("/coach") ||
       pathname.startsWith("/parent");
@@ -148,7 +149,8 @@ function redirectToLogin(request: NextRequest) {
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isPanelRoute =
-    pathname.startsWith("/admin") ||
+    pathname === "/admin" ||
+    pathname.startsWith("/admin/") ||
     pathname.startsWith("/manager") ||
     pathname.startsWith("/coach") ||
     pathname.startsWith("/parent");

@@ -2,6 +2,11 @@
 
 ## Public
 - `/`
+- `/site/*`
+- `/anasayfa2`
+- `/etkinlikler`
+- `/performans-akademisi`
+- `/galeri`
 - `/api/leads`
 - `/api/landing-content`
 - `/api/pre-registration-settings`
@@ -9,6 +14,10 @@
 - `/api/pre-registration-assets`
 - `/api/whatsapp/webhook`
   - Meta webhook `GET` verify token ile, `POST` `x-hub-signature-256` + `WHATSAPP_APP_SECRET` ile dogrulanir
+- `/cms-api/basvuru`
+  - Cloudflare gateway uzerinden Koyeb Payload servisine gider
+  - Zod dogrulamasi ve IP/user-agent tabanli rate limit uygulanir
+  - once Payload `applications` koleksiyonuna, sonra mevcut `/api/leads` akisina yazilir
 
 ## Auth
 - `/login`
@@ -20,6 +29,17 @@
 - `/admin/*`
   - `security_role`: `admin` veya `super_admin`
   - `app_role`: `admin`
+  - Dört Mevsim içerik yönetimi: `/admin/dort-mevsim-dogada`
+- `/admin2/*`
+  - ayri Koyeb Payload servisi
+  - Payload yerel kimlik dogrulamasi ve `admin`, `editor`, `form-tracker` rolleri
+  - Koyeb origin adresi yalnizca Cloudflare `X-CMS-Origin-Token` basligi ile acilir
+
+## Public CMS API
+- `/cms-api/*`
+  - `/cms-api/basvuru` disinda Payload koleksiyon erisim kurallari uygulanir
+  - public okuma yalnizca public site koleksiyonlarinda aciktir
+  - icerik mutasyonlari Payload oturumu ve rol kontrolu gerektirir
 
 ## Manager
 - `/manager/*`
