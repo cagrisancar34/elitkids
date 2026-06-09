@@ -19,7 +19,30 @@ const accessMatrix = [
 ];
 
 export default async function AdminPage() {
-  const { metrics, notifications } = await getAdminOverviewSummary();
+  const summary = await getAdminOverviewSummary().catch((error) => {
+  console.error("Admin page summary failed", error);
+
+  return {
+    metrics: [
+      { label: "Aktif kullanıcı", value: "0", delta: "Yedek veri" },
+      { label: "Rol kaydı", value: "0", delta: "Yedek veri" },
+      { label: "Okunmamış bildirim", value: "0", delta: "Yedek veri" },
+    ],
+    notifications: [],
+  };
+});
+
+const metrics = Array.isArray(summary?.metrics) && summary.metrics.length
+  ? summary.metrics
+  : [
+      { label: "Aktif kullanıcı", value: "0", delta: "Yedek veri" },
+      { label: "Rol kaydı", value: "0", delta: "Yedek veri" },
+      { label: "Okunmamış bildirim", value: "0", delta: "Yedek veri" },
+    ];
+
+const notifications = Array.isArray(summary?.notifications)
+  ? summary.notifications
+  : [];
 
   return (
     <AppShell
