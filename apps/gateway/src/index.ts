@@ -141,7 +141,7 @@ export default {
     }
    if (url.pathname === "/admin2" || url.pathname.startsWith("/admin2/")) {
   return env.LEGACY.fetch(request);
-}
+
     }
     if (url.pathname === CMS_ASSET_PREFIX || url.pathname.startsWith(`${CMS_ASSET_PREFIX}/`)) {
       return cmsRequest(request, env);
