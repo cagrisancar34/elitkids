@@ -31,7 +31,26 @@ npm run dev
 npm run lint
 npm run test
 npm run build
+npm run cms:dev
+npm run cms:build
+npm run cms:bootstrap
+npm run cms:migrate
+npm run cms:test
+npm run gateway:deploy
 ```
+
+## Public CMS route dagilimi
+
+- `/`: Dört Mevsim public ana sayfasi
+- `/admin2`: Koyeb uzerindeki gercek Payload Yonetim Merkezi
+- `/admin2/events`: Events Yonetimi ve basvuru takibi
+- `/admin2/public-site`: Dört Mevsim public site yayin merkezi
+- `/cms-api/basvuru`: Basvuruyu once Payload'a, sonra mevcut lead operasyonuna yazan guvenli Gateway rotasi
+- `/site/*`: Program, haber, galeri ve custom public sayfalar
+- `/anasayfa2`: Mevcut ElitKids ana sayfasi
+- `/admin`: Mevcut ElitKids operasyon paneli
+
+Koyeb, Supabase ve Cloudflare Gateway kurulum/yayin sirasi icin `docs/public-cms-deployment.md` dosyasini kullanin.
 
 ## Notlar
 
