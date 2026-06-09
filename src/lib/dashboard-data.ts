@@ -630,14 +630,23 @@ export async function getAdminNotifications() {
 }
 
 export async function getAdminOverviewSummary() {
-  const auth = await getCurrentAuthContext();
+  try {
+    const auth = await getCurrentAuthContext();
 
-  return withDashboardCache(`admin-overview:${auth?.userId ?? "anonymous"}`, async () => {
+    return withDashboardCache(`admin-overview:${auth?.userId ?? "anonymous"}`, async () => {
+      return {
+        metrics: await getAdminMetrics(),
+        notifications: await getAdminNotifications(),
+      } satisfies AdminOverviewSummary;
+    });
+  } catch (error) {
+    console.error("Admin overview summary failed", error);
+
     return {
-      metrics: await getAdminMetrics(),
-      notifications: await getAdminNotifications(),
+      metrics: metricsByRole.admin,
+      notifications: [],
     } satisfies AdminOverviewSummary;
-  });
+  }
 }
 
 export async function getAdminUsers() {
